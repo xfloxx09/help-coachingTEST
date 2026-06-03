@@ -640,6 +640,7 @@
                     <option value="all" {% if current_period_filter == 'all' %}selected{% endif %}>Alles</option>
                     <option value="7days" {% if current_period_filter == '7days' %}selected{% endif %}>Letzte 7 Tage</option>
                     <option value="30days" {% if current_period_filter == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+                    <option value="vonbis" {% if current_period_filter == 'vonbis' %}selected{% endif %}>Von–bis</option>
                     <option value="current_quarter" {% if current_period_filter == 'current_quarter' %}selected{% endif %}>Dieses Quartal</option>
                     <option value="current_year" {% if current_period_filter == 'current_year' %}selected{% endif %}>Dieses Jahr</option>
                     {% if month_options %}
@@ -654,13 +655,27 @@
                 </select>
             </div>
         </div>
+        <div class="col-md-auto" id="von_bis_date_wrap" style="{% if current_period_filter != 'vonbis' %}display:none;{% endif %}">
+            <div class="form-group mr-2 mb-0">
+                <label for="date_from" class="mr-2">Von:</label>
+                <input type="date" name="date_from" id="date_from" class="form-control form-control-sm"
+                       value="{{ coaching_dashboard_date_from or '' }}">
+            </div>
+        </div>
+        <div class="col-md-auto" id="von_bis_date_wrap_bis" style="{% if current_period_filter != 'vonbis' %}display:none;{% endif %}">
+            <div class="form-group mr-2 mb-0">
+                <label for="date_to" class="mr-2">Bis:</label>
+                <input type="date" name="date_to" id="date_to" class="form-control form-control-sm"
+                       value="{{ coaching_dashboard_date_to or '' }}">
+            </div>
+        </div>
 
         {# Project filter – only show if user has access to multiple projects #}
         {% if all_projects and all_projects|length > 0 %}
         <div class="col-md-auto">
             <div class="form-group mr-2">
                 <label for="project_filter" class="mr-2">Projekt:</label>
-                <select name="project" id="project_filter" class="form-control custom-select form-control-sm" onchange="var tf=document.getElementById('team_filter'); if(tf){tf.value='all';} this.form.submit();">
+                <select name="project" id="project_filter" class="form-control custom-select form-control-sm" onchange="var tf=document.getElementById('team_filter'); var cf=document.getElementById('coach_filter'); if(tf){tf.value='all';} if(cf){cf.value='all';} this.form.submit();">
                     {% if show_global_all_projects_option %}
                         {% if coaching_dashboard_project_all_is_blank %}
                         <option value="" {% if current_project_filter is none %}selected{% endif %}>Alle Projekte</option>
@@ -679,13 +694,29 @@
         <div class="col-md-auto">
             <div class="form-group mr-2">
                 <label for="team_filter" class="mr-2">Team:</label>
-                <select name="team" id="team_filter" class="form-control custom-select form-control-sm">
+                <select name="team" id="team_filter" class="form-control custom-select form-control-sm" onchange="var cf=document.getElementById('coach_filter'); if(cf){cf.value='all';} this.form.submit();">
                     <option value="all" {% if current_team_id_filter == 'all' or not current_team_id_filter %}selected{% endif %}>Alle Teams</option>
                     {% for team_obj in all_teams_for_filter %}
                     <option value="{{ team_obj.id }}" {% if current_team_id_filter == team_obj.id|string %}selected{% endif %}>
                         {{ team_obj.name }}
                     </option>
                     {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-auto">
+            <div class="form-group mr-2">
+                <label for="coach_filter" class="mr-2">Coach:</label>
+                <select name="coach" id="coach_filter" class="form-control custom-select form-control-sm"
+                        {% if current_team_id_filter == 'all' or not current_team_id_filter %}disabled{% endif %}>
+                    {% if current_team_id_filter == 'all' or not current_team_id_filter %}
+                    <option value="all" selected>Zuerst Team wählen</option>
+                    {% else %}
+                    <option value="all" {% if current_coach_id_filter == 'all' or not current_coach_id_filter %}selected{% endif %}>Alle Coaches</option>
+                    {% for c in coaches_for_filter %}
+                    <option value="{{ c[0] }}" {% if current_coach_id_filter == c[0]|string %}selected{% endif %}>{{ c[1] }}</option>
+                    {% endfor %}
+                    {% endif %}
                 </select>
             </div>
         </div>
@@ -710,6 +741,22 @@
         </div>
     </div>
 </form>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var periodSel = document.getElementById('period_filter');
+    var vonWrap = document.getElementById('von_bis_date_wrap');
+    var bisWrap = document.getElementById('von_bis_date_wrap_bis');
+    function toggleVonBis() {
+        var show = periodSel && periodSel.value === 'vonbis';
+        if (vonWrap) vonWrap.style.display = show ? '' : 'none';
+        if (bisWrap) bisWrap.style.display = show ? '' : 'none';
+    }
+    if (periodSel) {
+        periodSel.addEventListener('change', toggleVonBis);
+        toggleVonBis();
+    }
+});
+</script>
 
 <div class="row mb-4">
     <div class="col-md-6 mb-3">
@@ -789,6 +836,15 @@
         <form method="GET" action="{{ url_for('main.coaching_dashboard') }}" class="form-inline float-md-right w-100" id="searchFormInTitle">
             <input type="hidden" name="period" value="{{ current_period_filter }}">
             <input type="hidden" name="team" value="{{ current_team_id_filter }}">
+            {% if current_coach_id_filter is defined and current_coach_id_filter != 'all' %}
+            <input type="hidden" name="coach" value="{{ current_coach_id_filter }}">
+            {% endif %}
+            {% if current_period_filter == 'vonbis' and coaching_dashboard_date_from %}
+            <input type="hidden" name="date_from" value="{{ coaching_dashboard_date_from }}">
+            {% endif %}
+            {% if current_period_filter == 'vonbis' and coaching_dashboard_date_to %}
+            <input type="hidden" name="date_to" value="{{ coaching_dashboard_date_to }}">
+            {% endif %}
             {% if coaching_dashboard_url_project is not none %}
             <input type="hidden" name="project" value="{{ coaching_dashboard_url_project }}">
             {% endif %}
