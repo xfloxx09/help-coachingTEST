@@ -1,0 +1,98 @@
+{# Geplante Termine mit überschrittenem Planungsdatum — Schnellaktionen Verschieben / Entfernen #}
+{% if kind == 'coaching' %}
+    {% for it in rows %}
+    {% set is_mine = (it.coach_id == current_user.id) %}
+    <div class="list-group-item flex-column align-items-start planned-overdue-item">
+        <div class="d-flex w-100 justify-content-between align-items-center flex-wrap">
+            <div class="mb-2 mb-md-0">
+                <strong>{{ it.team_member.name }}</strong>
+                {% if it.team and it.team.name %}
+                <span class="text-muted">({{ it.team.name }})</span>
+                {% endif %}
+                <span class="badge badge-danger ml-2">geplant: {{ it.planned_for_date.strftime('%d.%m.%Y') }}</span>
+                {% if it.project %}
+                <span class="badge badge-secondary ml-1">{{ it.project.name }}</span>
+                {% endif %}
+                {% if not is_mine and it.coach %}
+                <span class="badge badge-outline-light border ml-1" style="color:#ccc;"><i class="fas fa-user-tie"></i> {{ it.coach.coach_display_name }}</span>
+                {% endif %}
+            </div>
+            <div class="d-flex flex-wrap align-items-center" style="gap: 0.35rem;">
+                {% if is_mine and has_perm('planned_coachings') %}
+                {% set proj = it.project_id or (it.team_member.team.project_id if it.team_member and it.team_member.team else None) %}
+                {% if proj %}
+                <a class="btn btn-sm telekom-button" style="background-color: #e20074; color: white; border-radius: 16px;"
+                   href="{{ url_for('main.add_coaching', project=proj, planned_id=it.id) }}">
+                    <i class="fas fa-chalkboard-teacher"></i> Jetzt coachen
+                </a>
+                {% endif %}
+                {% elif not is_mine %}
+                <span class="badge badge-secondary"><i class="fas fa-eye"></i> Nur Ansicht</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if is_mine and has_perm('planned_coachings') %}
+        <div class="planned-overdue-actions mt-3 pt-3 border-top border-secondary w-100">
+            <form method="post" action="{{ url_for('main.planned_coaching_update_date', planned_id=it.id) }}" class="form-inline d-flex flex-wrap align-items-center mb-2">
+                <input type="hidden" name="return_tab" value="ueberfaellig">
+                <label class="sr-only" for="overdue-plan-date-{{ it.id }}">Neues Datum</label>
+                <input type="date" class="form-control form-control-sm bg-dark text-light border-secondary mr-2 mb-1"
+                       id="overdue-plan-date-{{ it.id }}" name="planned_for_date"
+                       value="{{ today_d.strftime('%Y-%m-%d') }}" min="{{ today_d.strftime('%Y-%m-%d') }}" required>
+                <button type="submit" class="btn btn-sm btn-outline-warning mb-1"><i class="fas fa-calendar-alt"></i> Verschieben</button>
+            </form>
+            <form method="post" action="{{ url_for('main.planned_coaching_delete', planned_id=it.id) }}" class="d-inline mb-0"
+                  onsubmit="return confirm('Diese überfällige Planung wirklich entfernen?');">
+                <input type="hidden" name="return_tab" value="ueberfaellig">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Planung löschen</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+{% else %}
+    {% for it in rows %}
+    {% set is_mine_w = (it.coach_id == current_user.id) %}
+    <div class="list-group-item flex-column align-items-start planned-overdue-item">
+        <div class="d-flex w-100 justify-content-between align-items-center flex-wrap">
+            <div class="mb-2 mb-md-0">
+                <strong>{{ it.title }}</strong>
+                <span class="badge badge-danger ml-2">geplant: {{ it.planned_for_date.strftime('%d.%m.%Y') }}</span>
+                {% if it.project %}
+                <span class="badge badge-secondary ml-1">{{ it.project.name }}</span>
+                {% endif %}
+                {% if not is_mine_w and it.coach %}
+                <span class="badge badge-outline-light border ml-1" style="color:#ccc;"><i class="fas fa-user-tie"></i> {{ it.coach.coach_display_name }}</span>
+                {% endif %}
+            </div>
+            <div>
+                {% if is_mine_w and has_perm('add_workshop') %}
+                <a class="btn btn-sm telekom-button" style="background-color: #6f42c1; color: white; border-radius: 16px;"
+                   href="{% if it.project_id %}{{ url_for('main.add_workshop', project=it.project_id, planned_workshop=it.id) }}{% else %}{{ url_for('main.add_workshop', planned_workshop=it.id) }}{% endif %}">
+                    <i class="fas fa-users"></i> Workshop erfassen
+                </a>
+                {% elif not is_mine_w %}
+                <span class="badge badge-secondary"><i class="fas fa-eye"></i> Nur Ansicht</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if is_mine_w and has_perm('add_workshop') %}
+        <div class="planned-overdue-actions mt-3 pt-3 border-top border-secondary w-100">
+            <form method="post" action="{{ url_for('main.planned_workshop_update_date', planned_w_id=it.id) }}" class="form-inline d-flex flex-wrap align-items-center mb-2">
+                <input type="hidden" name="return_tab" value="ueberfaellig">
+                <label class="sr-only" for="overdue-ws-date-{{ it.id }}">Neues Datum</label>
+                <input type="date" class="form-control form-control-sm bg-dark text-light border-secondary mr-2 mb-1"
+                       id="overdue-ws-date-{{ it.id }}" name="planned_for_date"
+                       value="{{ today_d.strftime('%Y-%m-%d') }}" min="{{ today_d.strftime('%Y-%m-%d') }}" required>
+                <button type="submit" class="btn btn-sm btn-outline-warning mb-1"><i class="fas fa-calendar-alt"></i> Verschieben</button>
+            </form>
+            <form method="post" action="{{ url_for('main.planned_workshop_delete', planned_w_id=it.id) }}" class="d-inline mb-0"
+                  onsubmit="return confirm('Diese überfällige Planung wirklich entfernen?');">
+                <input type="hidden" name="return_tab" value="ueberfaellig">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Planung löschen</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+{% endif %}

@@ -219,6 +219,27 @@ def _user_may_edit_planned_workshop(pw):
     return True
 
 
+def _split_planned_open_by_overdue(rows, today):
+    """Open plans with planned_for_date before today vs today and future."""
+    overdue = []
+    current = []
+    for row in rows or []:
+        d = row.planned_for_date or today
+        if d < today:
+            overdue.append(row)
+        else:
+            current.append(row)
+    overdue.sort(key=lambda r: (r.planned_for_date or date.min, r.id))
+    return current, overdue
+
+
+def _redirect_planned_coachings_list(tab=None):
+    tab = (tab or request.form.get('return_tab') or request.args.get('tab') or '').strip()
+    if tab in ('offen', 'ueberfaellig', 'geschlossen'):
+        return redirect(url_for('main.planned_coachings_list', tab=tab))
+    return redirect(url_for('main.planned_coachings_list'))
+
+
 def _can_view_others_planned_in_scope():
     """PL/QM/BL/Admin may see teammates' planned coachings & workshops in their project scope."""
     if not current_user.is_authenticated:
@@ -3515,7 +3536,8 @@ def planned_coachings_list():
                 .options(*coaching_opts)
                 .order_by(PlannedCoaching.planned_for_date, PlannedCoaching.id)
             )
-            items = q.all()
+            all_open_coaching = q.all()
+            items, overdue_coaching_items = _split_planned_open_by_overdue(all_open_coaching, sort_today)
             items.sort(
                 key=lambda it: (
                     0 if it.planned_for_date == sort_today else 1,
@@ -3523,8 +3545,13 @@ def planned_coachings_list():
                     it.id,
                 )
             )
+        else:
+            overdue_coaching_items = []
+    else:
+        overdue_coaching_items = []
 
     workshop_items = []
+    overdue_workshop_items = []
     fulfilled_workshop_plans = []
     if can_see_workshop_plans:
         parts_wo = []
@@ -3559,7 +3586,10 @@ def planned_coachings_list():
                 .options(joinedload(PlannedWorkshop.project), joinedload(PlannedWorkshop.coach))
                 .order_by(PlannedWorkshop.planned_for_date, PlannedWorkshop.id)
             )
-            workshop_items = wq.all()
+            all_open_workshops = wq.all()
+            workshop_items, overdue_workshop_items = _split_planned_open_by_overdue(
+                all_open_workshops, sort_today
+            )
             workshop_items.sort(
                 key=lambda it: (
                     0 if it.planned_for_date == sort_today else 1,
@@ -3567,6 +3597,8 @@ def planned_coachings_list():
                     it.id,
                 )
             )
+        else:
+            overdue_workshop_items = []
 
         parts_wd = []
         if can_pw:
@@ -3701,11 +3733,22 @@ def planned_coachings_list():
     coaching_done_groups = _bucket_done_rows(fulfilled_plans, 'fulfilled_coaching')
     workshop_done_groups = _bucket_done_rows(fulfilled_workshop_plans, 'fulfilled_workshop')
 
+    active_tab = (request.args.get('tab') or 'offen').strip()
+    if active_tab not in ('offen', 'ueberfaellig', 'geschlossen'):
+        active_tab = 'offen'
+    n_overdue = (
+        (len(overdue_coaching_items) if can_see_coaching_plans else 0)
+        + (len(overdue_workshop_items) if can_see_workshop_plans else 0)
+    )
+    can_manage_own_plans = can_pc or can_pw
+
     return render_template(
         'main/planned_coachings.html',
         title='Geplante Coachings / Workshops',
         items=items,
         workshop_items=workshop_items,
+        overdue_coaching_items=overdue_coaching_items,
+        overdue_workshop_items=overdue_workshop_items,
         fulfilled_plans=fulfilled_plans,
         fulfilled_workshop_plans=fulfilled_workshop_plans,
         can_view_others_planned=can_view_others,
@@ -3716,6 +3759,9 @@ def planned_coachings_list():
         coaching_done_groups=coaching_done_groups,
         workshop_done_groups=workshop_done_groups,
         today_d=sort_today,
+        active_tab=active_tab,
+        n_overdue=n_overdue,
+        can_manage_own_plans=can_manage_own_plans,
         config=current_app.config,
     )
 
@@ -3727,20 +3773,25 @@ def planned_coaching_update_date(planned_id):
     pc = PlannedCoaching.query.get_or_404(planned_id)
     if not _user_may_edit_planned_coaching(pc):
         flash('Keine Berechtigung oder Eintrag nicht gefunden.', 'danger')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     raw = (request.form.get('planned_for_date') or '').strip()
     if not raw:
         flash('Bitte ein Datum wählen.', 'warning')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     try:
         new_date = datetime.strptime(raw, '%Y-%m-%d').date()
     except ValueError:
         flash('Ungültiges Datum.', 'warning')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
+    today = today_athens_date()
+    if new_date < today:
+        flash('Neues Datum darf nicht in der Vergangenheit liegen.', 'warning')
+        return _redirect_planned_coachings_list('ueberfaellig')
     pc.planned_for_date = new_date
     db.session.commit()
     flash('Datum wurde aktualisiert.', 'success')
-    return redirect(url_for('main.planned_coachings_list'))
+    return_tab = 'offen' if new_date >= today else 'ueberfaellig'
+    return _redirect_planned_coachings_list(return_tab)
 
 
 @bp.route('/geplante-coachings/<int:planned_id>/loeschen', methods=['POST'])
@@ -3750,11 +3801,11 @@ def planned_coaching_delete(planned_id):
     pc = PlannedCoaching.query.get_or_404(planned_id)
     if not _user_may_edit_planned_coaching(pc):
         flash('Keine Berechtigung oder Eintrag nicht gefunden.', 'danger')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     db.session.delete(pc)
     db.session.commit()
     flash('Geplantes Coaching wurde entfernt.', 'success')
-    return redirect(url_for('main.planned_coachings_list'))
+    return _redirect_planned_coachings_list('ueberfaellig')
 
 
 @bp.route('/geplante-coachings/workshop/<int:planned_w_id>/datum', methods=['POST'])
@@ -3764,24 +3815,25 @@ def planned_workshop_update_date(planned_w_id):
     pw = PlannedWorkshop.query.get_or_404(planned_w_id)
     if not _user_may_edit_planned_workshop(pw):
         flash('Keine Berechtigung oder Eintrag nicht gefunden.', 'danger')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     raw = (request.form.get('planned_for_date') or '').strip()
     if not raw:
         flash('Bitte ein Datum wählen.', 'warning')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     try:
         new_date = datetime.strptime(raw, '%Y-%m-%d').date()
     except ValueError:
         flash('Ungültiges Datum.', 'warning')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     today = today_athens_date()
     if new_date < today:
-        flash('Ein Termin kann nicht in der Vergangenheit liegen.', 'warning')
-        return redirect(url_for('main.planned_coachings_list'))
+        flash('Neues Datum darf nicht in der Vergangenheit liegen.', 'warning')
+        return _redirect_planned_coachings_list('ueberfaellig')
     pw.planned_for_date = new_date
     db.session.commit()
     flash('Datum wurde aktualisiert.', 'success')
-    return redirect(url_for('main.planned_coachings_list'))
+    return_tab = 'offen' if new_date >= today else 'ueberfaellig'
+    return _redirect_planned_coachings_list(return_tab)
 
 
 @bp.route('/geplante-coachings/workshop/<int:planned_w_id>/loeschen', methods=['POST'])
@@ -3791,11 +3843,11 @@ def planned_workshop_delete(planned_w_id):
     pw = PlannedWorkshop.query.get_or_404(planned_w_id)
     if not _user_may_edit_planned_workshop(pw):
         flash('Keine Berechtigung oder Eintrag nicht gefunden.', 'danger')
-        return redirect(url_for('main.planned_coachings_list'))
+        return _redirect_planned_coachings_list('ueberfaellig')
     db.session.delete(pw)
     db.session.commit()
     flash('Geplanter Workshop wurde entfernt.', 'success')
-    return redirect(url_for('main.planned_coachings_list'))
+    return _redirect_planned_coachings_list('ueberfaellig')
 
 
 @bp.route('/api/member-coaching-trend')

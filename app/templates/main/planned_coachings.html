@@ -85,30 +85,53 @@
 .planned-group summary::-webkit-details-marker { display: none; }
 .planned-group-body { padding: 0.65rem 0.7rem 0.2rem; }
 .planned-group:not([open]) summary { border-bottom: none; }
+.planned-overdue-item {
+    background: #3a2a2a !important;
+    border-color: #8b3a3a !important;
+    color: #eee;
+}
+.planned-overdue-actions .btn-outline-warning {
+    color: #ffc107;
+    border-color: #ffc107;
+}
+.planned-overdue-actions .btn-outline-warning:hover {
+    color: #212529;
+    background: #ffc107;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 {% set n_open = (items|length if can_see_coaching_plans else 0) + (workshop_items|length if can_see_workshop_plans else 0) %}
 {% set n_done = (fulfilled_plans|length if can_see_coaching_plans else 0) + (fulfilled_workshop_plans|length if can_see_workshop_plans else 0) %}
+{% set tab_offen_active = (active_tab == 'offen') %}
+{% set tab_ueberfaellig_active = (active_tab == 'ueberfaellig') %}
+{% set tab_geschlossen_active = (active_tab == 'geschlossen') %}
 <div class="container mt-4">
     <h2 class="mb-2"><i class="fas fa-calendar-alt text-info"></i> Geplante Coachings / Workshops</h2>
 
     <div class="card planned-page-tabs mb-4 border-0 shadow-none">
         <ul class="nav nav-tabs nav-justified" id="plannedMainTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <a class="nav-link active" id="tab-offen-link" data-toggle="tab" href="#tab-offen" role="tab" aria-controls="tab-offen" aria-selected="true">
+                <a class="nav-link {% if tab_offen_active %}active{% endif %}" id="tab-offen-link" data-toggle="tab" href="#tab-offen" role="tab" aria-controls="tab-offen" aria-selected="{{ 'true' if tab_offen_active else 'false' }}">
                     Offen {% if n_open %}<span class="badge badge-info ml-1">{{ n_open }}</span>{% endif %}
                 </a>
             </li>
+            {% if can_manage_own_plans %}
             <li class="nav-item" role="presentation">
-                <a class="nav-link" id="tab-geschlossen-link" data-toggle="tab" href="#tab-geschlossen" role="tab" aria-controls="tab-geschlossen" aria-selected="false">
+                <a class="nav-link {% if tab_ueberfaellig_active %}active{% endif %}" id="tab-ueberfaellig-link" data-toggle="tab" href="#tab-ueberfaellig" role="tab" aria-controls="tab-ueberfaellig" aria-selected="{{ 'true' if tab_ueberfaellig_active else 'false' }}">
+                    Überfällig {% if n_overdue %}<span class="badge badge-danger ml-1">{{ n_overdue }}</span>{% endif %}
+                </a>
+            </li>
+            {% endif %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab_geschlossen_active %}active{% endif %}" id="tab-geschlossen-link" data-toggle="tab" href="#tab-geschlossen" role="tab" aria-controls="tab-geschlossen" aria-selected="{{ 'true' if tab_geschlossen_active else 'false' }}">
                     Abgeschlossen {% if n_done %}<span class="badge badge-secondary ml-1">{{ n_done }}</span>{% endif %}
                 </a>
             </li>
         </ul>
         <div class="tab-content" id="plannedMainTabContent">
-            <div class="tab-pane fade show active" id="tab-offen" role="tabpanel" aria-labelledby="tab-offen-link">
+            <div class="tab-pane fade {% if tab_offen_active %}show active{% endif %}" id="tab-offen" role="tabpanel" aria-labelledby="tab-offen-link">
                 {% set n_pc_today = (items|selectattr('planned_for_date', 'equalto', today_d)|list|length) if can_see_coaching_plans else 0 %}
                 {% set n_ws_today = (workshop_items|selectattr('planned_for_date', 'equalto', today_d)|list|length) if can_see_workshop_plans else 0 %}
                 {% set n_today_total = n_pc_today + n_ws_today %}
@@ -339,7 +362,46 @@
 
             </div>
 
-            <div class="tab-pane fade" id="tab-geschlossen" role="tabpanel" aria-labelledby="tab-geschlossen-link">
+            {% if can_manage_own_plans %}
+            <div class="tab-pane fade {% if tab_ueberfaellig_active %}show active{% endif %}" id="tab-ueberfaellig" role="tabpanel" aria-labelledby="tab-ueberfaellig-link">
+                <div class="alert alert-danger border-0 mb-3" style="background: rgba(220, 53, 69, 0.15); color: #f0f0f0; border-left: 4px solid #dc3545 !important;">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Überfällige Planungen</strong> — Das geplante Datum liegt in der Vergangenheit. Verschieben Sie den Termin auf heute oder später, führen Sie das Coaching/Workshop durch, oder löschen Sie die Planung.
+                </div>
+
+                {% if can_see_coaching_plans %}
+                <h3 class="mb-3 h5"><i class="fas fa-user-clock text-danger"></i> Geplante Coachings (überfällig)</h3>
+                {% if not overdue_coaching_items %}
+                <div class="alert alert-secondary mb-4">Keine überfälligen geplanten Coachings.</div>
+                {% else %}
+                <div class="list-group mb-4 planned-open-list">
+                    {% with kind='coaching', rows=overdue_coaching_items %}
+                    {% include 'main/_planned_overdue_list.html' %}
+                    {% endwith %}
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if can_see_workshop_plans %}
+                <h3 class="mt-2 mb-3 h5"><i class="fas fa-users text-danger"></i> Geplante Workshops (überfällig)</h3>
+                {% if not overdue_workshop_items %}
+                <div class="alert alert-secondary mb-0">Keine überfälligen geplanten Workshops.</div>
+                {% else %}
+                <div class="list-group mb-2 planned-open-list">
+                    {% with kind='workshop', rows=overdue_workshop_items %}
+                    {% include 'main/_planned_overdue_list.html' %}
+                    {% endwith %}
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if not overdue_coaching_items and not overdue_workshop_items %}
+                <p class="text-muted mb-0">Aktuell keine überfälligen offenen Planungen.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="tab-pane fade {% if tab_geschlossen_active %}show active{% endif %}" id="tab-geschlossen" role="tabpanel" aria-labelledby="tab-geschlossen-link">
 
                 {% if can_see_coaching_plans %}
                 <h3 class="mb-2 h5"><i class="fas fa-check-double text-success"></i> Abgeschlossene geplante Coachings</h3>
@@ -479,15 +541,16 @@
 <script>
 (function() {
     function activateFromHash() {
+        if (typeof jQuery === 'undefined') return;
+        var params = new URLSearchParams(window.location.search);
+        var tab = (params.get('tab') || '').toLowerCase();
         var h = (window.location.hash || '').replace(/^#/, '');
-        if (h === 'geschlossen' || h === 'abgeschlossen') {
-            if (typeof jQuery !== 'undefined') {
-                jQuery('#tab-geschlossen-link').tab('show');
-            }
-        } else if (h === 'offen') {
-            if (typeof jQuery !== 'undefined') {
-                jQuery('#tab-offen-link').tab('show');
-            }
+        if (tab === 'ueberfaellig' || h === 'ueberfaellig' || h === 'overdue') {
+            jQuery('#tab-ueberfaellig-link').tab('show');
+        } else if (tab === 'geschlossen' || h === 'geschlossen' || h === 'abgeschlossen') {
+            jQuery('#tab-geschlossen-link').tab('show');
+        } else if (tab === 'offen' || h === 'offen') {
+            jQuery('#tab-offen-link').tab('show');
         }
     }
     document.addEventListener('DOMContentLoaded', activateFromHash);
