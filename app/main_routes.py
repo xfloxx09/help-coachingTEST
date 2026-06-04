@@ -4992,7 +4992,7 @@ def kpi_dashboard():
 
 @bp.route('/kpis/day')
 @login_required
-@permission_required('view_kpi_dashboard')
+@any_permission_required('view_kpi_dashboard', 'view_coaching_impact')
 def kpi_day_detail():
     """Raw question/answer data for a single day within the current scope (modal)."""
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
@@ -5045,3 +5045,323 @@ def kpi_day_detail():
             ],
         })
     return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'surveys': out})
+
+
+# =====================================================================
+# Coaching VS KPI: do coachings move the real KPIs?
+# =====================================================================
+
+IMPACT_WINDOWS = (14, 28, 56)
+IMPACT_WINDOW_DEFAULT = 28
+
+
+def _impact_coaching_filters(accessible, sees_all_teams, my_team_ids):
+    """Scope filters restricting Coaching to the user's visible projects/teams."""
+    filters = []
+    if accessible is None:
+        pass  # Admin / Betriebsleiter: all projects
+    elif not accessible:
+        filters.append(Coaching.project_id == -1)
+    else:
+        filters.append(Coaching.project_id.in_(accessible))
+    if not sees_all_teams:
+        if my_team_ids:
+            filters.append(Coaching.team_id.in_(my_team_ids))
+        else:
+            filters.append(false())
+    return filters
+
+
+def _impact_event_quote(values):
+    """Mean of 0/1 list as percent, or None if empty."""
+    if not values:
+        return None
+    return sum(values) / len(values) * 100.0
+
+
+def _impact_before_after(events, surveys_by_member, window):
+    """
+    events: list of (member_id, coaching_date).
+    surveys_by_member: {member_id: [(date, info_positive, loesung_positive, nps_value), ...]}.
+    Compares each member's KPI in [D-window, D-1] vs [D+1, D+window]; averages the
+    per-event before/after values over events that have data on both sides.
+    """
+    acc = {
+        'info': {'before': [], 'after': [], 'pairs': 0},
+        'loes': {'before': [], 'after': [], 'pairs': 0},
+        'nps': {'before': [], 'after': [], 'pairs': 0},
+    }
+    for member_id, d in events:
+        rows = surveys_by_member.get(member_id)
+        if not rows:
+            continue
+        before_lo, before_hi = d - timedelta(days=window), d - timedelta(days=1)
+        after_lo, after_hi = d + timedelta(days=1), d + timedelta(days=window)
+        b_info, a_info, b_loes, a_loes, b_nps, a_nps = [], [], [], [], [], []
+        for sd, info_p, loes_p, nps_v in rows:
+            if sd is None:
+                continue
+            if before_lo <= sd <= before_hi:
+                if info_p is not None:
+                    b_info.append(1 if info_p else 0)
+                if loes_p is not None:
+                    b_loes.append(1 if loes_p else 0)
+                if nps_v is not None:
+                    b_nps.append(nps_v)
+            elif after_lo <= sd <= after_hi:
+                if info_p is not None:
+                    a_info.append(1 if info_p else 0)
+                if loes_p is not None:
+                    a_loes.append(1 if loes_p else 0)
+                if nps_v is not None:
+                    a_nps.append(nps_v)
+        if b_info and a_info:
+            acc['info']['before'].append(_impact_event_quote(b_info))
+            acc['info']['after'].append(_impact_event_quote(a_info))
+            acc['info']['pairs'] += 1
+        if b_loes and a_loes:
+            acc['loes']['before'].append(_impact_event_quote(b_loes))
+            acc['loes']['after'].append(_impact_event_quote(a_loes))
+            acc['loes']['pairs'] += 1
+        if b_nps and a_nps:
+            acc['nps']['before'].append(kpi_logic.compute_nps(b_nps)['nps'])
+            acc['nps']['after'].append(kpi_logic.compute_nps(a_nps)['nps'])
+            acc['nps']['pairs'] += 1
+
+    out = {}
+    for key, bucket in acc.items():
+        n = bucket['pairs']
+        if n:
+            before = round(sum(bucket['before']) / n, 2)
+            after = round(sum(bucket['after']) / n, 2)
+            out[key] = {'before': before, 'after': after, 'delta': round(after - before, 2), 'pairs': n}
+        else:
+            out[key] = {'before': None, 'after': None, 'delta': None, 'pairs': 0}
+    return out
+
+
+@bp.route('/coaching-impact')
+@login_required
+@permission_required('view_coaching_impact')
+def coaching_impact():
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    kpi_base = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
+    coaching_base = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
+
+    # --- Dropdowns: entities with KPI data in scope (impact needs KPI data) ---
+    proj_q = (
+        db.session.query(Project.id, Project.name)
+        .join(KpiSurvey, KpiSurvey.project_id == Project.id)
+        .filter(*kpi_base).distinct().order_by(Project.name)
+    )
+    projects = [{'id': pid, 'name': pname} for pid, pname in proj_q.all()]
+
+    mode = (request.args.get('mode') or 'project').strip()
+    if mode not in ('project', 'team', 'agent'):
+        mode = 'project'
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    team_filters = list(kpi_base)
+    if sel_project:
+        team_filters.append(KpiSurvey.project_id == sel_project)
+    team_q = (
+        db.session.query(Team.id, Team.name)
+        .join(KpiSurvey, KpiSurvey.team_id == Team.id)
+        .filter(*team_filters).distinct().order_by(Team.name)
+    )
+    teams = [{'id': tid, 'name': tname} for tid, tname in team_q.all()]
+
+    member_filters = list(kpi_base)
+    if sel_project:
+        member_filters.append(KpiSurvey.project_id == sel_project)
+    if sel_team:
+        member_filters.append(KpiSurvey.team_id == sel_team)
+    member_q = (
+        db.session.query(TeamMember.id, TeamMember.name)
+        .join(KpiSurvey, KpiSurvey.team_member_id == TeamMember.id)
+        .filter(*member_filters).distinct().order_by(TeamMember.name)
+    )
+    members = [{'id': mid, 'name': mname} for mid, mname in member_q.all()]
+
+    valid_project_ids = {p['id'] for p in projects}
+    valid_team_ids = {t['id'] for t in teams}
+    valid_member_ids = {m['id'] for m in members}
+    if sel_project and sel_project not in valid_project_ids:
+        sel_project = None
+    if sel_team and sel_team not in valid_team_ids:
+        sel_team = None
+    if sel_member and sel_member not in valid_member_ids:
+        sel_member = None
+
+    # --- Date range + impact window ---
+    period_arg = (request.args.get('period') or '90days').strip()
+    date_from_str = (request.args.get('date_from') or '').strip()
+    date_to_str = (request.args.get('date_to') or '').strip()
+    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+
+    window = request.args.get('window', type=int) or IMPACT_WINDOW_DEFAULT
+    if window not in IMPACT_WINDOWS:
+        window = IMPACT_WINDOW_DEFAULT
+
+    selection_made = (
+        (mode == 'project' and sel_project) or
+        (mode == 'team' and sel_team) or
+        (mode == 'agent' and sel_member)
+    )
+
+    overlay = []
+    before_after = None
+    summary = None
+    kpi = None
+    scope_label = ''
+    has_any_data = bool(projects)
+
+    if selection_made:
+        # KPI active filters (scope + mode + date)
+        kpi_filters = list(kpi_base)
+        coaching_filters = list(coaching_base)
+        if mode == 'agent' and sel_member:
+            kpi_filters.append(KpiSurvey.team_member_id == sel_member)
+            coaching_filters.append(Coaching.team_member_id == sel_member)
+            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+        elif mode == 'team' and sel_team:
+            kpi_filters.append(KpiSurvey.team_id == sel_team)
+            coaching_filters.append(Coaching.team_id == sel_team)
+            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+        elif mode == 'project' and sel_project:
+            kpi_filters.append(KpiSurvey.project_id == sel_project)
+            coaching_filters.append(Coaching.project_id == sel_project)
+            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+
+        kpi_range_filters = list(kpi_filters)
+        if start_date:
+            kpi_range_filters.append(KpiSurvey.antwort_date >= start_date)
+        if end_date:
+            kpi_range_filters.append(KpiSurvey.antwort_date <= end_date)
+
+        coaching_range_filters = list(coaching_filters)
+        if start_date:
+            coaching_range_filters.append(cast(Coaching.coaching_date, Date) >= start_date)
+        if end_date:
+            coaching_range_filters.append(cast(Coaching.coaching_date, Date) <= end_date)
+
+        # KPI rows in range -> daily series + overall cards
+        kpi_rows = (
+            db.session.query(
+                KpiSurvey.info_positive,
+                KpiSurvey.loesung_positive,
+                KpiSurvey.nps_value,
+                KpiSurvey.antwort_date,
+            ).filter(*kpi_range_filters).all()
+        )
+        kpi = _kpi_aggregate([(r[0], r[1], r[2]) for r in kpi_rows])
+
+        kpi_by_day = {}
+        for info_p, loes_p, nps_v, d in kpi_rows:
+            if d is None:
+                continue
+            bucket = kpi_by_day.setdefault(d, {'info': [], 'loes': [], 'nps': []})
+            if info_p is not None:
+                bucket['info'].append(1 if info_p else 0)
+            if loes_p is not None:
+                bucket['loes'].append(1 if loes_p else 0)
+            if nps_v is not None:
+                bucket['nps'].append(nps_v)
+
+        # Coaching rows in range -> events + daily coaching activity
+        coaching_rows = (
+            db.session.query(
+                Coaching.team_member_id,
+                cast(Coaching.coaching_date, Date),
+                Coaching.performance_mark,
+                Coaching.time_spent,
+            ).filter(*coaching_range_filters).all()
+        )
+        events = [(r[0], r[1]) for r in coaching_rows if r[1] is not None]
+        coaching_by_day = {}
+        total_time = 0
+        perf_values = []
+        for member_id, d, perf, time_spent in coaching_rows:
+            if time_spent:
+                total_time += time_spent
+            if perf is not None:
+                perf_values.append(perf)
+            if d is None:
+                continue
+            cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': []})
+            cb['count'] += 1
+            if perf is not None:
+                cb['perf'].append(perf)
+
+        # Merge KPI + coaching onto one date axis
+        all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()))
+        for d in all_days:
+            kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': []})
+            cb = coaching_by_day.get(d, {'count': 0, 'perf': []})
+            nps_day = kpi_logic.compute_nps(kb['nps'])
+            overlay.append({
+                'date': d.strftime('%Y-%m-%d'),
+                'label': d.strftime('%d.%m.'),
+                'info_quote': (round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None),
+                'loes_quote': (round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None),
+                'nps': nps_day['nps'],
+                'coachings': cb['count'],
+                'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
+            })
+
+        # Before/after: pull surveys for involved members across the extended window
+        surveys_by_member = {}
+        if events:
+            ev_dates = [d for _, d in events]
+            ext_start = min(ev_dates) - timedelta(days=window)
+            ext_end = max(ev_dates) + timedelta(days=window)
+            member_ids = {m for m, _ in events}
+            surv_filters = list(kpi_filters)
+            surv_filters.append(KpiSurvey.team_member_id.in_(member_ids))
+            surv_filters.append(KpiSurvey.antwort_date >= ext_start)
+            surv_filters.append(KpiSurvey.antwort_date <= ext_end)
+            surv_rows = (
+                db.session.query(
+                    KpiSurvey.team_member_id,
+                    KpiSurvey.antwort_date,
+                    KpiSurvey.info_positive,
+                    KpiSurvey.loesung_positive,
+                    KpiSurvey.nps_value,
+                ).filter(*surv_filters).all()
+            )
+            for member_id, sd, info_p, loes_p, nps_v in surv_rows:
+                surveys_by_member.setdefault(member_id, []).append((sd, info_p, loes_p, nps_v))
+        before_after = _impact_before_after(events, surveys_by_member, window)
+
+        summary = {
+            'coachings': len(events),
+            'total_time': total_time,
+            'total_time_h': total_time // 60,
+            'total_time_m': total_time % 60,
+            'avg_perf': (round(sum(perf_values) / len(perf_values) * 10, 1) if perf_values else None),
+        }
+
+    return render_template(
+        'main/coaching_impact.html',
+        mode=mode,
+        projects=projects,
+        teams=teams,
+        members=members,
+        sel_project=sel_project,
+        sel_team=sel_team,
+        sel_member=sel_member,
+        period=period_arg,
+        date_from=date_from_str,
+        date_to=date_to_str,
+        window=window,
+        windows=IMPACT_WINDOWS,
+        overlay=overlay,
+        before_after=before_after,
+        summary=summary,
+        kpi=kpi,
+        scope_label=scope_label,
+        selection_made=bool(selection_made),
+        has_any_data=has_any_data,
+    )

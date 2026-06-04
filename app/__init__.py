@@ -148,6 +148,7 @@ def create_app(config_class=Config):
             ),
             ('terminkalender', 'Terminkalender anzeigen (Kalender mit Terminen und Coachings im Sichtbereich)'),
             ('view_kpi_dashboard', 'KPIs (Demo): Informationsquote, Lösungsquote und NPS im eigenen Sichtbereich ansehen'),
+            ('view_coaching_impact', 'Coaching VS KPI: Wirkung von Coachings auf die realen KPIs im eigenen Sichtbereich ansehen'),
         ]
         for name, desc in default_permissions:
             res = conn.execute(text("SELECT id FROM permissions WHERE name = :name"), {"name": name}).fetchone()

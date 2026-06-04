@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+    .ci-toolbar {
+        background: #1f1f24;
+        border: 1px solid #34343c;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .ci-mode-group .btn { border-color: #4a4a55; color: #d6d6dd; background: #2a2a31; }
+    .ci-mode-group .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .ci-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
+    .ci-card {
+        border: 1px solid #34343c;
+        border-radius: 12px;
+        padding: 1.1rem 1.25rem;
+        height: 100%;
+        background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
+    }
+    .ci-card .ci-label { font-size: 0.9rem; color: #b9b9c2; margin-bottom: 0.35rem; }
+    .ci-card .ci-ba { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+    .ci-card .ci-arrow { color: #8a8a95; margin: 0 0.35rem; }
+    .ci-card .ci-delta { font-size: 1rem; font-weight: 700; }
+    .ci-delta-up { color: #36c6a0; }
+    .ci-delta-down { color: #ff6b81; }
+    .ci-delta-flat { color: #9a9aa3; }
+    .ci-card .ci-sub { font-size: 0.78rem; color: #8a8a95; margin-top: 0.45rem; }
+    .ci-info .ci-label { color: #36c6a0; }
+    .ci-loes .ci-label { color: #4aa3ff; }
+    .ci-nps .ci-label { color: #ffb648; }
+    .ci-stat { border: 1px solid #34343c; border-radius: 10px; padding: 0.85rem 1rem; background: #22222a; height: 100%; }
+    .ci-stat .ci-stat-val { font-size: 1.6rem; font-weight: 700; }
+    .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
+        <h2 class="mb-0"><i class="fas fa-bolt text-warning"></i> Coaching VS KPI <span class="badge badge-info align-middle">Demo</span></h2>
+    </div>
+
+    {% if not has_any_data %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-info-circle mr-1"></i>
+        Es sind noch keine KPI-Daten in Ihrem Sichtbereich vorhanden. Ein Administrator muss zunächst
+        Rohdaten über den <strong>KPI-Import (Demo)</strong> hochladen.
+    </div>
+    {% endif %}
+
+    <form method="GET" action="{{ url_for('main.coaching_impact') }}" id="ciFilterForm" class="ci-toolbar">
+        <input type="hidden" name="mode" id="ciMode" value="{{ mode }}">
+
+        <div class="form-row align-items-end">
+            <div class="col-12 col-lg-auto mb-2">
+                <div class="ci-mini-label mb-1">ansicht</div>
+                <div class="btn-group btn-group-sm ci-mode-group" role="group">
+                    <button type="button" class="btn {% if mode == 'project' %}active{% endif %}" data-mode="project">Projekt</button>
+                    <button type="button" class="btn {% if mode == 'team' %}active{% endif %}" data-mode="team">Team</button>
+                    <button type="button" class="btn {% if mode == 'agent' %}active{% endif %}" data-mode="agent">Agent</button>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2">
+                <div class="ci-mini-label mb-1">projekt</div>
+                <select name="project_id" class="form-control form-control-sm ci-auto">
+                    <option value="">-- Projekt wählen --</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if sel_project == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2 ci-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
+                <div class="ci-mini-label mb-1">team</div>
+                <select name="team_id" class="form-control form-control-sm ci-auto">
+                    <option value="">-- Team wählen --</option>
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if sel_team == t.id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2 ci-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
+                <div class="ci-mini-label mb-1">agent</div>
+                <select name="member_id" class="form-control form-control-sm ci-auto">
+                    <option value="">-- Agent wählen --</option>
+                    {% for m in members %}
+                    <option value="{{ m.id }}" {% if sel_member == m.id %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <hr style="border-color:#34343c;">
+
+        <div class="form-row align-items-end">
+            <div class="col-12 col-md-3 mb-2">
+                <div class="ci-mini-label mb-1">zeitraum</div>
+                <select name="period" id="ciPeriod" class="form-control form-control-sm">
+                    <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+                    <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
+                    <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
+                    <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
+                    <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2 mb-2 ci-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="ci-mini-label mb-1">von</div>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-2 mb-2 ci-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="ci-mini-label mb-1">bis</div>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+            </div>
+            <div class="col-6 col-md-2 mb-2">
+                <div class="ci-mini-label mb-1">wirkungsfenster</div>
+                <select name="window" class="form-control form-control-sm">
+                    {% for w in windows %}
+                    <option value="{{ w }}" {% if window == w %}selected{% endif %}>{{ w }} Tage</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+                <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
+            </div>
+        </div>
+    </form>
+
+    {% if selection_made %}
+    <div class="d-flex align-items-baseline mb-3" style="gap:0.5rem;">
+        <h4 class="mb-0">{{ scope_label }}</h4>
+        <span class="text-muted small">Wirkungsfenster: {{ window }} Tage vor/nach jedem Coaching</span>
+    </div>
+
+    <!-- Coaching activity summary -->
+    <div class="row mb-4">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{{ summary.coachings }}</div>
+                <div class="ci-stat-lbl">Coachings im Zeitraum</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{{ summary.total_time_h }}h {{ summary.total_time_m }}m</div>
+                <div class="ci-stat-lbl">Gesamte Coaching-Zeit</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if summary.avg_perf is not none %}{{ summary.avg_perf|de_decimal(1) }}%{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">Ø Coaching-Performance</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if kpi and kpi.nps is not none %}{{ kpi.nps|de_decimal }}{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">NPS im Zeitraum</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Before/After impact cards -->
+    <h5 class="mb-2">Wirkung: KPI vor vs. nach Coaching</h5>
+    <p class="text-muted small mb-3">
+        Durchschnittlicher KPI-Wert {{ window }} Tage <em>vor</em> einem Coaching im Vergleich zu {{ window }} Tagen <em>danach</em>,
+        gemittelt über alle Coachings mit Befragungsdaten auf beiden Seiten.
+    </p>
+    <div class="row mb-4">
+        {% set parts = [
+            ('info', 'Informationsquote', 'ci-info', '%'),
+            ('loes', 'Lösungsquote', 'ci-loes', '%'),
+            ('nps', 'NPS', 'ci-nps', '')
+        ] %}
+        {% for key, label, cls, unit in parts %}
+        {% set ba = before_after[key] %}
+        <div class="col-12 col-md-4 mb-3">
+            <div class="ci-card {{ cls }}">
+                <div class="ci-label">{{ label }}</div>
+                {% if ba.pairs %}
+                <div>
+                    <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                    <i class="fas fa-arrow-right ci-arrow"></i>
+                    <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                </div>
+                <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                    {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                </div>
+                <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
+                {% else %}
+                <div class="ci-ba text-muted">–</div>
+                <div class="ci-sub">Keine Coachings mit Befragungsdaten auf beiden Seiten im Fenster.</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if overlay %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Zeitverlauf</strong> <span class="text-muted small">(Balken = Coachings/Tag, Linien = KPIs · Klick auf einen Tag zeigt die Rohdaten)</span></div>
+        <div class="card-body">
+            <canvas id="ciOverlayChart" height="95"></canvas>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12 col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header"><strong>Vorher / Nachher</strong></div>
+                <div class="card-body">
+                    <canvas id="ciBaChart" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header"><strong>Tagesübersicht</strong></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 360px;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Datum</th>
+                                    <th class="text-right">Coachings</th>
+                                    <th class="text-right">Info</th>
+                                    <th class="text-right">Lösung</th>
+                                    <th class="text-right">NPS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for d in overlay %}
+                                <tr class="ci-day-row" data-date="{{ d.date }}" style="cursor:pointer;">
+                                    <td>{{ d.label }}</td>
+                                    <td class="text-right">{% if d.coachings %}<span class="badge badge-pill badge-warning">{{ d.coachings }}</span>{% else %}–{% endif %}</td>
+                                    <td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                                    <td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                                    <td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
+    {% endif %}
+
+    {% elif has_any_data %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-hand-pointer mr-1"></i>
+        Bitte oben eine Auswahl treffen ({{ 'Projekt' if mode == 'project' else ('Team' if mode == 'team' else 'Agent') }}),
+        um die Coaching-Wirkung anzuzeigen.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Raw-data modal (reuses /kpis/day) -->
+<div class="modal fade" id="ciDayModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rohdaten <span id="ciDayModalDate"></span></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body" id="ciDayModalBody">
+                <div class="text-center text-muted py-4">Lädt…</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var form = document.getElementById('ciFilterForm');
+    if (!form) return;
+
+    document.querySelectorAll('.ci-mode-group .btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var mode = btn.getAttribute('data-mode');
+            document.getElementById('ciMode').value = mode;
+            document.querySelectorAll('.ci-mode-group .btn').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            var teamField = document.querySelector('.ci-team-field');
+            var agentField = document.querySelector('.ci-agent-field');
+            if (mode === 'project') {
+                if (teamField) teamField.style.display = 'none';
+                if (agentField) agentField.style.display = 'none';
+            } else if (mode === 'team') {
+                if (teamField) teamField.style.display = '';
+                if (agentField) agentField.style.display = 'none';
+            } else {
+                if (teamField) teamField.style.display = '';
+                if (agentField) agentField.style.display = '';
+            }
+        });
+    });
+
+    var periodSel = document.getElementById('ciPeriod');
+    if (periodSel) {
+        periodSel.addEventListener('change', function () {
+            var show = periodSel.value === 'vonbis';
+            document.querySelectorAll('.ci-vonbis-field').forEach(function (el) {
+                el.style.display = show ? '' : 'none';
+            });
+        });
+    }
+
+    document.querySelectorAll('.ci-auto').forEach(function (sel) {
+        sel.addEventListener('change', function () { form.submit(); });
+    });
+
+    var overlay = {{ overlay|tojson }};
+    var ba = {{ before_after|tojson if before_after else 'null' }};
+
+    // Overlay mixed chart
+    var oc = document.getElementById('ciOverlayChart');
+    if (oc && overlay && overlay.length && window.Chart) {
+        new Chart(oc.getContext('2d'), {
+            data: {
+                labels: overlay.map(function (d) { return d.label; }),
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Coachings',
+                        data: overlay.map(function (d) { return d.coachings; }),
+                        backgroundColor: 'rgba(226,0,116,0.55)',
+                        borderColor: '#e20074',
+                        yAxisID: 'yCoach',
+                        order: 3,
+                    },
+                    {
+                        type: 'line',
+                        label: 'Informationsquote (%)',
+                        data: overlay.map(function (d) { return d.info_quote; }),
+                        borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
+                        yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+                    },
+                    {
+                        type: 'line',
+                        label: 'Lösungsquote (%)',
+                        data: overlay.map(function (d) { return d.loes_quote; }),
+                        borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
+                        yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+                    },
+                    {
+                        type: 'line',
+                        label: 'NPS',
+                        data: overlay.map(function (d) { return d.nps; }),
+                        borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
+                        yAxisID: 'yNps', spanGaps: true, tension: 0.25, order: 2,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                onClick: function (evt, elements) {
+                    if (elements && elements.length) {
+                        var idx = elements[0].index;
+                        if (overlay[idx]) openCiDay(overlay[idx].date);
+                    }
+                },
+                scales: {
+                    yQuote: { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } },
+                    yNps: { type: 'linear', position: 'right', min: -100, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'NPS' } },
+                    yCoach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Coachings' }, ticks: { precision: 0 } },
+                },
+            },
+        });
+    }
+
+    // Before/After grouped bar
+    var bc = document.getElementById('ciBaChart');
+    if (bc && ba && window.Chart) {
+        new Chart(bc.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Informationsquote', 'Lösungsquote', 'NPS'],
+                datasets: [
+                    {
+                        label: 'Vorher',
+                        data: [ba.info.before, ba.loes.before, ba.nps.before],
+                        backgroundColor: 'rgba(154,154,165,0.65)',
+                    },
+                    {
+                        label: 'Nachher',
+                        data: [ba.info.after, ba.loes.after, ba.nps.after],
+                        backgroundColor: 'rgba(226,0,116,0.7)',
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } },
+            },
+        });
+    }
+
+    // Day modal
+    var modalParams = {
+        mode: {{ mode|tojson }},
+        project_id: {{ (sel_project or '')|tojson }},
+        team_id: {{ (sel_team or '')|tojson }},
+        member_id: {{ (sel_member or '')|tojson }},
+    };
+
+    window.openCiDay = function (dateStr) {
+        var q = new URLSearchParams();
+        q.set('date', dateStr);
+        q.set('mode', modalParams.mode);
+        if (modalParams.project_id) q.set('project_id', modalParams.project_id);
+        if (modalParams.team_id) q.set('team_id', modalParams.team_id);
+        if (modalParams.member_id) q.set('member_id', modalParams.member_id);
+
+        var body = document.getElementById('ciDayModalBody');
+        body.innerHTML = '<div class="text-center text-muted py-4">Lädt…</div>';
+        document.getElementById('ciDayModalDate').textContent = '';
+        $('#ciDayModal').modal('show');
+
+        fetch('{{ url_for("main.kpi_day_detail") }}?' + q.toString())
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { body.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>'; return; }
+                document.getElementById('ciDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Befragungen)';
+                if (!data.surveys.length) { body.innerHTML = '<div class="text-muted">Keine Befragungen an diesem Tag.</div>'; return; }
+                var html = '';
+                data.surveys.forEach(function (s) {
+                    html += '<div class="card mb-3"><div class="card-header py-2">'
+                        + '<strong>' + escapeHtml(s.agent) + '</strong> · ' + escapeHtml(s.team)
+                        + ' <span class="text-muted small">(ID ' + escapeHtml(s.datensatz_id) + ')</span>'
+                        + (s.nps !== null ? ' <span class="badge badge-warning">NPS ' + s.nps + '</span>' : '')
+                        + '</div><div class="card-body p-2"><table class="table table-sm mb-0"><tbody>';
+                    s.answers.forEach(function (a) {
+                        html += '<tr><td style="width:55%">' + escapeHtml(a.frage || '') + '</td>'
+                            + '<td>' + escapeHtml(a.antwort || '') + '</td></tr>';
+                    });
+                    html += '</tbody></table></div></div>';
+                });
+                body.innerHTML = html;
+            })
+            .catch(function () {
+                body.innerHTML = '<div class="alert alert-danger">Daten konnten nicht geladen werden.</div>';
+            });
+    };
+
+    document.querySelectorAll('.ci-day-row').forEach(function (row) {
+        row.addEventListener('click', function () { openCiDay(row.getAttribute('data-date')); });
+    });
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+})();
+</script>
+{% endblock %}
