@@ -4958,8 +4958,8 @@ def kpi_dashboard():
                 'date': d.strftime('%Y-%m-%d'),
                 'label': d.strftime('%d.%m.'),
                 'count': b['count'],
-                'info_quote': (round(sum(b['info']) / len(b['info']) * 100) if b['info'] else None),
-                'loes_quote': (round(sum(b['loes']) / len(b['loes']) * 100) if b['loes'] else None),
+                'info_quote': (round(sum(b['info']) / len(b['info']) * 100, 2) if b['info'] else None),
+                'loes_quote': (round(sum(b['loes']) / len(b['loes']) * 100, 2) if b['loes'] else None),
                 'nps': nps_day['nps'],
             })
 

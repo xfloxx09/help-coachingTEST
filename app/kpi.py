@@ -108,7 +108,7 @@ def compute_nps(values):
             detractors += 1
     if total == 0:
         return {'nps': None, 'promoters': 0, 'neutrals': 0, 'detractors': 0, 'total': 0}
-    nps = round((promoters - detractors) / total * 100)
+    nps = round((promoters - detractors) / total * 100, 2)
     return {
         'nps': nps,
         'promoters': promoters,
@@ -119,7 +119,17 @@ def compute_nps(values):
 
 
 def quote_percent(positive, total):
-    """Rounded share in percent, or None if no answers."""
+    """Share in percent with 2 decimals, or None if no answers."""
     if not total:
         return None
-    return round(positive / total * 100)
+    return round(positive / total * 100, 2)
+
+
+def format_de(value, decimals=2):
+    """Format a number in German style (comma decimal separator). None -> en dash."""
+    if value is None:
+        return '–'
+    try:
+        return ('{:,.' + str(decimals) + 'f}').format(float(value)).replace(',', '_').replace('.', ',').replace('_', '.')
+    except (ValueError, TypeError):
+        return '–'

@@ -691,6 +691,11 @@ def create_app(config_class=Config):
             return {'planned_due_today_notifications': quick_planned_due_today_notifications()}
         return {'planned_due_today_notifications': []}
 
+    @app.template_filter('de_decimal')
+    def de_decimal(value, decimals=2):
+        from app.kpi import format_de
+        return format_de(value, decimals)
+
     @app.template_filter('athens_time')
     def format_athens_time(utc_dt, fmt='%d.%m.%Y %H:%M'):
         if not utc_dt:

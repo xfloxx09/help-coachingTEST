@@ -133,21 +133,21 @@
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-info">
                 <div class="kpi-label">Informationsquote</div>
-                <div class="kpi-value">{% if kpi.info_quote is not none %}{{ kpi.info_quote }}%{% else %}–{% endif %}</div>
+                <div class="kpi-value">{% if kpi.info_quote is not none %}{{ kpi.info_quote|de_decimal }}%{% else %}–{% endif %}</div>
                 <div class="kpi-sub">{{ kpi.info_pos }} von {{ kpi.info_total }} Befragungen positiv ("Ja" oder "Noch nicht …informiert")</div>
             </div>
         </div>
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-loes">
                 <div class="kpi-label">Lösungsquote</div>
-                <div class="kpi-value">{% if kpi.loes_quote is not none %}{{ kpi.loes_quote }}%{% else %}–{% endif %}</div>
+                <div class="kpi-value">{% if kpi.loes_quote is not none %}{{ kpi.loes_quote|de_decimal }}%{% else %}–{% endif %}</div>
                 <div class="kpi-sub">{{ kpi.loes_pos }} von {{ kpi.loes_total }} Befragungen mit "Ja"</div>
             </div>
         </div>
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-nps">
                 <div class="kpi-label">NPS</div>
-                <div class="kpi-value">{% if kpi.nps is not none %}{{ kpi.nps }}{% else %}–{% endif %}</div>
+                <div class="kpi-value">{% if kpi.nps is not none %}{{ kpi.nps|de_decimal }}{% else %}–{% endif %}</div>
                 <div class="kpi-sub">{{ kpi.nps_total }} Bewertungen · {{ kpi.nps_promoters }} Promotoren / {{ kpi.nps_neutrals }} Neutrale / {{ kpi.nps_detractors }} Detraktoren</div>
             </div>
         </div>
@@ -181,9 +181,9 @@
                         <tr class="kpi-day-row" data-date="{{ d.date }}">
                             <td>{{ d.label }}</td>
                             <td class="text-right">{{ d.count }}</td>
-                            <td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote }}%{% else %}–{% endif %}</td>
-                            <td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote }}%{% else %}–{% endif %}</td>
-                            <td class="text-right">{% if d.nps is not none %}{{ d.nps }}{% else %}–{% endif %}</td>
+                            <td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                            <td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                            <td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>
                             <td class="text-right"><i class="fas fa-search text-muted"></i></td>
                         </tr>
                     {% endfor %}
