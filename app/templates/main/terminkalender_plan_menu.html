@@ -120,10 +120,12 @@
     <div class="plan-menu-header">
         <h1 class="plan-menu-title"><i class="fas fa-calendar-plus" aria-hidden="true"></i> Termin anlegen</h1>
         <p class="plan-menu-sub">{% if from_planned_list %}Welche Planung möchten Sie anlegen?{% elif is_today %}Heute direkt eintragen{% else %}Was möchten Sie für diesen Tag eintragen?{% endif %}</p>
+        {% if not from_planned_list and plan_date %}
         <div class="plan-menu-date">
             <i class="far fa-calendar-alt" aria-hidden="true"></i>
             <span>Datum: <strong>{{ plan_date.strftime('%d.%m.%Y') }}</strong></span>
         </div>
+        {% endif %}
     </div>
 
     <div class="plan-menu-actions">
@@ -148,7 +150,7 @@
         </a>
         {% endif %}
         {% if show_plan_coaching %}
-        <a class="plan-menu-card" href="{{ url_for('main.terminkalender_plan', day=plan_date.isoformat()) }}">
+        <a class="plan-menu-card" href="{{ url_for('main.terminkalender_plan', **({'day': plan_date.isoformat()} if plan_date else {})) }}">
             <span class="plan-menu-icon plan-menu-icon--plan" aria-hidden="true"><i class="fas fa-calendar-alt"></i></span>
             <div class="plan-menu-card-body">
                 <p class="plan-menu-card-title">Geplantes Coaching</p>
@@ -158,7 +160,7 @@
         </a>
         {% endif %}
         {% if show_plan_workshop %}
-        <a class="plan-menu-card" href="{{ url_for('main.terminkalender_plan_workshop', day=plan_date.isoformat()) }}">
+        <a class="plan-menu-card" href="{{ url_for('main.terminkalender_plan_workshop', **({'day': plan_date.isoformat()} if plan_date else {})) }}">
             <span class="plan-menu-icon plan-menu-icon--workshop" aria-hidden="true"><i class="fas fa-calendar-plus"></i></span>
             <div class="plan-menu-card-body">
                 <p class="plan-menu-card-title">Geplanten Workshop</p>

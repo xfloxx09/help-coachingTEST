@@ -2034,20 +2034,28 @@ def terminkalender():
 @login_required
 def terminkalender_plan_menu():
     today = today_athens_date()
+    from_planned_list = (request.args.get('source') or '').strip() == 'geplante-coachings'
     day_str = (request.args.get('day') or '').strip()
-    try:
-        plan_date = datetime.strptime(day_str, '%Y-%m-%d').date()
-    except ValueError:
+    plan_date = None
+    if day_str:
+        try:
+            plan_date = datetime.strptime(day_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Ungültiges Datum.', 'warning')
+            if from_planned_list:
+                return redirect(url_for('main.planned_coachings_list'))
+            return redirect(url_for('main.terminkalender'))
+        if plan_date < today:
+            flash('Ein Termin kann nicht in der Vergangenheit liegen.', 'warning')
+            if from_planned_list:
+                return redirect(url_for('main.planned_coachings_list'))
+            return redirect(url_for('main.terminkalender'))
+    elif not from_planned_list:
         flash('Ungültiges Datum.', 'warning')
-        return redirect(url_for('main.terminkalender'))
-
-    if plan_date < today:
-        flash('Ein Termin kann nicht in der Vergangenheit liegen.', 'warning')
         return redirect(url_for('main.terminkalender'))
 
     can_plan_c = current_user.has_permission('planned_coachings')
     can_plan_w = current_user.has_permission('add_workshop')
-    is_today = plan_date == today
     add_coaching_project_id = None
     if current_user.has_permission('add_coaching'):
         add_coaching_project_id = _resolve_coaching_workshop_project_id()
@@ -2065,7 +2073,7 @@ def terminkalender_plan_menu():
         if acc is None or pid in acc:
             workshop_project_id = pid
 
-    from_planned_list = (request.args.get('source') or '').strip() == 'geplante-coachings'
+    is_today = plan_date == today if plan_date else False
     can_capture_today = (
         not from_planned_list
         and is_today
@@ -2078,8 +2086,12 @@ def terminkalender_plan_menu():
         and can_plan_w
         and bool(workshop_project_id)
     )
-    show_plan_coaching = can_plan_c and (not is_today or from_planned_list)
-    show_plan_workshop = can_plan_w and (not is_today or from_planned_list)
+    if from_planned_list:
+        show_plan_coaching = can_plan_c
+        show_plan_workshop = can_plan_w
+    else:
+        show_plan_coaching = can_plan_c and not is_today
+        show_plan_workshop = can_plan_w and not is_today
 
     if not (show_plan_coaching or show_plan_workshop or can_capture_today or can_workshop_capture_today):
         flash('Keine passende Berechtigung für diese Aktion.', 'danger')
@@ -2109,6 +2121,8 @@ def terminkalender_plan_menu():
 def terminkalender_plan_workshop():
     today = today_athens_date()
     plan_date_str = (request.args.get('day') if request.method == 'GET' else request.form.get('plan_date')) or ''
+    if request.method == 'GET' and not plan_date_str.strip():
+        plan_date_str = (today + timedelta(days=1)).isoformat()
     try:
         plan_date = datetime.strptime(plan_date_str.strip(), '%Y-%m-%d').date()
     except ValueError:
