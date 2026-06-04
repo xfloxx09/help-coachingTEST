@@ -3309,11 +3309,24 @@ def _kpi_parse_date(value):
     return None
 
 
+def _kpi_detect_encoding(temp_path):
+    """Pick a working text encoding (export tools often use cp1252/Latin-1, not UTF-8)."""
+    for enc in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+        try:
+            with open(temp_path, 'r', encoding=enc) as fh:
+                fh.read()
+            return enc
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return 'latin-1'  # decodes any byte sequence, used as last resort
+
+
 def _kpi_read_surveys(temp_path):
     """Parse the KPI CSV grouped by datensatz_id. Returns list of survey dicts (no DB)."""
     surveys = {}
     order = []
-    with open(temp_path, 'r', encoding='utf-8-sig') as f:
+    encoding = _kpi_detect_encoding(temp_path)
+    with open(temp_path, 'r', encoding=encoding) as f:
         sample = f.read(4096)
         f.seek(0)
         delimiter = ';' if ';' in sample else ','
