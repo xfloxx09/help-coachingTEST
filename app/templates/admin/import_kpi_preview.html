@@ -56,12 +56,73 @@
                     {% if preview.unknown_ma_count %}
                     <div class="small text-muted mt-2">
                         <strong>{{ preview.unknown_ma_count }}</strong> MA-Kennungen ohne passendes Mitglied
+                        (siehe Tabelle unten)
                     </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
+
+    {% if preview.unknown_ma_details %}
+    <div class="card mb-4">
+        <div class="card-header bg-warning">
+            <h2 class="mb-0" style="font-size: 1.1rem;">
+                MA-Kennungen ohne passendes Mitglied ({{ preview.unknown_ma_count }})
+            </h2>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Diese MA-Kennungen aus der CSV konnten keinem Mitglied zugeordnet werden.
+                Tragen Sie die Kennung beim passenden Mitglied ein (Spalte <strong>MA-Kennung</strong>)
+                und importieren Sie anschließend erneut. Die Bearbeiten-Links öffnen sich in einem neuen Tab.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>MA-Kennung</th>
+                            <th>Name (aus CSV)</th>
+                            <th>Team (be4)</th>
+                            <th class="text-right">Befragungen</th>
+                            <th>Passende Mitglieder</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for u in preview.unknown_ma_details %}
+                        <tr>
+                            <td><code>{{ u.ma_kenner }}</code></td>
+                            <td>{{ u.name }}</td>
+                            <td>{{ u.be4 }}</td>
+                            <td class="text-right">{{ u.count }}</td>
+                            <td>
+                                {% if u.candidates %}
+                                    {% for c in u.candidates %}
+                                    <div class="mb-1">
+                                        <a href="{{ url_for('admin.edit_team_member', member_id=c.id) }}"
+                                           target="_blank" rel="noopener"
+                                           class="btn btn-xs btn-outline-primary">
+                                            <i class="fas fa-pen mr-1"></i>{{ c.name }}
+                                        </a>
+                                        <span class="small text-muted">
+                                            · {{ c.team_name }}{% if c.is_archiv %} (Archiv){% endif %}
+                                            {% if c.has_kennung %} · aktuell: <code>{{ c.ma_kennung }}</code>{% else %} · <span class="text-warning">keine Kennung</span>{% endif %}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="small text-muted">Kein Mitglied mit diesem Namen gefunden.
+                                    <a href="{{ url_for('admin.panel', member_search=u.name) }}" target="_blank" rel="noopener">In Mitgliederliste suchen</a></span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if preview.date_from %}
     <div class="alert alert-warning">

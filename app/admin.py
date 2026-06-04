@@ -3384,13 +3384,35 @@ def _kpi_resolve_links(surveys):
         if t.name:
             team_map.setdefault(t.name.strip(), (t.id, t.project_id))
     member_map = {}
-    for m in TeamMember.query.all():
+    name_map = {}
+    archiv_team = get_or_create_archiv_team()
+    for m in TeamMember.query.options(joinedload(TeamMember.team)).all():
         if m.ma_kennung:
             member_map.setdefault(m.ma_kennung.strip(), []).append((m.id, m.team_id))
+        if m.name:
+            name_map.setdefault(m.name.strip().lower(), []).append(m)
+
+    def _name_candidates(full_name, team_id):
+        """Existing members matching a CSV name, preferring the resolved team; ARCHIV last."""
+        members = name_map.get((full_name or '').strip().lower(), [])
+        out = []
+        for m in members:
+            out.append({
+                'id': m.id,
+                'name': m.name,
+                'team_name': m.team.name if m.team else '-',
+                'has_kennung': bool(m.ma_kennung),
+                'ma_kennung': m.ma_kennung or '',
+                'in_resolved_team': (team_id is not None and m.team_id == team_id),
+                'is_archiv': (m.team_id == archiv_team.id),
+            })
+        out.sort(key=lambda c: (not c['in_resolved_team'], c['is_archiv'], c['name']))
+        return out[:5]
 
     matched_team = matched_member = unassigned = 0
     unknown_be4 = set()
     unknown_ma = set()
+    unknown_ma_details = {}
     for s in surveys:
         tid = pid = None
         be4 = (s['be4'] or '').strip()
@@ -3415,6 +3437,19 @@ def _kpi_resolve_links(surveys):
             matched_member += 1
         elif s['ma_kenner']:
             unknown_ma.add(s['ma_kenner'])
+            key = s['ma_kenner'].strip()
+            info = unknown_ma_details.get(key)
+            if info is None:
+                full_name = (str(s['vorname'] or '') + ' ' + str(s['nachname'] or '')).strip()
+                unknown_ma_details[key] = {
+                    'ma_kenner': key,
+                    'name': full_name or '–',
+                    'be4': be4 or '–',
+                    'count': 1,
+                    'candidates': _name_candidates(full_name, tid),
+                }
+            else:
+                info['count'] += 1
         s['team_member_id'] = mid
 
         if tid is None:
@@ -3425,6 +3460,9 @@ def _kpi_resolve_links(surveys):
         'unassigned': unassigned,
         'unknown_be4': sorted(unknown_be4),
         'unknown_ma': sorted(unknown_ma),
+        'unknown_ma_details': sorted(
+            unknown_ma_details.values(), key=lambda d: (-d['count'], d['ma_kenner'])
+        ),
     }
 
 
@@ -3548,6 +3586,7 @@ def import_kpi_csv():
             'unknown_be4': stats['unknown_be4'][:30],
             'unknown_be4_count': len(stats['unknown_be4']),
             'unknown_ma_count': len(stats['unknown_ma']),
+            'unknown_ma_details': stats['unknown_ma_details'],
         }
         return render_template(
             'admin/import_kpi_preview.html',
