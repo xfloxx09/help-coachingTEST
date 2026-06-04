@@ -254,6 +254,9 @@
                     {% if has_perm('view_pl_qm_dashboard') %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.pl_qm_dashboard') }}">Teams</a></li>
                     {% endif %}
+                    {% if has_perm('view_kpi_dashboard') %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.kpi_dashboard') }}">KPIs <span class="badge badge-info">Demo</span></a></li>
+                    {% endif %}
                     {% if current_user.role_name in ['Admin', 'Betriebsleiter'] %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -272,6 +275,7 @@
                                 <a class="dropdown-item" href="{{ url_for('admin.manage_assigned_coachings') }}">Zugewiesene Coachings verwalten</a>
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="{{ url_for('admin.sync_from_csv') }}">CSV-Synchronisation</a>
+                                <a class="dropdown-item" href="{{ url_for('admin.import_kpi_csv') }}">KPI-Import (Demo)</a>
                             </div>
                         </li>
                     {% endif %}

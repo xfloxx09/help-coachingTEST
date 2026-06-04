@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+    .kpi-toolbar {
+        background: #1f1f24;
+        border: 1px solid #34343c;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .kpi-mode-group .btn {
+        border-color: #4a4a55;
+        color: #d6d6dd;
+        background: #2a2a31;
+    }
+    .kpi-mode-group .btn.active {
+        background: #e20074;
+        border-color: #e20074;
+        color: #fff;
+    }
+    .kpi-card {
+        border: 1px solid #34343c;
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 100%;
+        background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
+    }
+    .kpi-card .kpi-value { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+    .kpi-card .kpi-label { font-size: 0.95rem; color: #b9b9c2; margin-bottom: 0.4rem; }
+    .kpi-card .kpi-sub { font-size: 0.8rem; color: #8a8a95; margin-top: 0.5rem; }
+    .kpi-info .kpi-value { color: #36c6a0; }
+    .kpi-loes .kpi-value { color: #4aa3ff; }
+    .kpi-nps .kpi-value { color: #ffb648; }
+    .kpi-day-row { cursor: pointer; }
+    .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
+    .kpi-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
+        <h2 class="mb-0"><i class="fas fa-chart-line text-info"></i> KPIs <span class="badge badge-info align-middle">Demo</span></h2>
+    </div>
+
+    {% if not has_any_data %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-info-circle mr-1"></i>
+        Es sind noch keine KPI-Daten in Ihrem Sichtbereich vorhanden. Ein Administrator muss zunächst
+        Rohdaten über den <strong>KPI-Import (Demo)</strong> hochladen.
+    </div>
+    {% endif %}
+
+    <form method="GET" action="{{ url_for('main.kpi_dashboard') }}" id="kpiFilterForm" class="kpi-toolbar">
+        <input type="hidden" name="mode" id="kpiMode" value="{{ mode }}">
+
+        <div class="form-row align-items-end">
+            <div class="col-12 col-lg-auto mb-2">
+                <div class="kpi-mini-label mb-1">ansicht</div>
+                <div class="btn-group btn-group-sm kpi-mode-group" role="group">
+                    <button type="button" class="btn {% if mode == 'project' %}active{% endif %}" data-mode="project">Projekt</button>
+                    <button type="button" class="btn {% if mode == 'team' %}active{% endif %}" data-mode="team">Team</button>
+                    <button type="button" class="btn {% if mode == 'agent' %}active{% endif %}" data-mode="agent">Agent</button>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2">
+                <div class="kpi-mini-label mb-1">projekt</div>
+                <select name="project_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Projekt wählen --</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if sel_project == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">team</div>
+                <select name="team_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Team wählen --</option>
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if sel_team == t.id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">agent</div>
+                <select name="member_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Agent wählen --</option>
+                    {% for m in members %}
+                    <option value="{{ m.id }}" {% if sel_member == m.id %}selected{% endif %}>{{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <hr style="border-color:#34343c;">
+
+        <div class="form-row align-items-end">
+            <div class="col-12 col-md-3 mb-2">
+                <div class="kpi-mini-label mb-1">zeitraum</div>
+                <select name="period" id="kpiPeriod" class="form-control form-control-sm">
+                    <option value="7days" {% if period == '7days' %}selected{% endif %}>Letzte 7 Tage</option>
+                    <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+                    <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
+                    <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
+                    <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
+                    <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">von</div>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">bis</div>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-3 mb-2">
+                <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
+            </div>
+        </div>
+    </form>
+
+    {% if selection_made and kpi %}
+    <div class="mb-3">
+        <h4 class="mb-0">{{ scope_label }}</h4>
+    </div>
+    <div class="row mb-4">
+        <div class="col-12 col-md-4 mb-3">
+            <div class="kpi-card kpi-info">
+                <div class="kpi-label">Informationsquote</div>
+                <div class="kpi-value">{% if kpi.info_quote is not none %}{{ kpi.info_quote }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">{{ kpi.info_pos }} von {{ kpi.info_total }} Befragungen positiv ("Ja" oder "Noch nicht …informiert")</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4 mb-3">
+            <div class="kpi-card kpi-loes">
+                <div class="kpi-label">Lösungsquote</div>
+                <div class="kpi-value">{% if kpi.loes_quote is not none %}{{ kpi.loes_quote }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">{{ kpi.loes_pos }} von {{ kpi.loes_total }} Befragungen mit "Ja"</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4 mb-3">
+            <div class="kpi-card kpi-nps">
+                <div class="kpi-label">NPS</div>
+                <div class="kpi-value">{% if kpi.nps is not none %}{{ kpi.nps }}{% else %}–{% endif %}</div>
+                <div class="kpi-sub">{{ kpi.nps_total }} Bewertungen · {{ kpi.nps_promoters }} Promotoren / {{ kpi.nps_neutrals }} Neutrale / {{ kpi.nps_detractors }} Detraktoren</div>
+            </div>
+        </div>
+    </div>
+
+    {% if daily %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Verlauf</strong> <span class="text-muted small">(Klick auf einen Tag zeigt die Rohdaten)</span></div>
+        <div class="card-body">
+            <canvas id="kpiChart" height="90"></canvas>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><strong>Tagesübersicht</strong></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th class="text-right">Befragungen</th>
+                            <th class="text-right">Informationsquote</th>
+                            <th class="text-right">Lösungsquote</th>
+                            <th class="text-right">NPS</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for d in daily %}
+                        <tr class="kpi-day-row" data-date="{{ d.date }}">
+                            <td>{{ d.label }}</td>
+                            <td class="text-right">{{ d.count }}</td>
+                            <td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote }}%{% else %}–{% endif %}</td>
+                            <td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote }}%{% else %}–{% endif %}</td>
+                            <td class="text-right">{% if d.nps is not none %}{{ d.nps }}{% else %}–{% endif %}</td>
+                            <td class="text-right"><i class="fas fa-search text-muted"></i></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Keine Befragungen im gewählten Zeitraum.</div>
+    {% endif %}
+
+    {% elif has_any_data %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-hand-pointer mr-1"></i>
+        Bitte oben eine Auswahl treffen ({{ 'Projekt' if mode == 'project' else ('Team' if mode == 'team' else 'Agent') }}), um die KPIs anzuzeigen.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Raw-data modal -->
+<div class="modal fade" id="kpiDayModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rohdaten <span id="kpiDayModalDate"></span></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body" id="kpiDayModalBody">
+                <div class="text-center text-muted py-4">Lädt…</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var form = document.getElementById('kpiFilterForm');
+    if (!form) return;
+
+    // Mode toggle buttons set the hidden mode field and toggle dependent fields.
+    document.querySelectorAll('.kpi-mode-group .btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var mode = btn.getAttribute('data-mode');
+            document.getElementById('kpiMode').value = mode;
+            document.querySelectorAll('.kpi-mode-group .btn').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            // Reset deeper selections when switching to a broader mode.
+            var teamField = document.querySelector('.kpi-team-field');
+            var agentField = document.querySelector('.kpi-agent-field');
+            if (mode === 'project') {
+                if (teamField) teamField.style.display = 'none';
+                if (agentField) agentField.style.display = 'none';
+            } else if (mode === 'team') {
+                if (teamField) teamField.style.display = '';
+                if (agentField) agentField.style.display = 'none';
+            } else {
+                if (teamField) teamField.style.display = '';
+                if (agentField) agentField.style.display = '';
+            }
+        });
+    });
+
+    // von-bis toggle
+    var periodSel = document.getElementById('kpiPeriod');
+    if (periodSel) {
+        periodSel.addEventListener('change', function () {
+            var show = periodSel.value === 'vonbis';
+            document.querySelectorAll('.kpi-vonbis-field').forEach(function (el) {
+                el.style.display = show ? '' : 'none';
+            });
+        });
+    }
+
+    // Auto-submit on dropdown change for snappy filtering.
+    document.querySelectorAll('.kpi-auto').forEach(function (sel) {
+        sel.addEventListener('change', function () { form.submit(); });
+    });
+
+    // Chart
+    var daily = {{ daily|tojson }};
+    var canvas = document.getElementById('kpiChart');
+    if (canvas && daily && daily.length && window.Chart) {
+        var ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: daily.map(function (d) { return d.label; }),
+                datasets: [
+                    {
+                        label: 'Informationsquote (%)',
+                        data: daily.map(function (d) { return d.info_quote; }),
+                        borderColor: '#36c6a0',
+                        backgroundColor: 'rgba(54,198,160,0.15)',
+                        yAxisID: 'yQuote',
+                        spanGaps: true,
+                        tension: 0.25,
+                    },
+                    {
+                        label: 'Lösungsquote (%)',
+                        data: daily.map(function (d) { return d.loes_quote; }),
+                        borderColor: '#4aa3ff',
+                        backgroundColor: 'rgba(74,163,255,0.15)',
+                        yAxisID: 'yQuote',
+                        spanGaps: true,
+                        tension: 0.25,
+                    },
+                    {
+                        label: 'NPS',
+                        data: daily.map(function (d) { return d.nps; }),
+                        borderColor: '#ffb648',
+                        backgroundColor: 'rgba(255,182,72,0.15)',
+                        yAxisID: 'yNps',
+                        spanGaps: true,
+                        tension: 0.25,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                onClick: function (evt, elements) {
+                    if (elements && elements.length) {
+                        var idx = elements[0].index;
+                        if (daily[idx]) openKpiDay(daily[idx].date);
+                    }
+                },
+                scales: {
+                    yQuote: {
+                        type: 'linear', position: 'left', min: 0, max: 100,
+                        title: { display: true, text: 'Quote (%)' },
+                    },
+                    yNps: {
+                        type: 'linear', position: 'right', min: -100, max: 100,
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'NPS' },
+                    },
+                },
+            },
+        });
+    }
+
+    // Day detail modal
+    var modalParams = {
+        mode: {{ mode|tojson }},
+        project_id: {{ (sel_project or '')|tojson }},
+        team_id: {{ (sel_team or '')|tojson }},
+        member_id: {{ (sel_member or '')|tojson }},
+    };
+
+    window.openKpiDay = function (dateStr) {
+        var q = new URLSearchParams();
+        q.set('date', dateStr);
+        q.set('mode', modalParams.mode);
+        if (modalParams.project_id) q.set('project_id', modalParams.project_id);
+        if (modalParams.team_id) q.set('team_id', modalParams.team_id);
+        if (modalParams.member_id) q.set('member_id', modalParams.member_id);
+
+        var body = document.getElementById('kpiDayModalBody');
+        body.innerHTML = '<div class="text-center text-muted py-4">Lädt…</div>';
+        document.getElementById('kpiDayModalDate').textContent = '';
+        $('#kpiDayModal').modal('show');
+
+        fetch('{{ url_for("main.kpi_day_detail") }}?' + q.toString())
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { body.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>'; return; }
+                document.getElementById('kpiDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Befragungen)';
+                if (!data.surveys.length) { body.innerHTML = '<div class="text-muted">Keine Befragungen.</div>'; return; }
+                var html = '';
+                data.surveys.forEach(function (s) {
+                    html += '<div class="card mb-3"><div class="card-header py-2">'
+                        + '<strong>' + escapeHtml(s.agent) + '</strong> · ' + escapeHtml(s.team)
+                        + ' <span class="text-muted small">(ID ' + escapeHtml(s.datensatz_id) + ')</span>'
+                        + (s.nps !== null ? ' <span class="badge badge-warning">NPS ' + s.nps + '</span>' : '')
+                        + '</div><div class="card-body p-2"><table class="table table-sm mb-0"><tbody>';
+                    s.answers.forEach(function (a) {
+                        html += '<tr><td style="width:55%">' + escapeHtml(a.frage || '') + '</td>'
+                            + '<td>' + escapeHtml(a.antwort || '') + '</td></tr>';
+                    });
+                    html += '</tbody></table></div></div>';
+                });
+                body.innerHTML = html;
+            })
+            .catch(function () {
+                body.innerHTML = '<div class="alert alert-danger">Daten konnten nicht geladen werden.</div>';
+            });
+    };
+
+    document.querySelectorAll('.kpi-day-row').forEach(function (row) {
+        row.addEventListener('click', function () { openKpiDay(row.getAttribute('data-date')); });
+    });
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+})();
+</script>
+{% endblock %}

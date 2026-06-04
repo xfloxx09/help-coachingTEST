@@ -5,7 +5,8 @@ from sqlalchemy import desc, or_, false, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from app import db
-from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop
+from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer
+from app import kpi as kpi_logic
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
 from app.main_routes import calculate_date_range, get_month_name_german, _sync_assigned_coaching_status_from_progress
@@ -3290,3 +3291,288 @@ def sync_from_csv():
         return redirect(url_for('admin.sync_from_csv'))
 
     return render_template('admin/sync_from_csv.html', config=current_app.config)
+
+
+# =====================================================================
+# KPI (Demo) raw-data import  — standalone flow (separate from member sync)
+# =====================================================================
+
+def _kpi_parse_date(value):
+    s = (value or '').strip()
+    if not s:
+        return None
+    for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d.%m.%y'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _kpi_read_surveys(temp_path):
+    """Parse the KPI CSV grouped by datensatz_id. Returns list of survey dicts (no DB)."""
+    surveys = {}
+    order = []
+    with open(temp_path, 'r', encoding='utf-8-sig') as f:
+        sample = f.read(4096)
+        f.seek(0)
+        delimiter = ';' if ';' in sample else ','
+        reader = csv.DictReader(f, delimiter=delimiter)
+        for row in reader:
+            dsid = (row.get('datensatz_id') or '').strip()
+            if not dsid:
+                continue
+            s = surveys.get(dsid)
+            if s is None:
+                s = {
+                    'datensatz_id': dsid[:64],
+                    'interviewnummer': (row.get('interviewnummer') or '').strip()[:64],
+                    'antwort_date': _kpi_parse_date(row.get('antwortdatum')),
+                    'kontakt_date': _kpi_parse_date(row.get('kontaktdatum')),
+                    'be4': kpi_logic.normalize_text(row.get('be4')),
+                    'ma_kenner': kpi_logic.normalize_text(row.get('ma_kenner')),
+                    'ospname': kpi_logic.normalize_text(row.get('ospname'))[:100],
+                    'kampagne': kpi_logic.normalize_text(row.get('kampagne'))[:150],
+                    'studie': kpi_logic.normalize_text(row.get('studie'))[:150],
+                    'queue': kpi_logic.normalize_text(row.get('queue'))[:150],
+                    'vorname': kpi_logic.normalize_text(row.get('vorname'))[:100],
+                    'nachname': kpi_logic.normalize_text(row.get('nachname'))[:100],
+                    'answers': [],
+                    'nps_value': None,
+                    'loesung_answer': None,
+                    'info_positive': None,
+                    'loesung_positive': None,
+                }
+                surveys[dsid] = s
+                order.append(dsid)
+            frage = row.get('frage') or ''
+            antwort = row.get('antwort') or ''
+            code = kpi_logic.question_code(frage)
+            s['answers'].append({
+                'code': code,
+                'text': kpi_logic.question_text(frage),
+                'antwort': kpi_logic.normalize_text(antwort),
+            })
+            if code == kpi_logic.NPS_CODE:
+                v = kpi_logic.parse_nps(antwort)
+                if v is not None:
+                    s['nps_value'] = v
+            elif code == kpi_logic.INFO_LOESUNG_CODE:
+                s['loesung_answer'] = kpi_logic.normalize_text(antwort)[:255]
+                s['info_positive'] = kpi_logic.classify_info(antwort)
+                s['loesung_positive'] = kpi_logic.classify_loesung(antwort)
+    return [surveys[d] for d in order]
+
+
+def _kpi_resolve_links(surveys):
+    """Resolve be4 -> team/project (globally unique name) and ma_kenner -> member."""
+    team_map = {}
+    for t in Team.query.all():
+        if t.name:
+            team_map.setdefault(t.name.strip(), (t.id, t.project_id))
+    member_map = {}
+    for m in TeamMember.query.all():
+        if m.ma_kennung:
+            member_map.setdefault(m.ma_kennung.strip(), []).append((m.id, m.team_id))
+
+    matched_team = matched_member = unassigned = 0
+    unknown_be4 = set()
+    unknown_ma = set()
+    for s in surveys:
+        tid = pid = None
+        be4 = (s['be4'] or '').strip()
+        if be4 and be4 in team_map:
+            tid, pid = team_map[be4]
+            matched_team += 1
+        elif be4:
+            unknown_be4.add(be4)
+        s['team_id'] = tid
+        s['project_id'] = pid
+
+        mid = None
+        cands = member_map.get((s['ma_kenner'] or '').strip())
+        if cands:
+            if tid is not None:
+                for cmid, cmt in cands:
+                    if cmt == tid:
+                        mid = cmid
+                        break
+            if mid is None:
+                mid = cands[0][0]
+            matched_member += 1
+        elif s['ma_kenner']:
+            unknown_ma.add(s['ma_kenner'])
+        s['team_member_id'] = mid
+
+        if tid is None:
+            unassigned += 1
+    return {
+        'matched_team': matched_team,
+        'matched_member': matched_member,
+        'unassigned': unassigned,
+        'unknown_be4': sorted(unknown_be4),
+        'unknown_ma': sorted(unknown_ma),
+    }
+
+
+def _kpi_commit(filename, surveys, stats):
+    """Replace-range commit: delete existing surveys in the file's date range, then insert."""
+    dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
+    date_from = min(dates) if dates else None
+    date_to = max(dates) if dates else None
+
+    batch = KpiImportBatch(
+        filename=(filename or '')[:255],
+        imported_by_id=current_user.id,
+        date_from=date_from,
+        date_to=date_to,
+        surveys_total=len(surveys),
+        surveys_matched_team=stats['matched_team'],
+        surveys_matched_member=stats['matched_member'],
+        surveys_unassigned=stats['unassigned'],
+    )
+    db.session.add(batch)
+    db.session.flush()
+
+    if date_from and date_to:
+        old_ids = [
+            r[0] for r in db.session.query(KpiSurvey.id).filter(
+                KpiSurvey.antwort_date >= date_from,
+                KpiSurvey.antwort_date <= date_to,
+            ).all()
+        ]
+        if old_ids:
+            KpiAnswer.query.filter(KpiAnswer.survey_id.in_(old_ids)).delete(synchronize_session=False)
+            KpiSurvey.query.filter(KpiSurvey.id.in_(old_ids)).delete(synchronize_session=False)
+
+    for s in surveys:
+        survey = KpiSurvey(
+            datensatz_id=s['datensatz_id'],
+            interviewnummer=s['interviewnummer'],
+            antwort_date=s['antwort_date'],
+            kontakt_date=s['kontakt_date'],
+            be4=(s['be4'] or '')[:100],
+            ma_kenner=(s['ma_kenner'] or '')[:50],
+            ospname=s['ospname'],
+            kampagne=s['kampagne'],
+            studie=s['studie'],
+            queue=s['queue'],
+            vorname=s['vorname'],
+            nachname=s['nachname'],
+            team_id=s['team_id'],
+            project_id=s['project_id'],
+            team_member_id=s['team_member_id'],
+            nps_value=s['nps_value'],
+            loesung_answer=s['loesung_answer'],
+            info_positive=s['info_positive'],
+            loesung_positive=s['loesung_positive'],
+            batch_id=batch.id,
+        )
+        for a in s['answers']:
+            survey.answers.append(KpiAnswer(
+                frage_code=(a['code'] or '')[:40],
+                frage_text=a['text'],
+                antwort=a['antwort'],
+            ))
+        db.session.add(survey)
+    db.session.commit()
+    return batch, date_from, date_to
+
+
+def _kpi_cleanup_session_temp():
+    temp_path = session.get('kpi_csv_temp_file')
+    if temp_path and os.path.isfile(temp_path):
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+    session.pop('kpi_csv_temp_file', None)
+    session.pop('kpi_csv_filename', None)
+
+
+@bp.route('/import_kpi_csv', methods=['GET', 'POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_csv():
+    # Step 1: upload + preview
+    if request.method == 'POST' and 'kpi_csv_file' in request.files:
+        file = request.files['kpi_csv_file']
+        if not file or not file.filename.lower().endswith('.csv'):
+            flash('Bitte eine CSV-Datei hochladen.', 'danger')
+            return redirect(url_for('admin.import_kpi_csv'))
+
+        _kpi_cleanup_session_temp()
+        fd, temp_path = tempfile.mkstemp(suffix='.csv')
+        os.close(fd)
+        file.save(temp_path)
+        session['kpi_csv_temp_file'] = temp_path
+        session['kpi_csv_filename'] = file.filename
+
+        try:
+            surveys = _kpi_read_surveys(temp_path)
+            stats = _kpi_resolve_links(surveys)
+        except Exception as e:
+            flash(f'CSV konnte nicht gelesen werden: {e}', 'danger')
+            _kpi_cleanup_session_temp()
+            return redirect(url_for('admin.import_kpi_csv'))
+
+        if not surveys:
+            flash('Keine Datensätze mit "datensatz_id" in der CSV gefunden.', 'warning')
+            _kpi_cleanup_session_temp()
+            return redirect(url_for('admin.import_kpi_csv'))
+
+        dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
+        preview = {
+            'total': len(surveys),
+            'matched_team': stats['matched_team'],
+            'matched_member': stats['matched_member'],
+            'unassigned': stats['unassigned'],
+            'date_from': min(dates).strftime('%d.%m.%Y') if dates else None,
+            'date_to': max(dates).strftime('%d.%m.%Y') if dates else None,
+            'nps_count': sum(1 for s in surveys if s['nps_value'] is not None),
+            'loes_count': sum(1 for s in surveys if s['loesung_answer']),
+            'no_date': sum(1 for s in surveys if not s['antwort_date']),
+            'unknown_be4': stats['unknown_be4'][:30],
+            'unknown_be4_count': len(stats['unknown_be4']),
+            'unknown_ma_count': len(stats['unknown_ma']),
+        }
+        return render_template(
+            'admin/import_kpi_preview.html',
+            preview=preview,
+            filename=file.filename,
+            config=current_app.config,
+        )
+
+    # Step 2: confirm + commit
+    if request.method == 'POST' and request.form.get('action') == 'confirm':
+        temp_path = session.get('kpi_csv_temp_file')
+        filename = session.get('kpi_csv_filename', 'import.csv')
+        if not temp_path or not os.path.exists(temp_path):
+            flash('Keine KPI-CSV-Daten gefunden. Bitte erneut hochladen.', 'danger')
+            return redirect(url_for('admin.import_kpi_csv'))
+        try:
+            surveys = _kpi_read_surveys(temp_path)
+            stats = _kpi_resolve_links(surveys)
+            batch, date_from, date_to = _kpi_commit(filename, surveys, stats)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Import fehlgeschlagen: {e}', 'danger')
+            return redirect(url_for('admin.import_kpi_csv'))
+        _kpi_cleanup_session_temp()
+        rng = ''
+        if date_from and date_to:
+            rng = f' Zeitraum {date_from.strftime("%d.%m.%Y")}–{date_to.strftime("%d.%m.%Y")} ersetzt.'
+        flash(
+            f'KPI-Import abgeschlossen: {batch.surveys_total} Befragungen, '
+            f'{batch.surveys_matched_team} mit Team, {batch.surveys_matched_member} mit Agent, '
+            f'{batch.surveys_unassigned} ohne Team (unassigned).{rng}',
+            'success',
+        )
+        return redirect(url_for('admin.import_kpi_csv'))
+
+    recent_batches = KpiImportBatch.query.order_by(desc(KpiImportBatch.imported_at)).limit(10).all()
+    return render_template(
+        'admin/import_kpi_csv.html',
+        recent_batches=recent_batches,
+        config=current_app.config,
+    )

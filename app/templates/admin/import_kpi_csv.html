@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3"><i class="fas fa-chart-line text-info"></i> KPI-Import (Demo)</h1>
+    <p class="text-muted">
+        Importieren Sie hier die Rohdaten der SMS-Befragung als CSV. Aus den Antworten werden
+        <strong>Informationsquote</strong>, <strong>Lösungsquote</strong> und <strong>NPS</strong> berechnet.
+        Dieser Import ist <strong>vollständig getrennt</strong> von der Mitglieder-CSV-Synchronisation.
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-header telekom-bg-magenta text-white">
+            <h2 class="mb-0" style="font-size: 1.15rem;">CSV hochladen</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="kpi_csv_file">KPI-Rohdaten (CSV)</label>
+                    <input type="file" class="form-control-file" id="kpi_csv_file" name="kpi_csv_file" accept=".csv" required>
+                    <small class="form-text text-muted">
+                        Erwartete Spalten u. a.: <code>datensatz_id</code>, <code>frage</code>, <code>antwort</code>,
+                        <code>be4</code> (Teamname), <code>ma_kenner</code> (MA-Kennung), <code>antwortdatum</code>.
+                        Zeilen mit identischer <code>datensatz_id</code> bilden eine Befragung.
+                    </small>
+                </div>
+                <button type="submit" class="btn telekom-button">
+                    <i class="fas fa-upload mr-1"></i> Hochladen &amp; Vorschau
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="alert alert-warning">
+        <i class="fas fa-info-circle mr-1"></i>
+        Beim Import werden vorhandene KPI-Befragungen im <strong>Antwortdatum-Zeitraum der Datei</strong>
+        ersetzt (Replace-Range), damit erneute Importe keine Duplikate erzeugen.
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-secondary text-white">
+            <h2 class="mb-0" style="font-size: 1.1rem;">Letzte Importe</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_batches %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Datei</th>
+                            <th>Zeitraum</th>
+                            <th class="text-right">Befragungen</th>
+                            <th class="text-right">mit Team</th>
+                            <th class="text-right">mit Agent</th>
+                            <th class="text-right">ohne Team</th>
+                            <th>Von</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for b in recent_batches %}
+                        <tr>
+                            <td class="text-nowrap">{{ b.imported_at.strftime('%d.%m.%Y %H:%M') if b.imported_at else '-' }}</td>
+                            <td>{{ b.filename or '-' }}</td>
+                            <td class="text-nowrap">
+                                {% if b.date_from and b.date_to %}
+                                    {{ b.date_from.strftime('%d.%m.%Y') }}–{{ b.date_to.strftime('%d.%m.%Y') }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="text-right">{{ b.surveys_total }}</td>
+                            <td class="text-right">{{ b.surveys_matched_team }}</td>
+                            <td class="text-right">{{ b.surveys_matched_member }}</td>
+                            <td class="text-right">{{ b.surveys_unassigned }}</td>
+                            <td>{{ b.imported_by.username if b.imported_by else '-' }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Noch keine KPI-Importe vorhanden.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

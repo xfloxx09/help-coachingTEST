@@ -147,6 +147,7 @@ def create_app(config_class=Config):
                 'Geplante Coachings/Workshops anderer Coaches im Projektbereich einsehen (nur Ansicht)',
             ),
             ('terminkalender', 'Terminkalender anzeigen (Kalender mit Terminen und Coachings im Sichtbereich)'),
+            ('view_kpi_dashboard', 'KPIs (Demo): Informationsquote, Lösungsquote und NPS im eigenen Sichtbereich ansehen'),
         ]
         for name, desc in default_permissions:
             res = conn.execute(text("SELECT id FROM permissions WHERE name = :name"), {"name": name}).fetchone()
@@ -527,6 +528,85 @@ def create_app(config_class=Config):
         except Exception as e:
             conn.rollback()
             print(f"ℹ️ coaching_thema_items seed: {e}")
+
+        # 16. KPI (Demo) tables: kpi_import_batches, kpi_surveys, kpi_answers
+        inspector = inspect(db.engine)
+        existing_tables = set(inspector.get_table_names())
+        if 'kpi_import_batches' not in existing_tables:
+            try:
+                conn.execute(text(
+                    'CREATE TABLE kpi_import_batches ('
+                    'id SERIAL PRIMARY KEY, '
+                    'filename VARCHAR(255), '
+                    'imported_by_id INTEGER REFERENCES users(id), '
+                    'imported_at TIMESTAMP NOT NULL DEFAULT NOW(), '
+                    'date_from DATE, '
+                    'date_to DATE, '
+                    'surveys_total INTEGER NOT NULL DEFAULT 0, '
+                    'surveys_matched_team INTEGER NOT NULL DEFAULT 0, '
+                    'surveys_matched_member INTEGER NOT NULL DEFAULT 0, '
+                    'surveys_unassigned INTEGER NOT NULL DEFAULT 0)'
+                ))
+                conn.commit()
+                print("✅ Tabelle 'kpi_import_batches' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ kpi_import_batches: {e}")
+        inspector = inspect(db.engine)
+        if 'kpi_surveys' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE kpi_surveys ('
+                    'id SERIAL PRIMARY KEY, '
+                    'datensatz_id VARCHAR(64) NOT NULL, '
+                    'interviewnummer VARCHAR(64), '
+                    'antwort_date DATE, '
+                    'kontakt_date DATE, '
+                    'be4 VARCHAR(100), '
+                    'ma_kenner VARCHAR(50), '
+                    'ospname VARCHAR(100), '
+                    'kampagne VARCHAR(150), '
+                    'studie VARCHAR(150), '
+                    'queue VARCHAR(150), '
+                    'vorname VARCHAR(100), '
+                    'nachname VARCHAR(100), '
+                    'team_id INTEGER REFERENCES teams(id), '
+                    'project_id INTEGER REFERENCES projects(id), '
+                    'team_member_id INTEGER REFERENCES team_members(id), '
+                    'nps_value INTEGER, '
+                    'loesung_answer VARCHAR(255), '
+                    'info_positive BOOLEAN, '
+                    'loesung_positive BOOLEAN, '
+                    'batch_id INTEGER REFERENCES kpi_import_batches(id), '
+                    'created_at TIMESTAMP NOT NULL DEFAULT NOW())'
+                ))
+                conn.execute(text('CREATE INDEX ix_kpi_surveys_datensatz_id ON kpi_surveys (datensatz_id)'))
+                conn.execute(text('CREATE INDEX ix_kpi_surveys_antwort_date ON kpi_surveys (antwort_date)'))
+                conn.execute(text('CREATE INDEX ix_kpi_surveys_team_id ON kpi_surveys (team_id)'))
+                conn.execute(text('CREATE INDEX ix_kpi_surveys_project_id ON kpi_surveys (project_id)'))
+                conn.execute(text('CREATE INDEX ix_kpi_surveys_team_member_id ON kpi_surveys (team_member_id)'))
+                conn.commit()
+                print("✅ Tabelle 'kpi_surveys' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ kpi_surveys: {e}")
+        inspector = inspect(db.engine)
+        if 'kpi_answers' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE kpi_answers ('
+                    'id SERIAL PRIMARY KEY, '
+                    'survey_id INTEGER NOT NULL REFERENCES kpi_surveys(id), '
+                    'frage_code VARCHAR(40), '
+                    'frage_text TEXT, '
+                    'antwort TEXT)'
+                ))
+                conn.execute(text('CREATE INDEX ix_kpi_answers_survey_id ON kpi_answers (survey_id)'))
+                conn.commit()
+                print("✅ Tabelle 'kpi_answers' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ kpi_answers: {e}")
 
         print("--- Migration abgeschlossen ---")
 

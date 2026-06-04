@@ -1,7 +1,7 @@
 # app/main_routes.py
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app, jsonify, abort
 from flask_login import login_required, current_user
-from sqlalchemy import desc, or_, and_, false, exists, extract, cast, Date
+from sqlalchemy import desc, or_, and_, false, exists, extract, cast, Date, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload, aliased
 from app import db
@@ -19,7 +19,11 @@ from app.models import (
     CoachingReview,
     PlannedCoaching,
     PlannedWorkshop,
+    KpiSurvey,
+    KpiAnswer,
+    KpiImportBatch,
 )
+from app import kpi as kpi_logic
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
 from app.utils import (
     bogen_layout_for_project,
@@ -4737,3 +4741,307 @@ def reject_assigned_coaching(assignment_id):
     else:
         flash('Aufgabe kann nicht abgelehnt werden.', 'warning')
     return redirect(url_for('main.assigned_coachings', project=list_pid))
+
+
+# =====================================================================
+# KPIs (Demo): Informationsquote, Lösungsquote, NPS
+# =====================================================================
+
+def _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str):
+    """Return (start_date, end_date, period) as Python date objects."""
+    today = datetime.now(timezone.utc).date()
+    if period_arg == 'vonbis':
+        start = end = None
+        try:
+            if date_from_str:
+                start = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            if date_to_str:
+                end = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+        except ValueError:
+            start = end = None
+        if start and end and start <= end:
+            return start, end, 'vonbis'
+        # fall through to default if invalid
+        period_arg = '30days'
+    if period_arg == '7days':
+        return today - timedelta(days=6), today, '7days'
+    if period_arg == '90days':
+        return today - timedelta(days=89), today, '90days'
+    if period_arg == 'this_month':
+        return today.replace(day=1), today, 'this_month'
+    if period_arg == 'this_year':
+        return today.replace(month=1, day=1), today, 'this_year'
+    if period_arg == 'all':
+        return None, None, 'all'
+    # default
+    return today - timedelta(days=29), today, '30days'
+
+
+def _kpi_scope():
+    """Returns (accessible_project_ids_or_None, sees_all_teams, my_team_ids)."""
+    accessible = get_accessible_project_ids()
+    sees_all_teams = _user_sees_all_teams_coaching_dashboard()
+    my_team_ids = _dashboard_my_team_ids() if not sees_all_teams else []
+    return accessible, sees_all_teams, my_team_ids
+
+
+def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
+    """Scope filters restricting KpiSurvey to the user's visible projects/teams."""
+    filters = []
+    if accessible is None:
+        pass  # Admin / Betriebsleiter: all projects
+    elif not accessible:
+        filters.append(KpiSurvey.project_id == -1)
+    else:
+        filters.append(KpiSurvey.project_id.in_(accessible))
+    if not sees_all_teams:
+        if my_team_ids:
+            filters.append(KpiSurvey.team_id.in_(my_team_ids))
+        else:
+            filters.append(false())
+    return filters
+
+
+def _kpi_aggregate(rows):
+    """rows: iterable of (info_positive, loesung_positive, nps_value). Returns KPI dict."""
+    info_pos = info_total = 0
+    loes_pos = loes_total = 0
+    nps_values = []
+    for info_positive, loesung_positive, nps_value in rows:
+        if info_positive is not None:
+            info_total += 1
+            if info_positive:
+                info_pos += 1
+        if loesung_positive is not None:
+            loes_total += 1
+            if loesung_positive:
+                loes_pos += 1
+        if nps_value is not None:
+            nps_values.append(nps_value)
+    nps = kpi_logic.compute_nps(nps_values)
+    return {
+        'info_quote': kpi_logic.quote_percent(info_pos, info_total),
+        'info_total': info_total,
+        'info_pos': info_pos,
+        'loes_quote': kpi_logic.quote_percent(loes_pos, loes_total),
+        'loes_total': loes_total,
+        'loes_pos': loes_pos,
+        'nps': nps['nps'],
+        'nps_total': nps['total'],
+        'nps_promoters': nps['promoters'],
+        'nps_neutrals': nps['neutrals'],
+        'nps_detractors': nps['detractors'],
+    }
+
+
+@bp.route('/kpis')
+@login_required
+@permission_required('view_kpi_dashboard')
+def kpi_dashboard():
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    base_filters = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
+
+    # --- Dropdown option sources (scoped) ---
+    # Projects visible to the user that actually have KPI data.
+    proj_q = (
+        db.session.query(Project.id, Project.name)
+        .join(KpiSurvey, KpiSurvey.project_id == Project.id)
+        .filter(*base_filters)
+        .distinct()
+        .order_by(Project.name)
+    )
+    projects = [{'id': pid, 'name': pname} for pid, pname in proj_q.all()]
+
+    mode = (request.args.get('mode') or 'project').strip()
+    if mode not in ('project', 'team', 'agent'):
+        mode = 'project'
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    # Teams within optional project filter.
+    team_filters = list(base_filters)
+    if sel_project:
+        team_filters.append(KpiSurvey.project_id == sel_project)
+    team_q = (
+        db.session.query(Team.id, Team.name)
+        .join(KpiSurvey, KpiSurvey.team_id == Team.id)
+        .filter(*team_filters)
+        .distinct()
+        .order_by(Team.name)
+    )
+    teams = [{'id': tid, 'name': tname} for tid, tname in team_q.all()]
+
+    # Agents within optional project/team filter.
+    member_filters = list(base_filters)
+    if sel_project:
+        member_filters.append(KpiSurvey.project_id == sel_project)
+    if sel_team:
+        member_filters.append(KpiSurvey.team_id == sel_team)
+    member_q = (
+        db.session.query(TeamMember.id, TeamMember.name)
+        .join(KpiSurvey, KpiSurvey.team_member_id == TeamMember.id)
+        .filter(*member_filters)
+        .distinct()
+        .order_by(TeamMember.name)
+    )
+    members = [{'id': mid, 'name': mname} for mid, mname in member_q.all()]
+
+    # --- Validate selections against the scoped option lists ---
+    valid_project_ids = {p['id'] for p in projects}
+    valid_team_ids = {t['id'] for t in teams}
+    valid_member_ids = {m['id'] for m in members}
+    if sel_project and sel_project not in valid_project_ids:
+        sel_project = None
+    if sel_team and sel_team not in valid_team_ids:
+        sel_team = None
+    if sel_member and sel_member not in valid_member_ids:
+        sel_member = None
+
+    # --- Date range ---
+    period_arg = (request.args.get('period') or '30days').strip()
+    date_from_str = (request.args.get('date_from') or '').strip()
+    date_to_str = (request.args.get('date_to') or '').strip()
+    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+
+    # --- Build the active query filters from scope + mode + date ---
+    filters = list(base_filters)
+    if mode == 'agent' and sel_member:
+        filters.append(KpiSurvey.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        filters.append(KpiSurvey.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        filters.append(KpiSurvey.project_id == sel_project)
+    if start_date:
+        filters.append(KpiSurvey.antwort_date >= start_date)
+    if end_date:
+        filters.append(KpiSurvey.antwort_date <= end_date)
+
+    selection_made = (
+        (mode == 'project' and sel_project) or
+        (mode == 'team' and sel_team) or
+        (mode == 'agent' and sel_member)
+    )
+
+    kpi = None
+    daily = []
+    scope_label = ''
+    has_any_data = bool(projects)
+    if selection_made:
+        rows = (
+            db.session.query(
+                KpiSurvey.info_positive,
+                KpiSurvey.loesung_positive,
+                KpiSurvey.nps_value,
+                KpiSurvey.antwort_date,
+            ).filter(*filters).all()
+        )
+        kpi = _kpi_aggregate([(r[0], r[1], r[2]) for r in rows])
+
+        # Daily series grouped by antwort_date.
+        by_day = {}
+        for info_positive, loesung_positive, nps_value, d in rows:
+            if d is None:
+                continue
+            bucket = by_day.setdefault(d, {'info': [], 'loes': [], 'nps': [], 'count': 0})
+            bucket['count'] += 1
+            if info_positive is not None:
+                bucket['info'].append(1 if info_positive else 0)
+            if loesung_positive is not None:
+                bucket['loes'].append(1 if loesung_positive else 0)
+            if nps_value is not None:
+                bucket['nps'].append(nps_value)
+        for d in sorted(by_day.keys()):
+            b = by_day[d]
+            nps_day = kpi_logic.compute_nps(b['nps'])
+            daily.append({
+                'date': d.strftime('%Y-%m-%d'),
+                'label': d.strftime('%d.%m.'),
+                'count': b['count'],
+                'info_quote': (round(sum(b['info']) / len(b['info']) * 100) if b['info'] else None),
+                'loes_quote': (round(sum(b['loes']) / len(b['loes']) * 100) if b['loes'] else None),
+                'nps': nps_day['nps'],
+            })
+
+        if mode == 'agent' and sel_member:
+            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+        elif mode == 'team' and sel_team:
+            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+        elif mode == 'project' and sel_project:
+            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+
+    return render_template(
+        'main/kpi_dashboard.html',
+        mode=mode,
+        projects=projects,
+        teams=teams,
+        members=members,
+        sel_project=sel_project,
+        sel_team=sel_team,
+        sel_member=sel_member,
+        period=period_arg,
+        date_from=date_from_str,
+        date_to=date_to_str,
+        kpi=kpi,
+        daily=daily,
+        scope_label=scope_label,
+        selection_made=bool(selection_made),
+        has_any_data=has_any_data,
+    )
+
+
+@bp.route('/kpis/day')
+@login_required
+@permission_required('view_kpi_dashboard')
+def kpi_day_detail():
+    """Raw question/answer data for a single day within the current scope (modal)."""
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    filters = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
+
+    day_str = (request.args.get('date') or '').strip()
+    try:
+        day = datetime.strptime(day_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Ungültiges Datum.'}), 400
+
+    mode = (request.args.get('mode') or 'project').strip()
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    filters.append(KpiSurvey.antwort_date == day)
+    if mode == 'agent' and sel_member:
+        filters.append(KpiSurvey.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        filters.append(KpiSurvey.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        filters.append(KpiSurvey.project_id == sel_project)
+
+    surveys = (
+        KpiSurvey.query.options(
+            selectinload(KpiSurvey.answers),
+            joinedload(KpiSurvey.team),
+            joinedload(KpiSurvey.team_member),
+        )
+        .filter(*filters)
+        .order_by(KpiSurvey.team_member_id, KpiSurvey.datensatz_id)
+        .limit(500)
+        .all()
+    )
+
+    out = []
+    for s in surveys:
+        out.append({
+            'datensatz_id': s.datensatz_id,
+            'agent': s.team_member.name if s.team_member else (
+                (s.vorname + ' ' + s.nachname).strip() or s.ma_kenner or '-'
+            ),
+            'team': s.team.name if s.team else (s.be4 or '-'),
+            'nps': s.nps_value,
+            'loesung_answer': s.loesung_answer,
+            'answers': [
+                {'frage': a.frage_text or a.frage_code, 'antwort': a.antwort}
+                for a in s.answers
+            ],
+        })
+    return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'surveys': out})

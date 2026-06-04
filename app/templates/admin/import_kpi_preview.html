@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3"><i class="fas fa-chart-line text-info"></i> KPI-Import – Vorschau</h1>
+    <p class="text-muted">Datei: <strong>{{ filename }}</strong></p>
+
+    <div class="card mb-4">
+        <div class="card-header telekom-bg-magenta text-white">
+            <h2 class="mb-0" style="font-size: 1.15rem;">Zusammenfassung</h2>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-6 col-md-3 mb-3">
+                    <div class="h3 mb-0">{{ preview.total }}</div>
+                    <small class="text-muted">Befragungen (datensatz_id)</small>
+                </div>
+                <div class="col-6 col-md-3 mb-3">
+                    <div class="h3 mb-0 text-success">{{ preview.matched_team }}</div>
+                    <small class="text-muted">einem Team zugeordnet</small>
+                </div>
+                <div class="col-6 col-md-3 mb-3">
+                    <div class="h3 mb-0 text-success">{{ preview.matched_member }}</div>
+                    <small class="text-muted">einem Agent zugeordnet</small>
+                </div>
+                <div class="col-6 col-md-3 mb-3">
+                    <div class="h3 mb-0 text-warning">{{ preview.unassigned }}</div>
+                    <small class="text-muted">ohne Team (unassigned)</small>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-unstyled mb-0">
+                        <li><strong>Zeitraum (Antwortdatum):</strong>
+                            {% if preview.date_from %}{{ preview.date_from }} – {{ preview.date_to }}{% else %}–{% endif %}</li>
+                        <li><strong>Befragungen mit NPS-Wert:</strong> {{ preview.nps_count }}</li>
+                        <li><strong>Befragungen mit Lösungs-Antwort:</strong> {{ preview.loes_count }}</li>
+                        {% if preview.no_date %}
+                        <li class="text-muted"><strong>{{ preview.no_date }}</strong> Befragungen ohne Antwortdatum (werden zusätzlich gespeichert, nicht vom Replace-Range erfasst)</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    {% if preview.unknown_be4_count %}
+                    <div class="small text-muted">
+                        <strong>{{ preview.unknown_be4_count }}</strong> be4-Werte (Teamnamen) ohne Treffer im System
+                        {% if preview.unknown_be4 %}
+                        <details class="mt-1">
+                            <summary>Beispiele anzeigen</summary>
+                            <div class="mt-1">{{ preview.unknown_be4|join(', ') }}{% if preview.unknown_be4_count > preview.unknown_be4|length %}, …{% endif %}</div>
+                        </details>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if preview.unknown_ma_count %}
+                    <div class="small text-muted mt-2">
+                        <strong>{{ preview.unknown_ma_count }}</strong> MA-Kennungen ohne passendes Mitglied
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if preview.date_from %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        Vorhandene KPI-Befragungen im Zeitraum <strong>{{ preview.date_from }} – {{ preview.date_to }}</strong>
+        werden beim Bestätigen <strong>ersetzt</strong>.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}">
+        <input type="hidden" name="action" value="confirm">
+        <button type="submit" class="btn btn-success">
+            <i class="fas fa-check mr-1"></i> Import bestätigen
+        </button>
+        <a href="{{ url_for('admin.import_kpi_csv') }}" class="btn btn-outline-secondary">Abbrechen</a>
+    </form>
+</div>
+{% endblock %}

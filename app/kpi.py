@@ -1,0 +1,125 @@
+# app/kpi.py
+"""KPI logic for the "KPIs (Demo)" feature.
+
+Three KPIs derived from SMS-survey raw data:
+- Informationsquote: share of surveys where "Konnten wir Ihr Anliegen lösen?"
+  is answered "Ja" OR "Noch nicht. Ich wurde über das weitere Vorgehen informiert."
+- Lösungsquote: same question, but only "Ja" counts as positive.
+- NPS: from the NPS question (0-10); NPS = %promoters (9-10) - %detractors (0-6).
+"""
+
+# Question identifiers (the CSV "frage" cell is "<code> : <text>").
+INFO_LOESUNG_CODE = '21000002002300'  # "Konnten wir Ihr Anliegen lösen?"
+NPS_CODE = '21000002004601'           # "NPS >|<"
+
+# Answer sets for the Info/Lösung question.
+INFO_POSITIVE_ANSWERS = {
+    'ja',
+    'noch nicht. ich wurde über das weitere vorgehen informiert.',
+}
+LOESUNG_POSITIVE_ANSWERS = {
+    'ja',
+}
+
+
+def normalize_text(value):
+    """Trim + collapse inner whitespace; keep original casing for storage."""
+    if value is None:
+        return ''
+    return ' '.join(str(value).split())
+
+
+def _norm_cmp(value):
+    return normalize_text(value).lower()
+
+
+def question_code(frage):
+    """Extract the leading question code from a 'frage' cell."""
+    s = normalize_text(frage)
+    if not s:
+        return ''
+    # Format: "21000002004601 : NPS >|<"
+    if ' : ' in s:
+        return s.split(' : ', 1)[0].strip()
+    return s.split(' ', 1)[0].strip()
+
+
+def question_text(frage):
+    s = normalize_text(frage)
+    if ' : ' in s:
+        return s.split(' : ', 1)[1].strip()
+    return s
+
+
+def classify_info(answer):
+    """True/False if the Lösung-question answer is known, else None."""
+    a = _norm_cmp(answer)
+    if not a:
+        return None
+    return a in INFO_POSITIVE_ANSWERS
+
+
+def classify_loesung(answer):
+    a = _norm_cmp(answer)
+    if not a:
+        return None
+    return a in LOESUNG_POSITIVE_ANSWERS
+
+
+def parse_nps(answer):
+    """Parse a 0-10 NPS rating; return int or None."""
+    a = normalize_text(answer)
+    if not a:
+        return None
+    try:
+        val = int(round(float(a.replace(',', '.'))))
+    except (ValueError, TypeError):
+        return None
+    if val < 0 or val > 10:
+        return None
+    return val
+
+
+def nps_category(value):
+    """'promoter' | 'neutral' | 'detractor' | None."""
+    if value is None:
+        return None
+    if value >= 9:
+        return 'promoter'
+    if value >= 7:
+        return 'neutral'
+    return 'detractor'
+
+
+def compute_nps(values):
+    """values: iterable of ints (0-10). Returns dict with nps + breakdown."""
+    promoters = neutrals = detractors = 0
+    total = 0
+    for v in values:
+        if v is None:
+            continue
+        total += 1
+        cat = nps_category(v)
+        if cat == 'promoter':
+            promoters += 1
+        elif cat == 'neutral':
+            neutrals += 1
+        else:
+            detractors += 1
+    if total == 0:
+        return {'nps': None, 'promoters': 0, 'neutrals': 0, 'detractors': 0, 'total': 0}
+    nps = round((promoters - detractors) / total * 100)
+    return {
+        'nps': nps,
+        'promoters': promoters,
+        'neutrals': neutrals,
+        'detractors': detractors,
+        'total': total,
+    }
+
+
+def quote_percent(positive, total):
+    """Rounded share in percent, or None if no answers."""
+    if not total:
+        return None
+    return round(positive / total * 100)

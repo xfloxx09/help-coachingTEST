@@ -440,3 +440,68 @@ class AssignedCoaching(db.Model):
         if dl.tzinfo is not None:
             now = datetime.now(timezone.utc)
         return dl < now
+
+
+class KpiImportBatch(db.Model):
+    """One CSV import run of SMS-survey raw data (KPIs Demo)."""
+    __tablename__ = 'kpi_import_batches'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255))
+    imported_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    imported_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    date_from = db.Column(db.Date, nullable=True)
+    date_to = db.Column(db.Date, nullable=True)
+    surveys_total = db.Column(db.Integer, nullable=False, default=0)
+    surveys_matched_team = db.Column(db.Integer, nullable=False, default=0)
+    surveys_matched_member = db.Column(db.Integer, nullable=False, default=0)
+    surveys_unassigned = db.Column(db.Integer, nullable=False, default=0)
+
+    imported_by = db.relationship('User', foreign_keys=[imported_by_id])
+
+
+class KpiSurvey(db.Model):
+    """One SMS survey (all rows sharing the same datensatz_id), linked to team/agent."""
+    __tablename__ = 'kpi_surveys'
+    id = db.Column(db.Integer, primary_key=True)
+    datensatz_id = db.Column(db.String(64), nullable=False, index=True)
+    interviewnummer = db.Column(db.String(64))
+    antwort_date = db.Column(db.Date, index=True)
+    kontakt_date = db.Column(db.Date)
+    be4 = db.Column(db.String(100))
+    ma_kenner = db.Column(db.String(50))
+    ospname = db.Column(db.String(100))
+    kampagne = db.Column(db.String(150))
+    studie = db.Column(db.String(150))
+    queue = db.Column(db.String(150))
+    vorname = db.Column(db.String(100))
+    nachname = db.Column(db.String(100))
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True, index=True)
+    team_member_id = db.Column(db.Integer, db.ForeignKey('team_members.id'), nullable=True, index=True)
+    # Precomputed KPI fields (fast aggregation):
+    nps_value = db.Column(db.Integer, nullable=True)
+    loesung_answer = db.Column(db.String(255), nullable=True)
+    info_positive = db.Column(db.Boolean, nullable=True)
+    loesung_positive = db.Column(db.Boolean, nullable=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey('kpi_import_batches.id'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id])
+    project = db.relationship('Project', foreign_keys=[project_id])
+    team_member = db.relationship('TeamMember', foreign_keys=[team_member_id])
+    batch = db.relationship('KpiImportBatch', backref=db.backref('surveys', lazy='dynamic'))
+    answers = db.relationship(
+        'KpiAnswer', back_populates='survey', cascade='all, delete-orphan'
+    )
+
+
+class KpiAnswer(db.Model):
+    """A single question/answer row inside a survey (for the raw-data popup)."""
+    __tablename__ = 'kpi_answers'
+    id = db.Column(db.Integer, primary_key=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey('kpi_surveys.id'), nullable=False)
+    frage_code = db.Column(db.String(40))
+    frage_text = db.Column(db.Text)
+    antwort = db.Column(db.Text)
+
+    survey = db.relationship('KpiSurvey', back_populates='answers')
