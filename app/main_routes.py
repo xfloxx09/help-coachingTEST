@@ -1054,6 +1054,63 @@ def _coaching_dashboard_query_joined(base_query):
     )
 
 
+def _build_coaching_dashboard_bar_charts(graph_filters, group_by='team'):
+    """Bar-chart series by team or by project (same filters as dashboard graphs)."""
+    if group_by == 'project':
+        entities = (
+            db.session.query(Project.id, Project.name)
+            .select_from(Coaching)
+            .join(TeamMember, Coaching.team_member_id == TeamMember.id)
+            .join(Team, TeamMember.team_id == Team.id)
+            .join(Project, Coaching.project_id == Project.id)
+            .outerjoin(User, Coaching.coach_id == User.id)
+            .filter(*graph_filters)
+            .distinct()
+            .order_by(Project.name)
+            .all()
+        )
+    else:
+        entities = (
+            db.session.query(Team.id, Team.name)
+            .select_from(Coaching)
+            .join(TeamMember, Coaching.team_member_id == TeamMember.id)
+            .join(Team, TeamMember.team_id == Team.id)
+            .outerjoin(User, Coaching.coach_id == User.id)
+            .filter(*graph_filters)
+            .distinct()
+            .order_by(Team.name)
+            .all()
+        )
+
+    labels = []
+    avg_performance = []
+    total_time = []
+    coachings_count = []
+    for ent in entities:
+        if group_by == 'project':
+            ent_filters = [Coaching.project_id == ent.id] + list(graph_filters)
+        else:
+            ent_filters = [TeamMember.team_id == ent.id] + list(graph_filters)
+        stats = (
+            db.session.query(
+                db.func.avg(Coaching.performance_mark),
+                db.func.sum(Coaching.time_spent),
+                db.func.count(Coaching.id),
+            )
+            .select_from(Coaching)
+            .join(TeamMember, Coaching.team_member_id == TeamMember.id)
+            .join(Team, TeamMember.team_id == Team.id)
+            .outerjoin(User, Coaching.coach_id == User.id)
+            .filter(*ent_filters)
+            .first()
+        )
+        labels.append(ent.name)
+        avg_performance.append(round((stats[0] or 0) * 10, 1))
+        total_time.append(stats[1] or 0)
+        coachings_count.append(stats[2] or 0)
+    return labels, avg_performance, total_time, coachings_count
+
+
 def _build_team_members_performance(team):
     project_id = team.project_id
     team_members_performance = []
@@ -1474,37 +1531,24 @@ def coaching_dashboard():
 
     total_coachings = list_query.count()
 
-    teams_for_charts = (
-        db.session.query(Team.id, Team.name)
-        .join(TeamMember, Team.id == TeamMember.team_id)
-        .join(Coaching, TeamMember.id == Coaching.team_member_id)
-        .outerjoin(User, Coaching.coach_id == User.id)
-        .filter(*graph_filters)
-        .distinct()
-        .all()
+    chart_labels, chart_avg_performance, chart_total_time, chart_coachings_count = (
+        _build_coaching_dashboard_bar_charts(graph_filters, 'team')
     )
-    chart_labels = [t.name for t in teams_for_charts]
-    chart_avg_performance = []
-    chart_total_time = []
-    chart_coachings_count = []
-    for team in teams_for_charts:
-        team_filters = [TeamMember.team_id == team.id] + graph_filters
-        stats = (
-            db.session.query(
-                db.func.avg(Coaching.performance_mark),
-                db.func.sum(Coaching.time_spent),
-                db.func.count(Coaching.id),
-            )
-            .select_from(Coaching)
-            .join(TeamMember, Coaching.team_member_id == TeamMember.id)
-            .join(Team, TeamMember.team_id == Team.id)
-            .outerjoin(User, Coaching.coach_id == User.id)
-            .filter(*team_filters)
-            .first()
-        )
-        chart_avg_performance.append(round((stats[0] or 0) * 10, 1))
-        chart_total_time.append(stats[1] or 0)
-        chart_coachings_count.append(stats[2] or 0)
+    (
+        chart_project_labels,
+        chart_project_avg_performance,
+        chart_project_total_time,
+        chart_project_coachings_count,
+    ) = _build_coaching_dashboard_bar_charts(graph_filters, 'project')
+
+    chart_group_arg = (request.args.get('chart_group') or 'teams').strip()
+    if chart_group_arg not in ('teams', 'projects'):
+        chart_group_arg = 'teams'
+    show_chart_group_toggle = len(chart_labels) > 1 or len(chart_project_labels) > 1
+    if chart_group_arg == 'projects' and not chart_project_labels:
+        chart_group_arg = 'teams'
+    if chart_group_arg == 'teams' and not chart_labels and chart_project_labels:
+        chart_group_arg = 'projects'
 
     subject_counts = (
         db.session.query(Coaching.coaching_subject, db.func.count(Coaching.id))
@@ -1607,6 +1651,8 @@ def coaching_dashboard():
     cal_day_label = cal_date_active.strftime('%d.%m.%Y') if cal_date_active else None
 
     coaching_dashboard_persist_query = {'period': period_arg, 'team': team_arg}
+    if show_chart_group_toggle and chart_group_arg != 'teams':
+        coaching_dashboard_persist_query['chart_group'] = chart_group_arg
     if search_arg:
         coaching_dashboard_persist_query['search'] = search_arg
     if cal_date_active and cal_date_str:
@@ -1636,6 +1682,12 @@ def coaching_dashboard():
                            chart_avg_performance_mark_percentage=chart_avg_performance,
                            chart_total_time_spent=chart_total_time,
                            chart_coachings_done=chart_coachings_count,
+                           chart_project_labels=chart_project_labels,
+                           chart_project_avg_performance=chart_project_avg_performance,
+                           chart_project_total_time=chart_project_total_time,
+                           chart_project_coachings_count=chart_project_coachings_count,
+                           chart_group_mode=chart_group_arg,
+                           show_chart_group_toggle=show_chart_group_toggle,
                            subject_chart_labels=subject_chart_labels,
                            subject_chart_values=subject_chart_values,
                            chart_coaching_zeitraum_labels=chart_coaching_zeitraum_labels,

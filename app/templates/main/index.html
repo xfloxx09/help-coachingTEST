@@ -294,6 +294,22 @@
     max-width: 100%;
     overflow-x: hidden;
 }
+.dash-chart-header {
+    gap: 0.5rem;
+}
+.dash-chart-group-toggle .btn-outline-light {
+    color: rgba(255, 255, 255, 0.85);
+    border-color: rgba(255, 255, 255, 0.55);
+}
+.dash-chart-group-toggle .btn-outline-light:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: #fff;
+}
+.dash-chart-group-toggle .btn-light {
+    color: #e20074;
+    font-weight: 600;
+}
 @media (min-width: 768px) {
     .coaching-dashboard-fixed-table tr.coaching-dash-row-desktop {
         display: table-row !important;
@@ -713,6 +729,9 @@
         {% if dashboard_member_id is defined and dashboard_member_id %}
         <input type="hidden" name="member_id" value="{{ dashboard_member_id }}">
         {% endif %}
+        {% if show_chart_group_toggle %}
+        <input type="hidden" name="chart_group" id="chart_group_filter" value="{{ chart_group_mode }}">
+        {% endif %}
         <div class="col-md-auto">
             <div class="form-group">
                 <button type="submit" class="btn telekom-button btn-sm">Filter anwenden</button>
@@ -767,7 +786,15 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="row">
     <div class="col-md-6 mb-4">
         <div class="card h-100">
-            <div class="card-header telekom-bg-magenta text-white">Anzahl Coachings / Team</div>
+            <div class="card-header telekom-bg-magenta text-white dash-chart-header d-flex justify-content-between align-items-center flex-wrap">
+                <span class="dash-chart-title mb-0" data-title-teams="Anzahl Coachings / Team" data-title-projects="Anzahl Coachings / Projekt">{% if chart_group_mode == 'projects' %}Anzahl Coachings / Projekt{% else %}Anzahl Coachings / Team{% endif %}</span>
+                {% if show_chart_group_toggle %}
+                <div class="btn-group btn-group-sm dash-chart-group-toggle" role="group" aria-label="Diagramm nach Teams oder Projekten">
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'teams' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="teams">Teams</button>
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'projects' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="projects">Projekte</button>
+                </div>
+                {% endif %}
+            </div>
             <div class="card-body d-flex align-items-center justify-content-center p-2">
                 <canvas id="coachingsDoneByTeamChart" style="max-height: 300px; width: 100%;"></canvas>
             </div>
@@ -775,7 +802,15 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
     <div class="col-md-6 mb-4">
         <div class="card h-100">
-            <div class="card-header telekom-bg-magenta text-white">Gesamte Coaching-Dauer / Team (Min.)</div>
+            <div class="card-header telekom-bg-magenta text-white dash-chart-header d-flex justify-content-between align-items-center flex-wrap">
+                <span class="dash-chart-title mb-0" data-title-teams="Gesamte Coaching-Dauer / Team (Min.)" data-title-projects="Gesamte Coaching-Dauer / Projekt (Min.)">{% if chart_group_mode == 'projects' %}Gesamte Coaching-Dauer / Projekt (Min.){% else %}Gesamte Coaching-Dauer / Team (Min.){% endif %}</span>
+                {% if show_chart_group_toggle %}
+                <div class="btn-group btn-group-sm dash-chart-group-toggle" role="group" aria-label="Diagramm nach Teams oder Projekten">
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'teams' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="teams">Teams</button>
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'projects' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="projects">Projekte</button>
+                </div>
+                {% endif %}
+            </div>
             <div class="card-body d-flex align-items-center justify-content-center p-2">
                 <canvas id="timeSpentChart" style="max-height: 300px; width: 100%;"></canvas>
             </div>
@@ -785,7 +820,15 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="row mt-0 mt-md-4">
     <div class="col-md-6 mb-4">
         <div class="card h-100">
-            <div class="card-header telekom-bg-magenta text-white">Ø Performance / Team (%)</div>
+            <div class="card-header telekom-bg-magenta text-white dash-chart-header d-flex justify-content-between align-items-center flex-wrap">
+                <span class="dash-chart-title mb-0" data-title-teams="Ø Performance / Team (%)" data-title-projects="Ø Performance / Projekt (%)">{% if chart_group_mode == 'projects' %}Ø Performance / Projekt (%){% else %}Ø Performance / Team (%){% endif %}</span>
+                {% if show_chart_group_toggle %}
+                <div class="btn-group btn-group-sm dash-chart-group-toggle" role="group" aria-label="Diagramm nach Teams oder Projekten">
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'teams' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="teams">Teams</button>
+                    <button type="button" class="btn btn-sm {% if chart_group_mode == 'projects' %}btn-light{% else %}btn-outline-light{% endif %}" data-chart-group="projects">Projekte</button>
+                </div>
+                {% endif %}
+            </div>
             <div class="card-body d-flex align-items-center justify-content-center p-2">
                 <canvas id="avgPerfByTeamChart" style="max-height: 300px; width: 100%;"></canvas>
             </div>
@@ -834,6 +877,9 @@ document.addEventListener('DOMContentLoaded', function () {
             {% endif %}
             {% if dashboard_member_id is defined and dashboard_member_id %}
             <input type="hidden" name="member_id" value="{{ dashboard_member_id }}">
+            {% endif %}
+            {% if show_chart_group_toggle %}
+            <input type="hidden" name="chart_group" value="{{ chart_group_mode }}">
             {% endif %}
             <div class="input-group w-100">
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Suchen (Name, Coach, Thema...)" value="{{ current_search_term or '' }}" aria-label="Suchbegriff für Coachings">
@@ -1284,10 +1330,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const subjectDistributionCtx = document.getElementById('subjectDistributionChart');
     const coachingsZeitraumCtx = document.getElementById('coachingsZeitraumChart');
 
-    const chartLabels = {{ chart_labels|tojson|safe }};
-    const chartAvgPerformanceData = {{ chart_avg_performance_mark_percentage|tojson|safe }};
-    const chartTotalTimeData = {{ chart_total_time_spent|tojson|safe }};
-    const chartCoachingsDoneData = {{ chart_coachings_done|tojson|safe }};
+    const chartDataByGroup = {
+        teams: {
+            labels: {{ chart_labels|tojson|safe }},
+            avg: {{ chart_avg_performance_mark_percentage|tojson|safe }},
+            time: {{ chart_total_time_spent|tojson|safe }},
+            counts: {{ chart_coachings_done|tojson|safe }}
+        },
+        projects: {
+            labels: {{ chart_project_labels|tojson|safe }},
+            avg: {{ chart_project_avg_performance|tojson|safe }},
+            time: {{ chart_project_total_time|tojson|safe }},
+            counts: {{ chart_project_coachings_count|tojson|safe }}
+        }
+    };
+    let activeChartGroup = {{ chart_group_mode|tojson|safe }};
+    const barChartInstances = { coachings: null, time: null, perf: null };
     const subjectChartLabels = {{ subject_chart_labels|tojson|safe }};
     const subjectChartValues = {{ subject_chart_values|tojson|safe }};
     const coachingZeitraumLabels = {{ chart_coaching_zeitraum_labels|tojson|safe }};
@@ -1305,8 +1363,54 @@ document.addEventListener('DOMContentLoaded', function () {
             if ((config.type === 'pie' || config.type === 'doughnut') && config.data.datasets && config.data.datasets.length > 0 && config.data.datasets[0].data && config.data.datasets[0].data.length > 0 && config.data.datasets[0].data.some(d => d > 0)) { hasData = true; }
             else if (config.data.datasets && config.data.datasets.length > 0 && config.data.datasets[0].data && config.data.datasets[0].data.length > 0 && config.data.datasets[0].data.some(d => d !== null && d !== undefined && !isNaN(d))) { hasData = true; }
         }
-        if (ctx && hasData) { try { new Chart(ctx, config); } catch (e) { console.error("Chart.js Error for canvas ID '" + ctx.id + "':", e); const c = ctx.getContext('2d'); c.font = "16px Arial"; c.fillStyle = textColor; c.textAlign = "center"; c.fillText("Fehler Chart.", ctx.canvas.width / 2, ctx.canvas.height / 2); }
-        } else if (ctx) { const c = ctx.getContext('2d'); c.font = "16px Arial"; c.fillStyle = textColor; c.textAlign = "center"; c.fillText(message, ctx.canvas.width / 2, ctx.canvas.height / 2); }
+        if (ctx && hasData) {
+            try { return new Chart(ctx, config); } catch (e) {
+                console.error("Chart.js Error for canvas ID '" + ctx.id + "':", e);
+                const c = ctx.getContext('2d');
+                c.font = "16px Arial";
+                c.fillStyle = textColor;
+                c.textAlign = "center";
+                c.fillText("Fehler Chart.", ctx.canvas.width / 2, ctx.canvas.height / 2);
+            }
+        } else if (ctx) {
+            const c = ctx.getContext('2d');
+            c.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            c.font = "16px Arial";
+            c.fillStyle = textColor;
+            c.textAlign = "center";
+            c.fillText(message, ctx.canvas.width / 2, ctx.canvas.height / 2);
+        }
+        return null;
+    }
+
+    function activeBarData() {
+        return chartDataByGroup[activeChartGroup] || chartDataByGroup.teams;
+    }
+
+    function syncChartGroupUi() {
+        document.querySelectorAll('.dash-chart-title').forEach(function (el) {
+            const title = activeChartGroup === 'projects' ? el.dataset.titleProjects : el.dataset.titleTeams;
+            if (title) { el.textContent = title; }
+        });
+        document.querySelectorAll('.dash-chart-group-toggle [data-chart-group]').forEach(function (btn) {
+            const on = btn.getAttribute('data-chart-group') === activeChartGroup;
+            btn.classList.toggle('btn-light', on);
+            btn.classList.toggle('btn-outline-light', !on);
+        });
+        const hidden = document.getElementById('chart_group_filter');
+        if (hidden) { hidden.value = activeChartGroup; }
+        document.querySelectorAll('input[type="hidden"][name="chart_group"]').forEach(function (inp) {
+            if (inp.id !== 'chart_group_filter') { inp.value = activeChartGroup; }
+        });
+    }
+
+    function destroyBarCharts() {
+        ['coachings', 'time', 'perf'].forEach(function (key) {
+            if (barChartInstances[key]) {
+                barChartInstances[key].destroy();
+                barChartInstances[key] = null;
+            }
+        });
     }
 
     const commonChartOptions = {
@@ -1333,97 +1437,120 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     };
 
-    drawChartWithMessage(chartCoachingsDoneCtx, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Anzahl',
-                data: chartCoachingsDoneData,
-                backgroundColor: telekomMagenta,
-                borderColor: telekomMagentaBorder,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            ...commonChartOptions,
-            scales: {
-                ...commonChartOptions.scales,
-                y: {
-                    ...commonChartOptions.scales.y,
-                    ticks: { ...commonChartOptions.scales.y.ticks, stepSize: 1, precision: 0 },
-                    max: chartCoachingsDoneData.length > 0 ? Math.ceil(Math.max(...chartCoachingsDoneData) * 1.2) + 1 : 5
-                }
-            }
-        }
-    });
+    function renderBarCharts() {
+        const d = activeBarData();
+        const labels = d.labels || [];
+        const counts = d.counts || [];
+        const times = d.time || [];
+        const avg = d.avg || [];
+        destroyBarCharts();
 
-    drawChartWithMessage(timeSpentChartCtx, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Gesamtdauer (Min.)',
-                data: chartTotalTimeData,
-                backgroundColor: telekomMagenta,
-                borderColor: telekomMagentaBorder,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            ...commonChartOptions,
-            scales: {
-                ...commonChartOptions.scales,
-                y: {
-                    ...commonChartOptions.scales.y,
-                    max: chartTotalTimeData.length > 0 ? Math.ceil(Math.max(...chartTotalTimeData) * 1.2) + 5 : 30
-                }
+        barChartInstances.coachings = drawChartWithMessage(chartCoachingsDoneCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Anzahl',
+                    data: counts,
+                    backgroundColor: telekomMagenta,
+                    borderColor: telekomMagentaBorder,
+                    borderWidth: 1
+                }]
             },
-            plugins: {
-                ...commonChartOptions.plugins,
-                datalabels: {
-                    ...commonChartOptions.plugins.datalabels,
-                    formatter: (value) => Math.round(value) + ' Min'
-                }
-            }
-        }
-    });
-
-    drawChartWithMessage(chartAvgPerformanceCtx, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Performance',
-                data: chartAvgPerformanceData,
-                backgroundColor: telekomMagenta,
-                borderColor: telekomMagentaBorder,
-                borderWidth: 1
-            }]
-        },
-        options: {
-            ...commonChartOptions,
-            scales: {
-                ...commonChartOptions.scales,
-                y: {
-                    ...commonChartOptions.scales.y,
-                    min:0,
-                    max: 105,
-                    ticks: {
-                        ...commonChartOptions.scales.y.ticks,
-                        stepSize: 10,
-                        callback: function(value) { if (value <= 100) { return value + "%";} return '';}
+            options: {
+                ...commonChartOptions,
+                scales: {
+                    ...commonChartOptions.scales,
+                    y: {
+                        ...commonChartOptions.scales.y,
+                        ticks: { ...commonChartOptions.scales.y.ticks, stepSize: 1, precision: 0 },
+                        max: counts.length > 0 ? Math.ceil(Math.max(...counts) * 1.2) + 1 : 5
                     }
                 }
+            }
+        });
+
+        barChartInstances.time = drawChartWithMessage(timeSpentChartCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Gesamtdauer (Min.)',
+                    data: times,
+                    backgroundColor: telekomMagenta,
+                    borderColor: telekomMagentaBorder,
+                    borderWidth: 1
+                }]
             },
-            plugins: {
-                ...commonChartOptions.plugins,
-                datalabels: {
-                    ...commonChartOptions.plugins.datalabels,
-                    formatter: (value) => Math.round(value) + '%'
+            options: {
+                ...commonChartOptions,
+                scales: {
+                    ...commonChartOptions.scales,
+                    y: {
+                        ...commonChartOptions.scales.y,
+                        max: times.length > 0 ? Math.ceil(Math.max(...times) * 1.2) + 5 : 30
+                    }
+                },
+                plugins: {
+                    ...commonChartOptions.plugins,
+                    datalabels: {
+                        ...commonChartOptions.plugins.datalabels,
+                        formatter: (value) => Math.round(value) + ' Min'
+                    }
                 }
             }
-        }
+        });
+
+        barChartInstances.perf = drawChartWithMessage(chartAvgPerformanceCtx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Performance',
+                    data: avg,
+                    backgroundColor: telekomMagenta,
+                    borderColor: telekomMagentaBorder,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                ...commonChartOptions,
+                scales: {
+                    ...commonChartOptions.scales,
+                    y: {
+                        ...commonChartOptions.scales.y,
+                        min: 0,
+                        max: 105,
+                        ticks: {
+                            ...commonChartOptions.scales.y.ticks,
+                            stepSize: 10,
+                            callback: function (value) { if (value <= 100) { return value + '%'; } return ''; }
+                        }
+                    }
+                },
+                plugins: {
+                    ...commonChartOptions.plugins,
+                    datalabels: {
+                        ...commonChartOptions.plugins.datalabels,
+                        formatter: (value) => Math.round(value) + '%'
+                    }
+                }
+            }
+        });
+    }
+
+    function setChartGroup(mode) {
+        if (!chartDataByGroup[mode]) { return; }
+        activeChartGroup = mode;
+        syncChartGroupUi();
+        renderBarCharts();
+    }
+
+    renderBarCharts();
+    document.querySelectorAll('.dash-chart-group-toggle [data-chart-group]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            setChartGroup(btn.getAttribute('data-chart-group'));
+        });
     });
 
     drawChartWithMessage(subjectDistributionCtx, {
