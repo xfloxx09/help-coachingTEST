@@ -361,6 +361,27 @@ def users_for_assignment_coach_dropdown(project_id, team_member_id=None):
     return eligible
 
 
+def users_for_assignment_coach_dropdown_multi(project_id, team_member_ids):
+    """Coaches eligible for every listed team member (intersection)."""
+    ids = [int(x) for x in (team_member_ids or []) if x]
+    if not ids:
+        return users_for_assignment_coach_dropdown(project_id, None)
+    by_id = {}
+    common = None
+    for mid in ids:
+        coaches = users_for_assignment_coach_dropdown(project_id, mid)
+        cids = {u.id for u in coaches}
+        if common is None:
+            common = cids
+        else:
+            common &= cids
+        for u in coaches:
+            by_id[u.id] = u
+    if not common:
+        return []
+    return [by_id[i] for i in sorted(common, key=lambda uid: (by_id[uid].coach_display_name or '').lower())]
+
+
 def role_required(allowed_roles):
     def decorator(f):
         @wraps(f)

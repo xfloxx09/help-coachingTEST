@@ -41,6 +41,7 @@ from app.utils import (
     team_member_eligible_for_coaching_assignment,
     user_eligible_assignable_coach,
     users_for_assignment_coach_dropdown,
+    users_for_assignment_coach_dropdown_multi,
     workshop_individual_rating_from_request,
     leitfaden_items_for_project,
     leitfaden_items_for_coaching_edit,
@@ -475,12 +476,57 @@ def _user_can_assign_coachings():
     return current_user.has_permission('assign_coachings')
 
 
+def _active_assignment_counts_for_members(member_ids):
+    if not member_ids:
+        return {}
+    rows = db.session.query(
+        AssignedCoaching.team_member_id,
+        db.func.count(AssignedCoaching.id),
+    ).filter(
+        AssignedCoaching.team_member_id.in_(member_ids),
+        AssignedCoaching.status.in_(['pending', 'accepted', 'in_progress']),
+    ).group_by(AssignedCoaching.team_member_id).all()
+    return {mid: int(cnt or 0) for mid, cnt in rows}
+
+
+def _member_ids_from_assign_request():
+    """Parse team member ids from ?member_ids= / ?member_id= (GET) or form list (POST)."""
+    if request.method == 'POST':
+        ids = request.form.getlist('team_member_ids')
+    else:
+        ids = request.args.getlist('member_ids')
+    out = []
+    for raw in ids:
+        if raw is None:
+            continue
+        s = str(raw).strip()
+        if not s:
+            continue
+        for part in s.split(','):
+            part = part.strip()
+            if part.isdigit():
+                out.append(int(part))
+    if not out and request.method != 'POST':
+        single = request.args.get('member_id', type=int)
+        if single:
+            out.append(single)
+    seen = set()
+    deduped = []
+    for i in out:
+        if i not in seen:
+            seen.add(i)
+            deduped.append(i)
+    return deduped
+
+
 def _member_performance_for_assigned_page(project_id):
     members = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(
         Team.project_id == project_id,
         Team.name != ARCHIV_TEAM_NAME,
         or_(Team.active_for_coaching.is_(True), Team.visible_for_coaching_assignment.is_(True)),
     ).all()
+    member_ids = [m.id for m in members]
+    active_counts = _active_assignment_counts_for_members(member_ids)
     raw = []
     for m in members:
         stats = db.session.query(
@@ -524,6 +570,7 @@ def _member_performance_for_assigned_page(project_id):
             'coaching_count': r['coaching_count'],
             'total_time': r['total_time'],
             'last_coaching_date': r['last_coaching_date'],
+            'active_assignment_count': active_counts.get(m.id, 0),
         })
     return out
 
@@ -3994,27 +4041,44 @@ def create_assigned_coaching():
         flash('Kein Projekt ausgewählt.', 'danger')
         return redirect(url_for('main.index'))
 
-    tm_for_coaches = request.args.get('member_id', type=int)
-    if request.method == 'POST':
-        posted_m = request.form.get('team_member_id', type=int)
-        if posted_m:
-            tm_for_coaches = posted_m
+    selected_member_ids = _member_ids_from_assign_request()
+    tm_for_coaches = selected_member_ids[0] if len(selected_member_ids) == 1 else None
 
     form = AssignedCoachingForm(allowed_project_ids=[project_id], team_member_id=tm_for_coaches)
-    if request.method == 'GET' and tm_for_coaches:
-        form.team_member_id.data = tm_for_coaches
+    if request.method == 'GET' and len(selected_member_ids) == 1:
+        form.team_member_id.data = selected_member_ids[0]
+
+    active_counts = getattr(form, 'team_member_active_assignment_counts', {})
+    selected_members = []
+    if selected_member_ids:
+        rows = (
+            TeamMember.query.options(joinedload(TeamMember.team))
+            .join(Team, TeamMember.team_id == Team.id)
+            .filter(
+                TeamMember.id.in_(selected_member_ids),
+                Team.project_id == project_id,
+                Team.name != ARCHIV_TEAM_NAME,
+            )
+            .all()
+        )
+        by_id = {m.id: m for m in rows}
+        for mid in selected_member_ids:
+            m = by_id.get(mid)
+            if m:
+                selected_members.append({
+                    'id': m.id,
+                    'name': m.name,
+                    'team_name': m.team.name if m.team else '',
+                    'active_assignment_count': active_counts.get(m.id, 0),
+                })
 
     if form.validate_on_submit():
+        submit_ids = _member_ids_from_assign_request()
+        if not submit_ids:
+            flash('Bitte mindestens ein Teammitglied auswählen.', 'danger')
+            return redirect(url_for('main.create_assigned_coaching', project=project_id))
+
         coach_u = User.query.get(form.coach_id.data)
-        if not coach_u or not user_eligible_assignable_coach(
-            coach_u, project_id, form.team_member_id.data, for_assignment=True
-        ):
-            flash('Ungültige Coach-Auswahl.', 'danger')
-            return redirect(url_for('main.create_assigned_coaching', project=project_id))
-        tm_as = TeamMember.query.get(form.team_member_id.data)
-        if not team_member_eligible_for_coaching_assignment(tm_as):
-            flash('Dieses Teammitglied gehört zu einem Team, das für Coaching-Zuweisungen nicht freigegeben ist.', 'danger')
-            return redirect(url_for('main.create_assigned_coaching', project=project_id))
         d = form.deadline.data
         dl = datetime(d.year, d.month, d.day, 23, 59, 59)
         note_raw = request.form.get('current_note')
@@ -4022,25 +4086,57 @@ def create_assigned_coaching():
             cur_note = float(note_raw) if note_raw else None
         except (TypeError, ValueError):
             cur_note = None
-        assignment = AssignedCoaching(
-            project_leader_id=current_user.id,
-            coach_id=form.coach_id.data,
-            team_member_id=form.team_member_id.data,
-            deadline=dl,
-            expected_coaching_count=form.expected_coaching_count.data,
-            desired_performance_note=form.desired_performance_note.data,
-            current_performance_note_at_assign=cur_note,
-            status='pending',
-        )
-        db.session.add(assignment)
-        db.session.commit()
-        flash('Coaching-Aufgabe zugewiesen.', 'success')
-        return redirect(url_for('main.assigned_coachings', project=project_id, status='current'))
+
+        created = 0
+        skipped = 0
+        for mid in submit_ids:
+            tm_as = TeamMember.query.options(joinedload(TeamMember.team)).get(mid)
+            if not tm_as or not tm_as.team or tm_as.team.project_id != project_id:
+                skipped += 1
+                continue
+            if not team_member_eligible_for_coaching_assignment(tm_as):
+                skipped += 1
+                continue
+            if not coach_u or not user_eligible_assignable_coach(
+                coach_u, project_id, mid, for_assignment=True
+            ):
+                skipped += 1
+                continue
+            perf_note = cur_note
+            if len(submit_ids) > 1:
+                avg = db.session.query(db.func.avg(Coaching.performance_mark)).filter(
+                    Coaching.team_member_id == mid,
+                    Coaching.project_id == project_id,
+                ).scalar()
+                perf_note = round(float(avg or 0) * 10, 1) if avg is not None else None
+            db.session.add(AssignedCoaching(
+                project_leader_id=current_user.id,
+                coach_id=form.coach_id.data,
+                team_member_id=mid,
+                deadline=dl,
+                expected_coaching_count=form.expected_coaching_count.data,
+                desired_performance_note=form.desired_performance_note.data,
+                current_performance_note_at_assign=perf_note,
+                status='pending',
+            ))
+            created += 1
+        if created:
+            db.session.commit()
+            if created == 1:
+                flash('Coaching-Aufgabe zugewiesen.', 'success')
+            else:
+                flash(f'{created} Coaching-Aufgaben zugewiesen (je eine pro Teammitglied).', 'success')
+            return redirect(url_for('main.assigned_coachings', project=project_id, status='current'))
+        db.session.rollback()
+        flash('Zuweisung fehlgeschlagen. Coach oder Teammitglied ungültig.', 'danger')
+        return redirect(url_for('main.create_assigned_coaching', project=project_id))
 
     return render_template(
         'main/create_assigned_coaching.html',
         form=form,
-        active_assignment_counts=getattr(form, 'team_member_active_assignment_counts', {}),
+        active_assignment_counts=active_counts,
+        selected_members=selected_members,
+        bulk_assign_mode=len(selected_members) > 0,
         config=current_app.config,
     )
 
@@ -4049,16 +4145,32 @@ def create_assigned_coaching():
 @login_required
 @permission_required('assign_coachings')
 def api_assignment_coaches():
-    """Coach dropdown options for the current project; refined by selected team member (optional)."""
+    """Coach dropdown options for the current project; refined by selected team member(s)."""
     project_id = get_visible_project_id()
     if not project_id:
         return jsonify([])
-    mid = request.args.get('team_member_id', type=int)
-    if mid:
+    mids = request.args.getlist('team_member_ids')
+    parsed = []
+    for raw in mids:
+        for part in str(raw).split(','):
+            part = part.strip()
+            if part.isdigit():
+                parsed.append(int(part))
+    if not parsed:
+        mid = request.args.get('team_member_id', type=int)
+        if mid:
+            parsed = [mid]
+    valid = []
+    for mid in parsed:
         m = TeamMember.query.get(mid)
-        if not m or not m.team or m.team.project_id != project_id:
-            mid = None
-    coaches = users_for_assignment_coach_dropdown(project_id, mid)
+        if m and m.team and m.team.project_id == project_id:
+            valid.append(mid)
+    if len(valid) > 1:
+        coaches = users_for_assignment_coach_dropdown_multi(project_id, valid)
+    elif len(valid) == 1:
+        coaches = users_for_assignment_coach_dropdown(project_id, valid[0])
+    else:
+        coaches = users_for_assignment_coach_dropdown(project_id, None)
     return jsonify([
         {'id': u.id, 'label': f"{u.coach_display_name} ({u.role_name})"}
         for u in coaches

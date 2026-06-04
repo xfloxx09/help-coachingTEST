@@ -167,6 +167,27 @@
     .reset-sort:hover {
         text-decoration: underline;
     }
+    .member-select-col { width: 42px; text-align: center; vertical-align: middle; }
+    .member-assign-checkbox { cursor: pointer; width: 1.1rem; height: 1.1rem; }
+    .member-active-hint {
+        display: block;
+        font-size: 0.75rem;
+        color: #ffc107;
+        margin-top: 2px;
+    }
+    .bulk-assign-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 10px 14px;
+        background: #333;
+        border: 1px solid #e20074;
+        border-radius: 8px;
+    }
+    .bulk-assign-bar.is-visible { display: flex; }
     /* Only wrap the notes column in the assignment list (7th column) */
     .table td:nth-child(7) {
         word-break: break-word;
@@ -206,9 +227,16 @@
                     </span>
                 </span>
             </h4>
-            <p class="text-muted">Schneller Überblick über die aktuellen Durchschnittsleistungen. Klicken Sie auf "Zuweisen", um direkt eine Coaching-Aufgabe zu erstellen.</p>
+            <p class="text-muted">Wählen Sie ein oder mehrere Teammitglieder aus und klicken Sie auf „Auswahl zuweisen“, oder nutzen Sie „Zuweisen“ für eine einzelne Person.</p>
 
             {% if member_performance %}
+                <div id="bulkAssignBar" class="bulk-assign-bar" data-create-url="{{ url_for('main.create_assigned_coaching', project=active_project_id) }}">
+                    <span><strong id="bulkAssignCount">0</strong> Teammitglied(er) ausgewählt</span>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-light mr-2" id="bulkAssignClear">Auswahl aufheben</button>
+                        <button type="button" class="btn btn-sm telekom-button" id="bulkAssignGo">Auswahl zuweisen</button>
+                    </div>
+                </div>
                 <div id="memberAccordion">
                     {% set teams = {} %}
                     {% for member in member_performance %}
@@ -232,6 +260,9 @@
                                     <table class="table table-striped performance-table mb-0">
                                         <thead>
                                             <tr>
+                                                <th class="member-select-col">
+                                                    <input type="checkbox" class="member-assign-checkbox team-select-all" title="Alle in diesem Team auswählen" aria-label="Team auswählen">
+                                                </th>
                                                 <th class="sortable-header" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="score">Gesamtscore <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="performance">Ø Performance (%) <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
@@ -244,7 +275,17 @@
                                         <tbody>
                                             {% for member in members %}
                                             <tr data-name="{{ member.name }}" data-score="{{ member.combined_score }}" data-performance="{{ member.avg_score }}" data-coachings="{{ member.coaching_count }}" data-time="{{ member.total_time }}" data-last="{{ member.last_coaching_date.isoformat() if member.last_coaching_date else '' }}">
-                                                <td>{{ member.name }}</td>
+                                                <td class="member-select-col">
+                                                    <input type="checkbox" class="member-assign-checkbox member-row-select" value="{{ member.id }}" aria-label="{{ member.name }} auswählen">
+                                                </td>
+                                                <td>
+                                                    {{ member.name }}
+                                                    {% if member.active_assignment_count > 0 %}
+                                                    <span class="member-active-hint" title="Bereits zugewiesene offene Aufträge">
+                                                        Hinweis: {{ member.active_assignment_count }} aktive Zuweisung(en)
+                                                    </span>
+                                                    {% endif %}
+                                                </td>
                                                 <td><strong>{{ member.combined_score|round(1) }}%</strong></td>
                                                 <td>
                                                     <div class="progress" style="width: 100px;">
@@ -391,6 +432,60 @@ document.addEventListener('DOMContentLoaded', function() {
     if (memberAccordion) {
         memberAccordion.parentNode.insertBefore(resetContainer, memberAccordion);
         resetContainer.querySelector('.reset-sort').addEventListener('click', resetSort);
+    }
+
+    // --- Multi-select → create assigned coaching ---
+    const bulkBar = document.getElementById('bulkAssignBar');
+    const bulkCount = document.getElementById('bulkAssignCount');
+    const bulkGo = document.getElementById('bulkAssignGo');
+    const bulkClear = document.getElementById('bulkAssignClear');
+
+    function getSelectedMemberIds() {
+        return Array.from(document.querySelectorAll('.member-row-select:checked')).map(cb => cb.value);
+    }
+
+    function updateBulkBar() {
+        const ids = getSelectedMemberIds();
+        if (!bulkBar || !bulkCount) return;
+        bulkCount.textContent = String(ids.length);
+        bulkBar.classList.toggle('is-visible', ids.length > 0);
+    }
+
+    document.querySelectorAll('.member-assign-checkbox').forEach(cb => {
+        cb.addEventListener('click', function(e) { e.stopPropagation(); });
+    });
+
+    document.querySelectorAll('.member-row-select').forEach(cb => {
+        cb.addEventListener('change', updateBulkBar);
+    });
+
+    document.querySelectorAll('.team-select-all').forEach(teamCb => {
+        teamCb.addEventListener('change', function() {
+            const card = this.closest('.team-accordion');
+            if (!card) return;
+            card.querySelectorAll('.member-row-select').forEach(rowCb => {
+                rowCb.checked = teamCb.checked;
+            });
+            updateBulkBar();
+        });
+    });
+
+    if (bulkClear) {
+        bulkClear.addEventListener('click', function() {
+            document.querySelectorAll('.member-row-select, .team-select-all').forEach(cb => { cb.checked = false; });
+            updateBulkBar();
+        });
+    }
+
+    if (bulkGo && bulkBar) {
+        bulkGo.addEventListener('click', function() {
+            const ids = getSelectedMemberIds();
+            if (!ids.length) return;
+            const base = bulkBar.getAttribute('data-create-url');
+            const params = new URLSearchParams();
+            ids.forEach(id => params.append('member_ids', id));
+            window.location = base + (base.indexOf('?') >= 0 ? '&' : '?') + params.toString();
+        });
     }
 
     // Accordion icon toggle

@@ -2,25 +2,94 @@
 
 {% block head_extra %}
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<style>
+    .selected-members-panel {
+        margin-bottom: 1rem;
+        padding: 12px 14px;
+        background-color: #25292e;
+        border: 1px solid #444;
+        border-radius: 8px;
+    }
+    .selected-members-panel .panel-heading {
+        font-size: 0.85rem;
+        color: #adb5bd;
+        margin-bottom: 8px;
+    }
+    .selected-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 10px;
+        align-items: center;
+        min-height: 32px;
+    }
+    .selected-chips-empty {
+        font-size: 0.9rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+    .member-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px 6px 12px;
+        background-color: #3a3f46;
+        border: 1px solid #555;
+        border-radius: 20px;
+        color: #f0f0f0;
+        font-size: 0.9rem;
+        max-width: 100%;
+    }
+    .member-chip-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .member-chip-hint { font-size: 0.75rem; color: #ffc107; margin-left: 4px; }
+    .member-chip-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: rgba(226, 0, 116, 0.25);
+        color: #ff6bb3;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .member-chip-remove:hover { background: #e20074; color: #fff; }
+    .add-member-row { margin-top: 10px; }
+</style>
 <script>
 $(document).ready(function() {
-    function updateAssignedHint() {
-        var $selected = $('#team_member_id option:selected');
-        var count = parseInt($selected.data('activeAssignments') || 0, 10);
-        var $hint = $('#assigned_member_hint');
-        if (count > 0) {
-            $hint
-                .text('Hinweis: Dieses Teammitglied hat bereits ' + count + ' aktive Zuweisung(en).')
+    var activeCounts = {{ active_assignment_counts|tojson }};
+
+    function collectMemberIds() {
+        return $('#selected_member_ids_container input[name="team_member_ids"]').map(function() {
+            return $(this).val();
+        }).get();
+    }
+
+    function updateAssignedHints() {
+        var $box = $('#assigned_members_hint');
+        var ids = collectMemberIds();
+        var withActive = ids.filter(function(id) {
+            return (activeCounts[id] || 0) > 0;
+        });
+        if (withActive.length) {
+            $box.text('Hinweis: ' + withActive.length + ' ausgewählte Person(en) haben bereits aktive Zuweisung(en).')
                 .show();
         } else {
-            $hint.hide();
+            $box.hide();
         }
     }
 
-    function reloadAssignmentCoaches(memberId) {
-        $.getJSON("{{ url_for('main.api_assignment_coaches') }}", {
-            team_member_id: memberId || ''
-        }).done(function(rows) {
+    function reloadAssignmentCoaches() {
+        var ids = collectMemberIds();
+        var params = { team_member_ids: ids };
+        if (ids.length === 1) {
+            params.team_member_id = ids[0];
+        }
+        $.getJSON("{{ url_for('main.api_assignment_coaches') }}", params).done(function(rows) {
             var $c = $('#coach_id');
             var prev = $c.val();
             $c.empty();
@@ -33,33 +102,105 @@ $(document).ready(function() {
         });
     }
 
-    // When team member changes: coach list + current performance note
-    $('#team_member_id').change(function() {
-        var memberId = $(this).val();
-        updateAssignedHint();
-        reloadAssignmentCoaches(memberId);
-        if (memberId) {
-            $.getJSON("{{ url_for('main.get_member_current_score') }}", { member_id: memberId })
-                .done(function(data) {
-                    $('#current_note_display').text(data.score + '%');
-                    $('#current_note_hidden').val(data.score);
-                })
-                .fail(function() {
-                    $('#current_note_display').text('Fehler');
-                    $('#current_note_hidden').val('');
-                });
+    function renderChips() {
+        var $panel = $('#selected_chips');
+        var $container = $('#selected_member_ids_container');
+        $panel.empty();
+        $container.empty();
+        var items = [];
+        $('#selected_members_data .member-entry').each(function() {
+            items.push({
+                id: $(this).data('id'),
+                name: $(this).data('name'),
+                team: $(this).data('team'),
+                active: parseInt($(this).data('active') || 0, 10)
+            });
+        });
+        if (!items.length) {
+            $panel.append('<span class="selected-chips-empty">Noch keine Teammitglieder ausgewählt.</span>');
         } else {
-            $('#current_note_display').text('N/A');
-            $('#current_note_hidden').val('');
+            items.forEach(function(it) {
+                var chip = $('<span class="member-chip"/>')
+                    .append($('<span class="member-chip-name"/>').text(it.name + ' (' + it.team + ')'));
+                if (it.active > 0) {
+                    chip.append($('<span class="member-chip-hint"/>').attr('title', 'Aktive Zuweisungen').text('⚠ ' + it.active));
+                }
+                chip.append($('<button type="button" class="member-chip-remove" aria-label="Entfernen">&times;</button>'));
+                chip.find('.member-chip-remove').on('click', function() {
+                    $('#selected_members_data .member-entry[data-id="' + it.id + '"]').remove();
+                    renderChips();
+                    updateAssignedHints();
+                    reloadAssignmentCoaches();
+                    syncAddMemberSelect();
+                });
+                $panel.append(chip);
+                $container.append($('<input type="hidden" name="team_member_ids" value="' + it.id + '">'));
+            });
         }
+        updateAssignedHints();
+        reloadAssignmentCoaches();
+        syncAddMemberSelect();
+    }
+
+    function syncAddMemberSelect() {
+        var selected = {};
+        collectMemberIds().forEach(function(id) { selected[id] = true; });
+        $('#add_team_member_id option').each(function() {
+            var v = $(this).val();
+            if (!v) return;
+            $(this).prop('disabled', !!selected[v]);
+        });
+    }
+
+    $('#add_team_member_btn').on('click', function() {
+        var $sel = $('#add_team_member_id');
+        var id = $sel.val();
+        if (!id) return;
+        if ($('#selected_members_data .member-entry[data-id="' + id + '"]').length) return;
+        var $opt = $sel.find('option:selected');
+        var label = $opt.text().replace(/\s*⚠\s*$/, '').trim();
+        var team = '';
+        var m = label.match(/\(([^)]+)\)\s*$/);
+        if (m) {
+            team = m[1];
+            label = label.replace(/\s*\([^)]+\)\s*$/, '').trim();
+        }
+        var active = parseInt($opt.data('activeAssignments') || 0, 10);
+        $('#selected_members_data').append(
+            $('<div class="member-entry"/>')
+                .attr('data-id', id)
+                .attr('data-name', label)
+                .attr('data-team', team)
+                .attr('data-active', active)
+        );
+        $sel.val('');
+        renderChips();
     });
 
-    // Sync coaches + note: pre-selected member or initial broad coach list
-    if ($('#team_member_id').val()) {
-        $('#team_member_id').trigger('change');
-    } else {
-        updateAssignedHint();
-        reloadAssignmentCoaches('');
+    {% if selected_members %}
+    {% for sm in selected_members %}
+    $('#selected_members_data').append(
+        $('<div class="member-entry"/>')
+            .attr('data-id', '{{ sm.id }}')
+            .attr('data-name', {{ sm.name|tojson }})
+            .attr('data-team', {{ sm.team_name|tojson }})
+            .attr('data-active', {{ sm.active_assignment_count }})
+    );
+    {% endfor %}
+    {% endif %}
+
+    renderChips();
+
+    var singleId = collectMemberIds()[0];
+    if (singleId && collectMemberIds().length === 1) {
+        $.getJSON("{{ url_for('main.get_member_current_score') }}", { member_id: singleId })
+            .done(function(data) {
+                $('#current_note_display').text(data.score + '%');
+                $('#current_note_hidden').val(data.score);
+            });
+    } else if (collectMemberIds().length > 1) {
+        $('#current_note_display').text('pro Person beim Speichern');
+        $('#current_note_hidden').val('');
     }
 });
 </script>
@@ -73,32 +214,51 @@ $(document).ready(function() {
                 <h2>Neue Coaching-Aufgabe zuweisen</h2>
             </div>
             <div class="card-body">
-                <form method="POST" novalidate>
+                {% if bulk_assign_mode and selected_members|length > 1 %}
+                <p class="text-muted small mb-3">
+                    Es werden <strong>{{ selected_members|length }} separate Coaching-Aufgaben</strong> erstellt (gleicher Coach, gleiche Deadline – je eine Aufgabe pro Person).
+                </p>
+                {% endif %}
+
+                <form method="POST" novalidate id="assignedCoachingForm">
                     {{ form.hidden_tag() }}
+                    <div id="selected_members_data" style="display:none;"></div>
+                    <div id="selected_member_ids_container" style="display:none;"></div>
 
                     <div class="form-group">
-                        <label class="form-control-label" for="team_member_id">{{ form.team_member_id.label.text }}</label>
-                        <select name="team_member_id" id="team_member_id" class="form-control custom-select" required>
-                            <option value="">-- Bitte wählen --</option>
-                            {% set ns = namespace(prev_team='') %}
-                            {% for value, label in form.team_member_id.choices %}
-                                {% set team_name = label.split('(')[-1].rstrip(')') if '(' in label else '' %}
-                                {% set member_name = label.split(' (')[0] %}
-                                {% set assigned_count = active_assignment_counts.get(value, 0) %}
-                                {% if team_name != ns.prev_team %}
-                                    {% if not loop.first %}</optgroup>{% endif %}
-                                    <optgroup label="{{ team_name }}">
-                                {% endif %}
-                                <option value="{{ value }}" data-active-assignments="{{ assigned_count }}" {% if form.team_member_id.data == value %}selected{% endif %}>{{ member_name }}</option>
-                                {% set ns.prev_team = team_name %}
-                                {% if loop.last %}</optgroup>{% endif %}
-                            {% endfor %}
-                        </select>
-                        {% if form.team_member_id.errors %}
-                            <div class="invalid-feedback d-block">{% for error in form.team_member_id.errors %}{{ error }}{% endfor %}</div>
-                        {% endif %}
-                        <div id="assigned_member_hint" class="mt-1 text-warning small" style="display:none;"></div>
-                        <div class="mt-1 text-muted small">Aktuelle Performance Note: <span id="current_note_display">N/A</span></div>
+                        <label class="form-control-label">Ausgewählte Teammitglieder</label>
+                        <div class="selected-members-panel">
+                            <div class="panel-heading">Auswahl (entfernen mit ×)</div>
+                            <div id="selected_chips" class="selected-chips"></div>
+                            <div class="add-member-row row">
+                                <div class="col-md-9">
+                                    <select id="add_team_member_id" class="form-control custom-select">
+                                        <option value="">— Weitere Person hinzufügen —</option>
+                                        {% set ns = namespace(prev_team='') %}
+                                        {% for value, label in form.team_member_id.choices %}
+                                            {% set team_name = label.split('(')[-1].rstrip(')') if '(' in label else '' %}
+                                            {% set member_name = label.split(' (')[0] %}
+                                            {% set assigned_count = active_assignment_counts.get(value, 0) %}
+                                            {% if team_name != ns.prev_team %}
+                                                {% if not loop.first %}</optgroup>{% endif %}
+                                                <optgroup label="{{ team_name }}">
+                                            {% endif %}
+                                            <option value="{{ value }}" data-active-assignments="{{ assigned_count }}">{{ member_name }}{% if assigned_count > 0 %} ⚠{% endif %}</option>
+                                            {% set ns.prev_team = team_name %}
+                                            {% if loop.last %}</optgroup>{% endif %}
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button type="button" class="btn btn-outline-secondary btn-block" id="add_team_member_btn">Hinzufügen</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="assigned_members_hint" class="mt-1 text-warning small" style="display:none;"></div>
+                        <div class="mt-1 text-muted small">
+                            Aktuelle Performance Note:
+                            <span id="current_note_display">{% if selected_members|length > 1 %}pro Person beim Speichern{% else %}N/A{% endif %}</span>
+                        </div>
                         <input type="hidden" id="current_note_hidden" name="current_note">
                     </div>
 
@@ -108,7 +268,7 @@ $(document).ready(function() {
                         {% if form.coach_id.errors %}
                             <div class="invalid-feedback">{% for error in form.coach_id.errors %}{{ error }}{% endfor %}</div>
                         {% endif %}
-                        <small class="form-text text-muted">Nur Coaches mit gültigem Bezug zum Projekt (keine reinen ARCHIV-Zuordnungen).</small>
+                        <small class="form-text text-muted">Bei mehreren Personen: nur Coaches, die für alle ausgewählten Mitglieder zugelassen sind.</small>
                     </div>
 
                     <div class="form-group">

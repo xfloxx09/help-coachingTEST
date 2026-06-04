@@ -439,7 +439,7 @@ class AbteilungForm(FlaskForm):
 
 
 class AssignedCoachingForm(FlaskForm):
-    team_member_id = SelectField('Teammitglied', coerce=int, validators=[DataRequired("Teammitglied ist erforderlich.")], choices=[])
+    team_member_id = SelectField('Teammitglied', coerce=int, validators=[Optional()], choices=[])
     coach_id = SelectField('Coach', coerce=int, validators=[DataRequired("Coach ist erforderlich.")], choices=[])
     deadline = DateField('Deadline', format='%Y-%m-%d', validators=[DataRequired("Deadline ist erforderlich.")])
     expected_coaching_count = IntegerField('Anzahl erwarteter Coachings', validators=[DataRequired("Anzahl ist erforderlich."), NumberRange(min=1, max=50)], default=1)
