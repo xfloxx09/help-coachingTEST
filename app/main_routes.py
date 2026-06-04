@@ -4027,6 +4027,7 @@ def assigned_coachings():
         all_coaches=all_coaches,
         all_members=all_members,
         member_performance=member_performance,
+        can_add_coaching=current_user.has_permission('add_coaching'),
         config=current_app.config,
     )
 

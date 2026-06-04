@@ -102,6 +102,10 @@
                                     </form>
                                     <button type="button" class="btn btn-sm btn-danger" data-toggle="modal" data-target="#rejectAssignedModal" data-reject-url="{{ url_for('main.reject_assigned_coaching', assignment_id=assignment.id) }}">Ablehnen</button>
                                 {% endif %}
+                                {% if view_type == 'coach' and can_add_coaching and assignment.status in ('accepted', 'in_progress') and assignment.coach_id == current_user.id and not assignment.is_overdue %}
+                                    {% set ac_project_id = assignment.team_member.team.project_id if assignment.team_member and assignment.team_member.team else active_project_id %}
+                                    <a href="{{ url_for('main.add_coaching', project=ac_project_id, assigned_id=assignment.id) }}" class="btn btn-sm telekom-button">Coaching</a>
+                                {% endif %}
                                 {% if assignment.status == 'rejected' and assignment.rejection_reason %}
                                 <a href="{{ url_for('main.assigned_coaching_rejection_bericht', assignment_id=assignment.id) }}" class="btn btn-sm btn-info" title="Ablehnungsgrund lesen">Bericht</a>
                                 {% endif %}
