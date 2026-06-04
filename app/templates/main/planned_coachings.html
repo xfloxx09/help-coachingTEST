@@ -117,7 +117,7 @@
                     Offen {% if n_open %}<span class="badge badge-info ml-1">{{ n_open }}</span>{% endif %}
                 </a>
             </li>
-            {% if can_manage_own_plans %}
+            {% if can_see_overdue_tab %}
             <li class="nav-item" role="presentation">
                 <a class="nav-link {% if tab_ueberfaellig_active %}active{% endif %}" id="tab-ueberfaellig-link" data-toggle="tab" href="#tab-ueberfaellig" role="tab" aria-controls="tab-ueberfaellig" aria-selected="{{ 'true' if tab_ueberfaellig_active else 'false' }}">
                     Überfällig {% if n_overdue %}<span class="badge badge-danger ml-1">{{ n_overdue }}</span>{% endif %}
@@ -362,7 +362,7 @@
 
             </div>
 
-            {% if can_manage_own_plans %}
+            {% if can_see_overdue_tab %}
             <div class="tab-pane fade {% if tab_ueberfaellig_active %}show active{% endif %}" id="tab-ueberfaellig" role="tabpanel" aria-labelledby="tab-ueberfaellig-link">
                 <div class="alert alert-danger border-0 mb-3" style="background: rgba(220, 53, 69, 0.15); color: #f0f0f0; border-left: 4px solid #dc3545 !important;">
                     <i class="fas fa-exclamation-triangle mr-2"></i>

@@ -241,14 +241,10 @@ def _redirect_planned_coachings_list(tab=None):
 
 
 def _can_view_others_planned_in_scope():
-    """PL/QM/BL/Admin may see teammates' planned coachings & workshops in their project scope."""
+    """See other coaches' open planned coachings/workshops (read-only); own plans use planned_coachings/add_workshop."""
     if not current_user.is_authenticated:
         return False
-    if current_user.role_name in (ROLE_ADMIN, ROLE_BETRIEBSLEITER):
-        return True
-    return current_user.has_permission('assign_coachings') or current_user.has_permission(
-        'view_pl_qm_dashboard'
-    )
+    return current_user.has_permission('view_others_planned_coachings')
 
 
 def _count_open_planned_for_index():
@@ -1269,8 +1265,7 @@ def index():
         1 if (
             u.has_permission('planned_coachings')
             or u.has_permission('add_workshop')
-            or u.has_permission('assign_coachings')
-            or u.has_permission('view_pl_qm_dashboard')
+            or u.has_permission('view_others_planned_coachings')
         ) else 0,
         1 if (u.has_permission('view_own_coachings') or u.has_permission('leave_coaching_review')) else 0,
         1 if u.has_permission('view_review') else 0,
@@ -3486,7 +3481,7 @@ def open_planned_coachings_for_member():
 @bp.route('/geplante-coachings')
 @login_required
 @any_permission_required(
-    'planned_coachings', 'add_workshop', 'assign_coachings', 'view_pl_qm_dashboard'
+    'planned_coachings', 'add_workshop', 'view_others_planned_coachings'
 )
 def planned_coachings_list():
     sort_today = today_athens_date()
@@ -3741,6 +3736,7 @@ def planned_coachings_list():
         + (len(overdue_workshop_items) if can_see_workshop_plans else 0)
     )
     can_manage_own_plans = can_pc or can_pw
+    can_see_overdue_tab = can_manage_own_plans or can_view_others
 
     return render_template(
         'main/planned_coachings.html',
@@ -3762,6 +3758,7 @@ def planned_coachings_list():
         active_tab=active_tab,
         n_overdue=n_overdue,
         can_manage_own_plans=can_manage_own_plans,
+        can_see_overdue_tab=can_see_overdue_tab,
         config=current_app.config,
     )
 

@@ -142,6 +142,10 @@ def create_app(config_class=Config):
             ('reject_assigned_coaching', 'Reject assigned coaching task'),
             ('view_abteilung', 'Scope: access all projects of assigned Abteilung (department)'),
             ('planned_coachings', 'Geplante Coachings: Folgetermine planen, Liste und Start am geplanten Tag'),
+            (
+                'view_others_planned_coachings',
+                'Geplante Coachings/Workshops anderer Coaches im Projektbereich einsehen (nur Ansicht)',
+            ),
             ('terminkalender', 'Terminkalender anzeigen (Kalender mit Terminen und Coachings im Sichtbereich)'),
         ]
         for name, desc in default_permissions:

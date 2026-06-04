@@ -192,7 +192,7 @@
             </a>
         </div>
         {% endif %}
-        {% if has_perm('planned_coachings') or has_perm('add_workshop') or has_perm('assign_coachings') or has_perm('view_pl_qm_dashboard') %}
+        {% if has_perm('planned_coachings') or has_perm('add_workshop') or has_perm('view_others_planned_coachings') %}
         <div class="col-md-4 mb-3">
             <a href="{{ url_for('main.planned_coachings_list') }}" class="btn btn-lg btn-block p-4 planned-tile-link index-choice-tile" style="--tile-accent:#4debd4;">
                 <span class="planned-tile-icon-wrap">
@@ -253,8 +253,8 @@
         {% if has_perm('view_assigned_coachings') or has_perm('assign_coachings') or has_perm('view_pl_qm_dashboard') %}
         <li class="index-help-item"><strong>{% if has_perm('assign_coachings') %}Zugewiesene Coachings{% else %}Meine Aufgaben{% endif %}</strong> Aufgaben ansehen, annehmen/bearbeiten und Fortschritt verfolgen.</li>
         {% endif %}
-        {% if has_perm('planned_coachings') or has_perm('add_workshop') or has_perm('assign_coachings') or has_perm('view_pl_qm_dashboard') %}
-        <li class="index-help-item"><strong>Geplante Coachings / Workshops</strong> Offene Planungen verwalten und fällige Termine starten.</li>
+        {% if has_perm('planned_coachings') or has_perm('add_workshop') or has_perm('view_others_planned_coachings') %}
+        <li class="index-help-item"><strong>Geplante Coachings / Workshops</strong> Eigene Planungen verwalten{% if has_perm('view_others_planned_coachings') %} oder fremde Planungen einsehen{% endif %}.</li>
         {% endif %}
         {% if has_perm('view_own_coachings') or has_perm('leave_coaching_review') %}
         <li class="index-help-item"><strong>Meine Coachings</strong> Eigene Coachings und Rückmeldungen als Mitarbeitender.</li>
