@@ -147,20 +147,32 @@
         background: rgba(255,255,255,0.03);
     }
     .index-help-item strong { color: #ff8fc7; display: block; margin-bottom: 0.12rem; }
-    .index-kpi-tile-wrap { position: relative; }
+    .index-kpi-tile-wrap {
+        position: relative;
+        overflow: visible;
+    }
+    .index-kpi-tile-wrap.show { z-index: 30; }
     .index-kpi-tile-wrap .index-kpi-tile-btn {
         width: 100%;
         cursor: pointer;
     }
     .index-kpi-tile-wrap .index-kpi-tile-btn::after { display: none; }
+    .index-kpi-tile-wrap .index-kpi-tile-btn:hover {
+        transform: translateY(-3px) scale(1.01);
+    }
     .index-kpi-tile-wrap .dropdown-menu {
+        position: absolute;
+        top: calc(100% + 0.35rem);
+        left: 0;
+        right: 0;
         width: 100%;
-        margin-top: 0.35rem;
+        margin-top: 0;
         border-radius: 12px;
         border: 1px solid var(--tk-border);
         background: #1f1f27;
         box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
         padding: 0.35rem 0;
+        z-index: 31;
     }
     .index-kpi-tile-wrap .dropdown-item {
         color: #f4f1f6;
@@ -179,20 +191,25 @@
 <div class="container mt-5">
     <div class="row {% if index_tile_count == 1 %}justify-content-center{% endif %}">
         {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
-        <div class="col-md-4 mb-3 dropdown index-kpi-tile-wrap">
-            <button type="button" class="btn btn-lg btn-block p-4 index-choice-tile index-kpi-tile-btn dropdown-toggle"
-                    style="--tile-accent:#36c6a0;" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <i class="fas fa-chart-line fa-3x mb-2"></i>
-                <h4 class="mb-0">KPIs <span class="badge badge-info">Demo</span></h4>
-            </button>
-            <div class="dropdown-menu">
-                {% if has_perm('view_kpi_dashboard') %}
-                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_qualitaet') }}">KPIs Qualität</a>
-                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_produktivitaet') }}">KPIs Produktivität</a>
-                {% endif %}
-                {% if has_perm('view_coaching_impact') %}
-                <a class="dropdown-item" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a>
-                {% endif %}
+        <div class="col-md-4 mb-3">
+            <div class="dropdown index-kpi-tile-wrap" id="indexKpiTileWrap">
+                <button type="button" id="indexKpiTileBtn"
+                        class="btn btn-lg btn-block p-4 index-choice-tile index-kpi-tile-btn dropdown-toggle"
+                        style="--tile-accent:#36c6a0;"
+                        data-toggle="dropdown" data-display="static"
+                        aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-chart-line fa-3x mb-2"></i>
+                    <h4 class="mb-0">KPIs <span class="badge badge-info">Demo</span></h4>
+                </button>
+                <div class="dropdown-menu" aria-labelledby="indexKpiTileBtn">
+                    {% if has_perm('view_kpi_dashboard') %}
+                    <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_qualitaet') }}">KPIs Qualität</a>
+                    <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_produktivitaet') }}">KPIs Produktivität</a>
+                    {% endif %}
+                    {% if has_perm('view_coaching_impact') %}
+                    <a class="dropdown-item" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endif %}
@@ -322,16 +339,39 @@ document.addEventListener('DOMContentLoaded', function () {
     var toggle = document.getElementById('indexHelpToggle');
     var panel = document.getElementById('indexHelpPanel');
     var closeBtn = document.getElementById('indexHelpClose');
-    if (!toggle || !panel) return;
-    function setOpen(open) {
-        panel.classList.toggle('open', open);
-        panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (toggle && panel) {
+        function setOpen(open) {
+            panel.classList.toggle('open', open);
+            panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        toggle.addEventListener('click', function () { setOpen(!panel.classList.contains('open')); });
+        if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') setOpen(false);
+        });
     }
-    toggle.addEventListener('click', function () { setOpen(!panel.classList.contains('open')); });
-    if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') setOpen(false);
-    });
+
+    var kpiWrap = document.getElementById('indexKpiTileWrap');
+    var kpiBtn = document.getElementById('indexKpiTileBtn');
+    var kpiMenu = kpiWrap ? kpiWrap.querySelector('.dropdown-menu') : null;
+    if (kpiWrap && kpiBtn && kpiMenu) {
+        function setKpiOpen(open) {
+            kpiWrap.classList.toggle('show', open);
+            kpiMenu.classList.toggle('show', open);
+            kpiBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        kpiBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setKpiOpen(!kpiMenu.classList.contains('show'));
+        });
+        document.addEventListener('click', function (e) {
+            if (!kpiWrap.contains(e.target)) setKpiOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') setKpiOpen(false);
+        });
+    }
 });
 </script>
 {% endblock %}
