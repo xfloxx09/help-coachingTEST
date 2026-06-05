@@ -140,3 +140,40 @@ def bucket_ranges(bucket, start_date, end_date, data_dates=None):
 
 def granularity_label(bucket):
     return {'day': 'Tag', 'week': 'Woche', 'month': 'Monat'}.get(bucket, bucket)
+
+
+_GERMAN_MONTHS = (
+    '',
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+)
+
+
+def month_label_de(year, month):
+    if 1 <= month <= 12:
+        return f'{_GERMAN_MONTHS[month]} {year}'
+    return f'{month:02d}.{year}'
+
+
+def group_daily_by_month(daily_rows):
+    """Group day-granularity table rows into calendar months (ordered)."""
+    buckets = {}
+    order = []
+    for row in daily_rows or []:
+        date_str = (row.get('date') or '').strip()
+        if len(date_str) < 7:
+            continue
+        ym = date_str[:7]
+        if ym not in buckets:
+            buckets[ym] = []
+            order.append(ym)
+        buckets[ym].append(row)
+    pages = []
+    for ym in order:
+        year, month = int(ym[:4]), int(ym[5:7])
+        pages.append({
+            'key': ym,
+            'label': month_label_de(year, month),
+            'rows': buckets[ym],
+        })
+    return pages

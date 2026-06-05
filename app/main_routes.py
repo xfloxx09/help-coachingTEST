@@ -5168,6 +5168,36 @@ def _kpi_category_labels():
     return {c.key: c.label for c in cats}
 
 
+def _paginate_daily_table_rows(daily, chart_granularity, url_endpoint):
+    """Paginate Tagesübersicht by calendar month when span exceeds one month."""
+    nav = {'enabled': False}
+    if chart_granularity != 'day' or not daily:
+        return daily, nav
+    pages = kpi_time.group_daily_by_month(daily)
+    if len(pages) <= 1:
+        return daily, nav
+    page_count = len(pages)
+    page = request.args.get('day_page', type=int) or page_count
+    page = max(1, min(page, page_count))
+    current = pages[page - 1]
+    args = request.args.to_dict()
+
+    def _page_url(p):
+        q = dict(args)
+        q['day_page'] = p
+        return url_for(url_endpoint, **q)
+
+    nav = {
+        'enabled': True,
+        'page': page,
+        'page_count': page_count,
+        'month_label': current['label'],
+        'prev_url': _page_url(page - 1) if page > 1 else None,
+        'next_url': _page_url(page + 1) if page < page_count else None,
+    }
+    return current['rows'], nav
+
+
 def _kpi_dashboard_visibility(project_id):
     """Which KPIs appear on /kpis (cards, graph, daily table)."""
     setting = ProjectKpiSetting.query.get(project_id) if project_id else None
@@ -5537,6 +5567,10 @@ def kpi_dashboard_qualitaet():
         elif mode == 'project' and sel_project:
             scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
 
+    daily, daily_month_nav = _paginate_daily_table_rows(
+        daily, chart_granularity, 'main.kpi_dashboard_qualitaet',
+    )
+
     return render_template(
         'main/kpi_dashboard.html',
         mode=mode,
@@ -5554,6 +5588,7 @@ def kpi_dashboard_qualitaet():
         kpi=kpi,
         chart_daily=chart_daily,
         daily=daily,
+        daily_month_nav=daily_month_nav,
         targets=targets,
         scope_label=scope_label,
         selection_made=bool(selection_made),
@@ -5677,6 +5712,9 @@ def kpi_dashboard_produktivitaet():
             scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
 
     prod_formula_hint = productivity_logic.prod_formula_hint(targets)
+    daily, daily_month_nav = _paginate_daily_table_rows(
+        daily, chart_granularity, 'main.kpi_dashboard_produktivitaet',
+    )
 
     return render_template(
         'main/kpi_productivity_dashboard.html',
@@ -5695,6 +5733,7 @@ def kpi_dashboard_produktivitaet():
         summary=summary,
         chart_daily=chart_daily,
         daily=daily,
+        daily_month_nav=daily_month_nav,
         targets=targets,
         prod_labels=prod_labels,
         prod_formula_hint=prod_formula_hint,

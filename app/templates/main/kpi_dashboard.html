@@ -225,7 +225,7 @@
     </div>
 
     <div class="card mb-4">
-        <div class="card-header"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
+        {% include 'main/_kpi_daily_table_header.html' %}
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm table-hover mb-0">
@@ -294,6 +294,7 @@
         btn.addEventListener('click', function () {
             var url = new URL(window.location.href);
             url.searchParams.set('granularity', btn.getAttribute('data-kpi-granularity'));
+            url.searchParams.delete('day_page');
             window.location.href = url.toString();
         });
     });
