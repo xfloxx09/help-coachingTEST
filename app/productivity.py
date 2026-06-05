@@ -493,13 +493,21 @@ def cumulative_from_intervals(intervals, start_date, end_date):
     if start_date and end_date:
         result = []
         cur = start_date
-        last = None
         while cur <= end_date:
             if cur in by_day:
-                last = by_day[cur]
-                result.append(last)
-            elif last:
-                result.append({**last, 'date': cur.strftime('%Y-%m-%d'), 'label': cur.strftime('%d.%m.'), 'count': 0})
+                result.append(by_day[cur])
+            else:
+                result.append({
+                    'date': cur.strftime('%Y-%m-%d'),
+                    'label': cur.strftime('%d.%m.'),
+                    'count': 0,
+                    'sign_on_pct': 0,
+                    'prod_pct': 0,
+                    'nach_pct': 0,
+                    'idle_pct': 0,
+                    'nach_per_call': 0,
+                    'calls': 0,
+                })
             cur += timedelta(days=1)
         return result
     return [by_day[d] for d in sorted(by_day.keys())]
@@ -561,17 +569,30 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
             acc_calls += _iv_val(iv, 'calls', 0)
             idx += 1
 
-        chart_daily.append({
-            'date': period['key'],
-            'label': period['label'],
-            'count': period_count,
-            'sign_on_pct': round(acc_sign / acc_isec * 100, 2) if acc_isec else None,
-            'prod_pct': round(acc_prod / acc_kden * 100, 2) if acc_kden else None,
-            'nach_pct': round(acc_nach / acc_kden * 100, 2) if acc_kden else None,
-            'idle_pct': round(acc_idle / acc_isec * 100, 2) if acc_isec else None,
-            'nach_per_call': round(acc_nach_sec / acc_calls, 2) if acc_calls else None,
-            'calls': round(acc_calls, 1),
-        })
+        if period_count > 0:
+            chart_daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': period_count,
+                'sign_on_pct': round(acc_sign / acc_isec * 100, 2) if acc_isec else 0,
+                'prod_pct': round(acc_prod / acc_kden * 100, 2) if acc_kden else 0,
+                'nach_pct': round(acc_nach / acc_kden * 100, 2) if acc_kden else 0,
+                'idle_pct': round(acc_idle / acc_isec * 100, 2) if acc_isec else 0,
+                'nach_per_call': round(acc_nach_sec / acc_calls, 2) if acc_calls else 0,
+                'calls': round(acc_calls, 1),
+            })
+        else:
+            chart_daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': 0,
+                'sign_on_pct': 0,
+                'prod_pct': 0,
+                'nach_pct': 0,
+                'idle_pct': 0,
+                'nach_per_call': 0,
+                'calls': 0,
+            })
 
         period_ivs = []
         for iv in intervals:

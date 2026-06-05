@@ -260,13 +260,14 @@
         line-height: 1.3;
     }
     .index-kpi-picker-option:hover,
-    .index-kpi-picker-option:focus {
+    .index-kpi-picker-option:focus-visible {
         color: #fff;
         text-decoration: none;
         transform: translateY(-3px);
         border-color: var(--option-accent, var(--tk-magenta));
         box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38), 0 0 22px var(--option-glow, var(--tk-magenta-glow));
     }
+    .index-kpi-picker-option:focus { outline: none; }
     @keyframes kpiPickerFadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -419,7 +420,7 @@
 
 {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
 <div id="indexKpiPickerBackdrop" class="index-kpi-picker-backdrop" aria-hidden="true">
-    <div id="indexKpiPicker" class="index-kpi-picker" role="dialog" aria-modal="true" aria-labelledby="indexKpiPickerTitle">
+    <div id="indexKpiPicker" class="index-kpi-picker" role="dialog" aria-modal="true" aria-labelledby="indexKpiPickerTitle" tabindex="-1">
         <div class="index-kpi-picker-head">
             <h5 id="indexKpiPickerTitle"><i class="fas fa-chart-line mr-1" style="color:#36c6a0;"></i> KPIs <span class="badge badge-info">Demo</span></h5>
             <button type="button" id="indexKpiPickerClose" class="index-kpi-picker-close" aria-label="Schließen">×</button>
@@ -483,8 +484,7 @@ document.addEventListener('DOMContentLoaded', function () {
             kpiBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
             document.body.style.overflow = open ? 'hidden' : '';
             if (open) {
-                var first = kpiPicker.querySelector('.index-kpi-picker-option');
-                if (first) first.focus();
+                kpiPicker.focus();
             }
         }
         kpiBtn.addEventListener('click', function () { setKpiPickerOpen(true); });
