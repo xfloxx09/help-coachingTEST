@@ -1,5 +1,6 @@
+{% set active_gran = toggle_granularity if toggle_granularity is defined else chart_granularity %}
 <div class="btn-group btn-group-sm kpi-mode-group kpi-granularity-toggle" role="group" aria-label="Tag, Woche oder Monat">
-    <button type="button" class="btn {% if chart_granularity == 'day' %}active{% endif %}" data-kpi-granularity="day">Tag</button>
-    <button type="button" class="btn {% if chart_granularity == 'week' %}active{% endif %}" data-kpi-granularity="week">Woche</button>
-    <button type="button" class="btn {% if chart_granularity == 'month' %}active{% endif %}" data-kpi-granularity="month">Monat</button>
+    <button type="button" class="btn {% if active_gran == 'day' %}active{% endif %}" data-kpi-granularity="day">Tag</button>
+    <button type="button" class="btn {% if active_gran == 'week' %}active{% endif %}" data-kpi-granularity="week">Woche</button>
+    <button type="button" class="btn {% if active_gran == 'month' %}active{% endif %}" data-kpi-granularity="month">Monat</button>
 </div>

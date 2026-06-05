@@ -5168,6 +5168,66 @@ def _kpi_category_labels():
     return {c.key: c.label for c in cats}
 
 
+def _resolve_dashboard_granularities(
+    granularity_arg, period_arg, start_date, end_date, data_dates, url_endpoint,
+):
+    """Resolve table/chart granularity and optional Tag-limit notice."""
+    span = kpi_time.span_days(start_date, end_date, data_dates)
+    explicit = granularity_arg if granularity_arg in ('day', 'week', 'month') else None
+    if explicit:
+        table_granularity = explicit
+    else:
+        table_granularity = kpi_time.resolve_granularity(
+            granularity_arg, period_arg, start_date, end_date, data_dates,
+        )
+
+    granularity_notice = None
+    toggle_granularity = explicit or table_granularity
+
+    if explicit == 'day' and kpi_time.tag_view_exceeds_limit(start_date, end_date, data_dates):
+        suggested = kpi_time.suggested_granularity_for_span(span)
+        args = request.args.to_dict()
+
+        continue_args = dict(args)
+        continue_args['granularity'] = suggested
+        continue_args.pop('granularity_confirm', None)
+        continue_args.pop('day_page', None)
+
+        vonbis_args = dict(args)
+        vonbis_args['period'] = 'vonbis'
+        vonbis_args['granularity'] = 'day'
+        vonbis_args.pop('granularity_confirm', None)
+        vonbis_args.pop('day_page', None)
+        ref_end = end_date or (max(data_dates) if data_dates else None)
+        ref_start = start_date or (min(data_dates) if data_dates else None)
+        if ref_end:
+            vonbis_args['date_to'] = ref_end.isoformat()
+            vonbis_args['date_from'] = (
+                ref_end - timedelta(days=kpi_time.MAX_TAG_VIEW_DAYS - 1)
+            ).isoformat()
+        elif ref_start:
+            vonbis_args['date_from'] = ref_start.isoformat()
+            vonbis_args['date_to'] = (
+                ref_start + timedelta(days=kpi_time.MAX_TAG_VIEW_DAYS - 1)
+            ).isoformat()
+
+        granularity_notice = {
+            'max_days': kpi_time.MAX_TAG_VIEW_DAYS,
+            'span_days': span,
+            'suggested': suggested,
+            'suggested_label': kpi_time.granularity_label(suggested),
+            'continue_url': url_for(url_endpoint, **continue_args),
+            'vonbis_url': url_for(url_endpoint, **vonbis_args),
+        }
+        table_granularity = suggested
+        toggle_granularity = 'day'
+
+    chart_granularity = kpi_time.chart_granularity_for_span(
+        table_granularity, start_date, end_date, data_dates,
+    )
+    return table_granularity, chart_granularity, toggle_granularity, granularity_notice
+
+
 def _paginate_daily_table_rows(daily, table_granularity, url_endpoint):
     """Paginate Tagesübersicht by calendar month when span exceeds one month."""
     nav = {'enabled': False}
@@ -5550,6 +5610,8 @@ def kpi_dashboard_qualitaet():
     chart_daily = []
     daily = []
     table_granularity = chart_granularity
+    toggle_granularity = chart_granularity
+    granularity_notice = None
     targets = kpi_logic.DEFAULT_TEAM_VIEW_CARD
     scope_label = ''
     has_any_data = bool(projects)
@@ -5566,11 +5628,11 @@ def kpi_dashboard_qualitaet():
         )
         kpi = _kpi_aggregate_full(r[:5] for r in rows)
         data_dates = [r[5] for r in rows if r[5] is not None]
-        table_granularity = kpi_time.resolve_granularity(
-            granularity_arg, period_arg, start_date, end_date, data_dates,
-        )
-        chart_granularity = kpi_time.chart_granularity_for_span(
-            table_granularity, start_date, end_date, data_dates,
+        table_granularity, chart_granularity, toggle_granularity, granularity_notice = (
+            _resolve_dashboard_granularities(
+                granularity_arg, period_arg, start_date, end_date, data_dates,
+                'main.kpi_dashboard_qualitaet',
+            )
         )
         chart_daily, daily = _kpi_dashboard_daily_series(
             rows, start_date, end_date, chart_granularity, table_granularity,
@@ -5603,6 +5665,8 @@ def kpi_dashboard_qualitaet():
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
         table_granularity=table_granularity,
+        toggle_granularity=toggle_granularity,
+        granularity_notice=granularity_notice,
         kpi=kpi,
         chart_daily=chart_daily,
         daily=daily,
@@ -5710,17 +5774,19 @@ def kpi_dashboard_produktivitaet():
     chart_daily = []
     daily = []
     table_granularity = chart_granularity
+    toggle_granularity = chart_granularity
+    granularity_notice = None
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
         daily_buckets = productivity_logic.query_daily_buckets_sql(filters)
         summary = productivity_logic.query_interval_summary_sql(filters)
         data_dates = [b['day'] for b in daily_buckets]
-        table_granularity = kpi_time.resolve_granularity(
-            granularity_arg, period_arg, start_date, end_date, data_dates,
-        )
-        chart_granularity = kpi_time.chart_granularity_for_span(
-            table_granularity, start_date, end_date, data_dates,
+        table_granularity, chart_granularity, toggle_granularity, granularity_notice = (
+            _resolve_dashboard_granularities(
+                granularity_arg, period_arg, start_date, end_date, data_dates,
+                'main.kpi_dashboard_produktivitaet',
+            )
         )
         chart_daily, daily = productivity_logic.build_dashboard_series_from_buckets(
             daily_buckets, start_date, end_date,
@@ -5754,6 +5820,8 @@ def kpi_dashboard_produktivitaet():
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
         table_granularity=table_granularity,
+        toggle_granularity=toggle_granularity,
+        granularity_notice=granularity_notice,
         summary=summary,
         chart_daily=chart_daily,
         daily=daily,
@@ -6232,6 +6300,9 @@ def coaching_impact():
     chart_granularity = kpi_time.resolve_granularity(
         granularity_arg, period_arg, start_date, end_date, None,
     )
+    table_granularity = chart_granularity
+    toggle_granularity = chart_granularity
+    granularity_notice = None
 
     window = request.args.get('window', type=int) or IMPACT_WINDOW_DEFAULT
     if window not in IMPACT_WINDOWS:
@@ -6363,11 +6434,11 @@ def coaching_impact():
         }
 
         data_dates = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
-        table_granularity = kpi_time.resolve_granularity(
-            granularity_arg, period_arg, start_date, end_date, data_dates,
-        )
-        chart_granularity = kpi_time.chart_granularity_for_span(
-            table_granularity, start_date, end_date, data_dates,
+        table_granularity, chart_granularity, toggle_granularity, granularity_notice = (
+            _resolve_dashboard_granularities(
+                granularity_arg, period_arg, start_date, end_date, data_dates,
+                'main.coaching_impact',
+            )
         )
         overlay = _coaching_impact_overlay(
             kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity,
@@ -6454,6 +6525,9 @@ def coaching_impact():
         date_to=date_to_str,
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
+        table_granularity=table_granularity,
+        toggle_granularity=toggle_granularity,
+        granularity_notice=granularity_notice,
         window=window,
         windows=IMPACT_WINDOWS,
         overlay=overlay,

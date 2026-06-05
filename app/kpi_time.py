@@ -164,6 +164,22 @@ def span_days(start_date, end_date, data_dates=None):
     return 0
 
 
+MAX_TAG_VIEW_DAYS = 62
+
+
+def tag_view_exceeds_limit(start_date, end_date, data_dates=None):
+    span = span_days(start_date, end_date, data_dates)
+    return span > MAX_TAG_VIEW_DAYS
+
+
+def suggested_granularity_for_span(span):
+    if span > 400:
+        return 'month'
+    if span > MAX_TAG_VIEW_DAYS:
+        return 'week'
+    return 'day'
+
+
 def chart_granularity_for_span(table_granularity, start_date, end_date, data_dates=None):
     """
     Keep table granularity as chosen by the user, but cap chart buckets for long spans
@@ -173,7 +189,7 @@ def chart_granularity_for_span(table_granularity, start_date, end_date, data_dat
     span = span_days(start_date, end_date, data_dates)
     if span <= 0:
         return g
-    if g == 'day' and span > 62:
+    if g == 'day' and span > MAX_TAG_VIEW_DAYS:
         return 'week'
     if g in ('day', 'week') and span > 400:
         return 'month'

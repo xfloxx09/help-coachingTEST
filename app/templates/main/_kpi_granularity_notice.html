@@ -1,0 +1,71 @@
+{% if granularity_notice %}
+<div class="modal fade" id="kpiGranularityNoticeModal" tabindex="-1" role="dialog" aria-labelledby="kpiGranularityNoticeTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content" style="background:#25252b;border-color:#34343c;">
+            <div class="modal-header" style="border-color:#34343c;">
+                <h5 class="modal-title" id="kpiGranularityNoticeTitle">
+                    <i class="fas fa-calendar-day text-warning mr-2"></i>Tag-Ansicht nicht möglich
+                </h5>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">
+                    Die <strong>Tag-Ansicht</strong> kann höchstens
+                    <strong>{{ granularity_notice.max_days }} Tage</strong> auf einmal laden.
+                    Ihr gewählter Zeitraum umfasst <strong>{{ granularity_notice.span_days }} Tage</strong>.
+                </p>
+                <p class="mb-0 text-muted small">
+                    Wie möchten Sie fortfahren?
+                </p>
+            </div>
+            <div class="modal-footer flex-wrap" style="border-color:#34343c;gap:0.5rem;">
+                <a href="{{ granularity_notice.continue_url }}" class="btn btn-sm telekom-button">
+                    Mit {{ granularity_notice.suggested_label }}-Ansicht fortfahren
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="kpiGranularityAdjustRange">
+                    Zeitraum anpassen (von–bis)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var modal = document.getElementById('kpiGranularityNoticeModal');
+    if (!modal || typeof $ === 'undefined') return;
+    $(modal).modal({ backdrop: 'static', keyboard: false });
+    $(modal).modal('show');
+
+    var adjustBtn = document.getElementById('kpiGranularityAdjustRange');
+    if (!adjustBtn) return;
+    adjustBtn.addEventListener('click', function () {
+        $(modal).modal('hide');
+        var vonbisUrl = new URL({{ granularity_notice.vonbis_url|tojson }});
+        var periodSel = document.getElementById('kpiPeriod') || document.getElementById('ciPeriod');
+        if (periodSel) {
+            periodSel.value = 'vonbis';
+            periodSel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        document.querySelectorAll('.kpi-vonbis-field, .ci-vonbis-field').forEach(function (el) {
+            el.style.display = '';
+        });
+        var fromInput = document.querySelector('input[name="date_from"]');
+        var toInput = document.querySelector('input[name="date_to"]');
+        if (fromInput) fromInput.value = vonbisUrl.searchParams.get('date_from') || '';
+        if (toInput) toInput.value = vonbisUrl.searchParams.get('date_to') || '';
+        var form = document.getElementById('kpiFilterForm') || document.getElementById('ciFilterForm');
+        if (form) {
+            var granInput = form.querySelector('input[name="granularity"]');
+            if (!granInput) {
+                granInput = document.createElement('input');
+                granInput.type = 'hidden';
+                granInput.name = 'granularity';
+                form.appendChild(granInput);
+            }
+            granInput.value = 'day';
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        if (fromInput) fromInput.focus();
+    });
+})();
+</script>
+{% endif %}
