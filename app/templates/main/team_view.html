@@ -74,7 +74,33 @@
         padding: 1.25rem;
     }
     .member-card .stat-group {
-        margin-bottom: 1rem;
+        margin-bottom: 0;
+    }
+    .member-kpi-grid {
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+        margin-bottom: 0.5rem;
+    }
+    .member-kpi-grid > [class*="col-"] {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+        margin-bottom: 0.85rem;
+    }
+    .member-kpi-grid .stat-label {
+        font-size: 0.68rem;
+        line-height: 1.25;
+        min-height: 2.5em;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+    .member-kpi-grid .kpi-stars {
+        font-size: 0.92rem;
+    }
+    .member-kpi-grid .kpi-chip {
+        font-size: 0.95rem;
+        min-width: 2.75rem;
+        padding: 0.3rem 0.5rem;
     }
     .member-card .stat-label { 
         font-size: 0.75rem; 
@@ -289,8 +315,10 @@
                     <div class="card member-card h-100 shadow-sm">
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title text-center">{{ member_stat.name }}</h5>
-                            
+
+                            <div class="row member-kpi-grid">
                             {% if card_settings.show_performance %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Bewertung vom Coach</div>
                                 {% if member_stat.total_coachings > 0 %}
@@ -302,9 +330,11 @@
                                 <span class="kpi-chip kpi-chip-na" title="Keine Bewertungen">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
 
                             {% if card_settings.show_nps %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">NPS</div>
                                 {% if member_stat.nps is not none %}
@@ -317,9 +347,11 @@
                                       title="{% if member_stat.nps_count == 1 %}1 Bewertung{% elif member_stat.nps_count > 1 %}{{ member_stat.nps_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
 
                             {% if card_settings.show_loesung %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Lösungsquote</div>
                                 {% if member_stat.loesung_quote is not none %}
@@ -332,9 +364,11 @@
                                       title="{% if member_stat.loesung_count == 1 %}1 Bewertung{% elif member_stat.loesung_count > 1 %}{{ member_stat.loesung_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
 
                             {% if card_settings.show_info %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Informationsquote</div>
                                 {% if member_stat.info_quote is not none %}
@@ -347,9 +381,11 @@
                                       title="{% if member_stat.info_count == 1 %}1 Bewertung{% elif member_stat.info_count > 1 %}{{ member_stat.info_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
 
                             {% if card_settings.show_fachkompetenz %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Fachkompetenz</div>
                                 {% if member_stat.fachkompetenz is not none %}
@@ -372,11 +408,13 @@
                                       title="{% if member_stat.fachkompetenz_count == 1 %}1 Bewertung{% elif member_stat.fachkompetenz_count > 1 %}{{ member_stat.fachkompetenz_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
 
                             {% if card_settings.show_vertrieb %}
+                            <div class="col-6">
                             <div class="stat-group text-center">
-                                <div class="stat-label">Vertriebliche Ansprache</div>
+                                <div class="stat-label">Vertriebl. Ansprache</div>
                                 {% if member_stat.vertrieb_quote is not none %}
                                 <span class="kpi-chip kpi-chip-{{ member_stat.vertrieb_quote|kpi_status(card_settings.target_vertrieb, card_settings.warn_vertrieb) }}"
                                       title="{% if member_stat.vertrieb_count == 1 %}1 Bewertung{% elif member_stat.vertrieb_count > 1 %}{{ member_stat.vertrieb_count }} Bewertungen{% else %}Keine Bewertungen{% endif %} berücksichtigt">
@@ -387,7 +425,9 @@
                                       title="{% if member_stat.vertrieb_count == 1 %}1 Bewertung{% elif member_stat.vertrieb_count > 1 %}{{ member_stat.vertrieb_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
                                 {% endif %}
                             </div>
+                            </div>
                             {% endif %}
+                            </div>
 
                             <div class="row text-center mt-auto pt-3">
                                 <div class="col-6 border-right" style="border-color: #555e67 !important;">
