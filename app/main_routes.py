@@ -6194,8 +6194,10 @@ def coaching_impact():
                 perf_values.append(perf)
             if d is None:
                 continue
-            cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': []})
+            cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': [], 'time': 0})
             cb['count'] += 1
+            if time_spent:
+                cb['time'] += time_spent
             if perf is not None:
                 cb['perf'].append(perf)
 
@@ -6220,7 +6222,7 @@ def coaching_impact():
         all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
         for d in all_days:
             kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []})
-            cb = coaching_by_day.get(d, {'count': 0, 'perf': []})
+            cb = coaching_by_day.get(d, {'count': 0, 'perf': [], 'time': 0})
             nps_day = kpi_logic.compute_nps(kb['nps'])
             prod_sm = productivity_logic.aggregate_summary(prod_by_day.get(d, []))
             overlay.append({
@@ -6237,6 +6239,7 @@ def coaching_impact():
                 'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
                 'coachings': cb['count'],
                 'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
+                'coaching_time': cb['time'] or 0,
             })
 
         # Before/after: pull surveys for involved members across the extended window

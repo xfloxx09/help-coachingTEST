@@ -381,9 +381,19 @@
 
     {% if overlay %}
     <div class="ci-view-panel ci-view-panel-charts">
-    <div class="ci-view-panel-title">
-        Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span> &amp; Coachings
-        <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Balken = Coachings/Tag · Klick auf einen Tag öffnet Bewertungs-Rohdaten)</span>
+    <div class="ci-chart-card-header mb-2">
+        <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
+            Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
+            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf einen Tag öffnet Befragungs-Rohdaten)</span>
+        </div>
+        <div>
+            <div class="ci-mini-label mb-1">korrelation</div>
+            <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
+                <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
+                <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
+                <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
+            </div>
+        </div>
     </div>
     <div class="ci-chart-wrap mb-4">
         <canvas id="ciOverlayChart"></canvas>
@@ -549,11 +559,38 @@
     var ciOverlayChartInstance = null;
     var ciBaChartInstance = null;
     var ciViewMode = localStorage.getItem('coachingImpactView') || 'qualitaet';
+    var ciCorrMode = localStorage.getItem('coachingImpactCorr') || 'anzahl';
 
-    function ciCoachDataset() {
+    function ciCorrelationDataset(corrMode) {
+        if (corrMode === 'bewertung') {
+            return {
+                type: 'line',
+                label: 'Bewertung vom Coach (%)',
+                data: overlay.map(function (d) { return d.avg_perf; }),
+                borderColor: '#ff8fc7',
+                backgroundColor: 'rgba(226,0,116,0.15)',
+                yAxisID: 'yCoach',
+                spanGaps: true,
+                tension: 0.25,
+                order: 3,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+            };
+        }
+        if (corrMode === 'dauer') {
+            return {
+                type: 'bar',
+                label: 'Dauer Coachings (Min.)',
+                data: overlay.map(function (d) { return d.coaching_time || 0; }),
+                backgroundColor: 'rgba(255,182,72,0.55)',
+                borderColor: '#ffb648',
+                yAxisID: 'yCoach',
+                order: 3,
+            };
+        }
         return {
             type: 'bar',
-            label: 'Coachings',
+            label: 'Anzahl Coachings',
             data: overlay.map(function (d) { return d.coachings; }),
             backgroundColor: 'rgba(226,0,116,0.55)',
             borderColor: '#e20074',
@@ -562,21 +599,41 @@
         };
     }
 
-    function buildCiOverlayChart(mode) {
+    function ciCorrelationScale(corrMode) {
+        if (corrMode === 'bewertung') {
+            return {
+                type: 'linear', position: 'right', min: 0, max: 100,
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Bewertung (%)' },
+            };
+        }
+        if (corrMode === 'dauer') {
+            return {
+                type: 'linear', position: 'right', min: 0,
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Minuten' },
+                ticks: { precision: 0 },
+            };
+        }
+        return {
+            type: 'linear', position: 'right', min: 0,
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'Coachings' },
+            ticks: { precision: 0 },
+        };
+    }
+
+    function buildCiOverlayChart(mode, corrMode) {
+        corrMode = corrMode || ciCorrMode;
         if (!oc || !overlay || !overlay.length || !window.Chart) return;
         if (ciOverlayChartInstance) {
             ciOverlayChartInstance.destroy();
             ciOverlayChartInstance = null;
         }
-        var datasets = [ciCoachDataset()];
+        var datasets = [ciCorrelationDataset(corrMode)];
         var scales = {
             x: { ticks: { maxRotation: 45, minRotation: 0, maxTicksLimit: 24 } },
-            yCoach: {
-                type: 'linear', position: 'right', min: 0,
-                grid: { drawOnChartArea: false },
-                title: { display: true, text: 'Coachings' },
-                ticks: { precision: 0 },
-            },
+            yCoach: ciCorrelationScale(corrMode),
         };
         if (mode === 'produktivitaet') {
             scales.yQuote = { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } };
@@ -719,6 +776,15 @@
         });
     }
 
+    function applyCiCorrMode(corrMode) {
+        ciCorrMode = corrMode;
+        localStorage.setItem('coachingImpactCorr', corrMode);
+        document.querySelectorAll('#ciCorrToggle .btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-ci-corr') === corrMode);
+        });
+        buildCiOverlayChart(ciViewMode, corrMode);
+    }
+
     function applyCiViewMode(mode) {
         ciViewMode = mode;
         localStorage.setItem('coachingImpactView', mode);
@@ -731,8 +797,18 @@
         if (modeLabel) {
             modeLabel.textContent = mode === 'produktivitaet' ? catLabels.produktivitaet : catLabels.qualitaet;
         }
-        buildCiOverlayChart(mode);
+        buildCiOverlayChart(mode, ciCorrMode);
         buildCiBaChart(mode);
+    }
+
+    var corrToggle = document.getElementById('ciCorrToggle');
+    if (corrToggle) {
+        corrToggle.querySelectorAll('.btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-ci-corr') === ciCorrMode);
+            btn.addEventListener('click', function () {
+                applyCiCorrMode(btn.getAttribute('data-ci-corr'));
+            });
+        });
     }
 
     if (hasProductivityData) {
@@ -747,7 +823,7 @@
     } else {
         document.body.classList.add('ci-view-qual');
         if (oc && overlay && overlay.length) {
-            buildCiOverlayChart('qualitaet');
+            buildCiOverlayChart('qualitaet', ciCorrMode);
             buildCiBaChart('qualitaet');
         }
     }
