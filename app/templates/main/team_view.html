@@ -115,6 +115,36 @@
         font-weight: bold; 
         color: #e20074; 
     }
+    .tv-kpi-toggle-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .tv-kpi-toggle {
+        display: inline-flex;
+        border: 1px solid #555e67;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #2a3038;
+    }
+    .tv-kpi-toggle .btn {
+        border: none;
+        border-radius: 0;
+        padding: 0.35rem 0.85rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #c8cdd3;
+        background: transparent;
+    }
+    .tv-kpi-toggle .btn.active {
+        background: #e20074;
+        color: #fff;
+    }
+    .tv-kpi-toggle .btn + .btn {
+        border-left: 1px solid #555e67;
+    }
+    .member-kpi-prod { display: none; }
     .member-card .stat-value-small { 
         font-size: 1.1rem; 
         font-weight: bold;
@@ -308,7 +338,19 @@
         </div>
 
         {% if team_members_performance %}
-            <h4 class="mb-3">Teammitglieder Performance</h4>
+            {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
+            {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
+            {% set prod_vis = prod_visibility or {'sign_on': true, 'prod': true, 'nach': true, 'idle': true, 'calls': true} %}
+            {% set prod_tgt = prod_targets or {'target_sign_on': 95, 'target_prod': 85, 'target_nach_per_call': 30, 'target_idle_max': 10} %}
+            <div class="d-flex justify-content-between align-items-center flex-wrap mb-3 tv-kpi-toggle-wrap">
+                <h4 class="mb-0">Teammitglieder Performance</h4>
+                {% if kpi_features_enabled and has_productivity_data %}
+                <div class="tv-kpi-toggle btn-group btn-group-sm" role="group" aria-label="KPI-Kategorie">
+                    <button type="button" class="btn active" data-tv-kpi-mode="qualitaet">{{ cat_labels.qualitaet }}</button>
+                    <button type="button" class="btn" data-tv-kpi-mode="produktivitaet">{{ cat_labels.produktivitaet }}</button>
+                </div>
+                {% endif %}
+            </div>
             <div class="row">
                 {% for member_stat in team_members_performance %}
                 <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
@@ -333,7 +375,10 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and card_settings.show_nps %}
+                            {% if kpi_features_enabled %}
+                            <div class="col-12 member-kpi-qual">
+                            <div class="row">
+                            {% if card_settings.show_nps %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">NPS</div>
@@ -350,7 +395,7 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and card_settings.show_loesung %}
+                            {% if card_settings.show_loesung %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Lösungsquote</div>
@@ -367,7 +412,7 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and card_settings.show_info %}
+                            {% if card_settings.show_info %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Informationsquote</div>
@@ -384,7 +429,7 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and card_settings.show_fachkompetenz %}
+                            {% if card_settings.show_fachkompetenz %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Fachkompetenz</div>
@@ -411,7 +456,7 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and card_settings.show_vertrieb %}
+                            {% if card_settings.show_vertrieb %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Vertriebl. Ansprache</div>
@@ -428,6 +473,90 @@
                             </div>
                             {% endif %}
                             </div>
+                            </div>
+                            {% endif %}
+
+                            {% if kpi_features_enabled and has_productivity_data %}
+                            <div class="col-12 member-kpi-prod">
+                            <div class="row">
+                            {% if prod_vis.sign_on %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.sign_on }}</div>
+                                {% if member_stat.sign_on_pct is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.sign_on_pct|kpi_status(prod_tgt.target_sign_on, prod_tgt.target_sign_on * 0.85) }}"
+                                      title="{{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.sign_on_pct|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na" title="Keine Intervalle">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            {% if prod_vis.prod %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.prod }}</div>
+                                {% if member_stat.prod_pct is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.prod_pct|kpi_status(prod_tgt.target_prod, prod_tgt.target_prod * 0.85) }}"
+                                      title="{{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.prod_pct|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            {% if prod_vis.nach %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.nach }}</div>
+                                {% if member_stat.nach_per_call is not none %}
+                                <span class="kpi-chip kpi-chip-{% if member_stat.nach_per_call <= prod_tgt.target_nach_per_call %}ok{% elif member_stat.nach_per_call <= prod_tgt.target_nach_per_call * 1.5 %}warn{% else %}bad{% endif %}"
+                                      title="s/Call · {{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.nach_per_call|de_decimal(1) }}s
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            {% if prod_vis.idle %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.idle }}</div>
+                                {% if member_stat.idle_pct is not none %}
+                                <span class="kpi-chip kpi-chip-{% if member_stat.idle_pct <= prod_tgt.target_idle_max %}ok{% elif member_stat.idle_pct <= prod_tgt.target_idle_max * 1.5 %}warn{% else %}bad{% endif %}"
+                                      title="{{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.idle_pct|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            {% if prod_vis.calls %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.calls }}</div>
+                                {% if member_stat.prod_calls is not none %}
+                                <span class="kpi-chip kpi-chip-na" style="color:#f8f9fa;background:#4a5560;"
+                                      title="{{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.prod_calls|de_decimal(0) }}
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
 
                             <div class="row text-center mt-auto pt-3">
                                 <div class="col-6 border-right" style="border-color: #555e67 !important;">
@@ -544,6 +673,27 @@
 {{ super() }} {# Preserves scripts from base.html #}
 <script>
 $(document).ready(function() {
+    var tvKpiMode = localStorage.getItem('teamViewKpiMode') || 'qualitaet';
+    function applyTvKpiMode(mode) {
+        tvKpiMode = mode;
+        localStorage.setItem('teamViewKpiMode', mode);
+        $('.tv-kpi-toggle .btn').removeClass('active');
+        $('.tv-kpi-toggle .btn[data-tv-kpi-mode="' + mode + '"]').addClass('active');
+        if (mode === 'produktivitaet') {
+            $('.member-kpi-qual').hide();
+            $('.member-kpi-prod').show();
+        } else {
+            $('.member-kpi-qual').show();
+            $('.member-kpi-prod').hide();
+        }
+    }
+    if ($('.tv-kpi-toggle').length) {
+        applyTvKpiMode(tvKpiMode);
+        $('.tv-kpi-toggle .btn').on('click', function () {
+            applyTvKpiMode($(this).data('tv-kpi-mode'));
+        });
+    }
+
     let trendChartInstance = null;
     let currentTrendMemberId = null;
     let currentTrendMemberName = null; // Store name for refresh

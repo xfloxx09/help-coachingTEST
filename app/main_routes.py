@@ -1146,8 +1146,10 @@ def _build_team_members_performance(team):
     members = TeamMember.query.filter_by(team_id=team.id).order_by(TeamMember.name).all()
     member_ids = [m.id for m in members]
     kpi_map = {}
+    prod_map = {}
     if kpi_logic.kpi_features_enabled():
         kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
+        prod_map = _members_productivity_map(project_id, member_ids)
     team_members_performance = []
     for member in members:
         m_stats = db.session.query(
@@ -1177,6 +1179,7 @@ def _build_team_members_performance(team):
             avg_leitfaden = 0
 
         kpi = kpi_map.get(member.id, {})
+        prod = prod_map.get(member.id, {})
         team_members_performance.append({
             'id': member.id,
             'name': member.name,
@@ -1195,6 +1198,12 @@ def _build_team_members_performance(team):
             'fachkompetenz_count': kpi.get('fachkompetenz_count', 0),
             'vertrieb_quote': kpi.get('vertrieb_quote'),
             'vertrieb_count': kpi.get('vertrieb_count', 0),
+            'sign_on_pct': prod.get('sign_on_pct'),
+            'prod_pct': prod.get('prod_pct'),
+            'nach_per_call': prod.get('nach_per_call'),
+            'idle_pct': prod.get('idle_pct'),
+            'prod_calls': prod.get('calls'),
+            'prod_intervals': prod.get('intervals', 0),
         })
     return team_members_performance
 
@@ -3332,6 +3341,15 @@ def team_view():
 
     team_members_performance = _build_team_members_performance(team)
     card_settings = _team_view_card_settings(team.project_id)
+    prod_visibility = _prod_dashboard_visibility(team.project_id)
+    prod_labels = _prod_labels(team.project_id)
+    prod_targets = _prod_settings(team.project_id)
+    has_productivity_data = bool(
+        db.session.query(ProductivityInterval.id)
+        .filter(ProductivityInterval.project_id == team.project_id)
+        .limit(1)
+        .first()
+    )
     member_ids = [m.id for m in TeamMember.query.filter_by(team_id=team.id).all()]
     team_total_coachings = 0
     team_avg_time_minutes = 0
@@ -3374,6 +3392,11 @@ def team_view():
         team_avg_score_percent=team_avg_score_percent,
         all_teams_list=all_teams_list,
         card_settings=card_settings,
+        prod_visibility=prod_visibility,
+        prod_labels=prod_labels,
+        prod_targets=prod_targets,
+        has_productivity_data=has_productivity_data,
+        kpi_category_labels=_kpi_category_labels(),
         config=current_app.config,
     )
 
@@ -4959,6 +4982,25 @@ def _kpi_period_dates(period, date_from_str=None, date_to_str=None):
 def _members_kpi_map(project_id, member_ids, kpi_period='this_month', kpi_from=None, kpi_to=None):
     date_from, date_to, _ = _kpi_period_dates(kpi_period, kpi_from, kpi_to)
     return kpi_logic.members_kpi_quotes(project_id, member_ids, date_from, date_to)
+
+
+def _members_productivity_map(project_id, member_ids):
+    """Aggregate productivity KPIs per team member (all intervals)."""
+    if not project_id or not member_ids:
+        return {}
+    rows = ProductivityInterval.query.filter(
+        ProductivityInterval.project_id == project_id,
+        ProductivityInterval.team_member_id.in_(member_ids),
+    ).all()
+    by_member = {}
+    for iv in rows:
+        by_member.setdefault(iv.team_member_id, []).append(iv)
+    out = {}
+    for mid, intervals in by_member.items():
+        sm = productivity_logic.aggregate_summary(intervals)
+        if sm:
+            out[mid] = sm
+    return out
 
 
 def _member_kpi_snapshot(project_id, member_id):

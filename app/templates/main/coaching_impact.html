@@ -39,6 +39,43 @@
     .ci-stat { border: 1px solid #34343c; border-radius: 10px; padding: 0.85rem 1rem; background: #22222a; height: 100%; }
     .ci-stat .ci-stat-val { font-size: 1.6rem; font-weight: 700; }
     .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
+    .ci-chart-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .ci-view-toggle {
+        display: inline-flex;
+        border: 1px solid #4a4a55;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #2a2a31;
+    }
+    .ci-view-toggle .btn {
+        border: none;
+        border-radius: 0;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #d6d6dd;
+        background: transparent;
+        white-space: nowrap;
+    }
+    .ci-view-toggle .btn.active {
+        background: #e20074;
+        color: #fff;
+    }
+    .ci-view-toggle .btn + .btn { border-left: 1px solid #4a4a55; }
+    .ci-chart-wrap {
+        position: relative;
+        height: min(52vh, 480px);
+        min-height: 360px;
+    }
+    .ci-col-qual, .ci-col-prod { }
+    body.ci-view-qual .ci-col-prod { display: none !important; }
+    body.ci-view-prod .ci-col-qual { display: none !important; }
 </style>
 {% endblock %}
 
@@ -239,10 +276,24 @@
     {% endif %}
 
     {% if overlay %}
+    {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
     <div class="card mb-4">
-        <div class="card-header"><strong>Zeitverlauf</strong> <span class="text-muted small">(Balken = Coachings/Tag, Linien = KPIs · Klick auf einen Tag zeigt die Rohdaten)</span></div>
+        <div class="card-header ci-chart-card-header">
+            <div>
+                <strong>Zeitverlauf</strong>
+                <span class="text-muted small d-block d-md-inline ml-md-2">(Balken = Coachings/Tag · Klick auf einen Tag zeigt die Rohdaten)</span>
+            </div>
+            {% if visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle %}
+            <div class="ci-view-toggle btn-group btn-group-sm" role="group" aria-label="Chart-Ansicht">
+                <button type="button" class="btn active" id="ciViewQual" data-ci-view="qualitaet">{{ cat_labels.qualitaet }} + Coachings</button>
+                <button type="button" class="btn" id="ciViewProd" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }} + Coachings</button>
+            </div>
+            {% endif %}
+        </div>
         <div class="card-body">
-            <canvas id="ciOverlayChart" height="95"></canvas>
+            <div class="ci-chart-wrap">
+                <canvas id="ciOverlayChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -265,15 +316,15 @@
                                 <tr>
                                     <th>Datum</th>
                                     <th class="text-right">Coachings</th>
-                                    {% if visible.info %}<th class="text-right">Info</th>{% endif %}
-                                    {% if visible.loesung %}<th class="text-right">Lösung</th>{% endif %}
-                                    {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
-                                    {% if visible.fachkompetenz %}<th class="text-right">Fachk.</th>{% endif %}
-                                    {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
-                                    {% if visible_prod.sign_on %}<th class="text-right">{{ prod_labels.sign_on }}</th>{% endif %}
-                                    {% if visible_prod.prod %}<th class="text-right">{{ prod_labels.prod }}</th>{% endif %}
-                                    {% if visible_prod.nach %}<th class="text-right">{{ prod_labels.nach }}</th>{% endif %}
-                                    {% if visible_prod.idle %}<th class="text-right">{{ prod_labels.idle }}</th>{% endif %}
+                                    {% if visible.info %}<th class="text-right ci-col-qual">Info</th>{% endif %}
+                                    {% if visible.loesung %}<th class="text-right ci-col-qual">Lösung</th>{% endif %}
+                                    {% if visible.nps %}<th class="text-right ci-col-qual">NPS</th>{% endif %}
+                                    {% if visible.fachkompetenz %}<th class="text-right ci-col-qual">Fachk.</th>{% endif %}
+                                    {% if visible.vertrieb %}<th class="text-right ci-col-qual">Vertrieb</th>{% endif %}
+                                    {% if visible_prod.sign_on %}<th class="text-right ci-col-prod">{{ prod_labels.sign_on }}</th>{% endif %}
+                                    {% if visible_prod.prod %}<th class="text-right ci-col-prod">{{ prod_labels.prod }}</th>{% endif %}
+                                    {% if visible_prod.nach %}<th class="text-right ci-col-prod">{{ prod_labels.nach }}</th>{% endif %}
+                                    {% if visible_prod.idle %}<th class="text-right ci-col-prod">{{ prod_labels.idle }}</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -281,15 +332,15 @@
                                 <tr class="ci-day-row" data-date="{{ d.date }}" style="cursor:pointer;">
                                     <td>{{ d.label }}</td>
                                     <td class="text-right">{% if d.coachings %}<span class="badge badge-pill badge-warning ci-coach-badge" data-date="{{ d.date }}" title="Coachings dieses Tages anzeigen" style="cursor:pointer;">{{ d.coachings }}</span>{% else %}–{% endif %}</td>
-                                    {% if visible.info %}<td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.loesung %}<td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.fachkompetenz %}<td class="text-right">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.vertrieb %}<td class="text-right">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.sign_on %}<td class="text-right">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.prod %}<td class="text-right">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.nach %}<td class="text-right">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.idle %}<td class="text-right">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.info %}<td class="text-right ci-col-qual">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.loesung %}<td class="text-right ci-col-qual">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.nps %}<td class="text-right ci-col-qual">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.fachkompetenz %}<td class="text-right ci-col-qual">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.vertrieb %}<td class="text-right ci-col-qual">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.sign_on %}<td class="text-right ci-col-prod">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.prod %}<td class="text-right ci-col-prod">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.nach %}<td class="text-right ci-col-prod">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.idle %}<td class="text-right ci-col-prod">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                 </tr>
                             {% endfor %}
                             </tbody>
@@ -376,10 +427,13 @@
     var visibleProd = {{ visible_prod|tojson }};
     var prodLabels = {{ prod_labels|tojson }};
 
-    // Overlay mixed chart
+    // Overlay chart — Qualität or Produktivität (not both)
     var oc = document.getElementById('ciOverlayChart');
-    if (oc && overlay && overlay.length && window.Chart) {
-        var ocDatasets = [{
+    var ciOverlayChartInstance = null;
+    var ciViewMode = localStorage.getItem('coachingImpactChartView') || 'qualitaet';
+
+    function ciCoachDataset() {
+        return {
             type: 'bar',
             label: 'Coachings',
             data: overlay.map(function (d) { return d.coachings; }),
@@ -387,84 +441,146 @@
             borderColor: '#e20074',
             yAxisID: 'yCoach',
             order: 3,
-        }];
-        if (visible.info) ocDatasets.push({
-            type: 'line', label: 'Informationsquote (%)',
-            data: overlay.map(function (d) { return d.info_quote; }),
-            borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visible.loesung) ocDatasets.push({
-            type: 'line', label: 'Lösungsquote (%)',
-            data: overlay.map(function (d) { return d.loes_quote; }),
-            borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visible.nps) ocDatasets.push({
-            type: 'line', label: 'NPS',
-            data: overlay.map(function (d) { return d.nps; }),
-            borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
-            yAxisID: 'yNps', spanGaps: true, tension: 0.25, order: 2,
-        });
-        if (visible.vertrieb) ocDatasets.push({
-            type: 'line', label: 'Vertriebliche Ansprache (%)',
-            data: overlay.map(function (d) { return d.vertrieb_quote; }),
-            borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visible.fachkompetenz) ocDatasets.push({
-            type: 'line', label: 'Fachkompetenz (Ø Sterne)',
-            data: overlay.map(function (d) { return d.fachkompetenz; }),
-            borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.12)',
-            yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visibleProd.sign_on) ocDatasets.push({
-            type: 'line', label: prodLabels.sign_on + ' (%)',
-            data: overlay.map(function (d) { return d.sign_on_pct; }),
-            borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visibleProd.prod) ocDatasets.push({
-            type: 'line', label: 'Produktivität (%)',
-            data: overlay.map(function (d) { return d.prod_pct; }),
-            borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visibleProd.nach) ocDatasets.push({
-            type: 'line', label: prodLabels.nach + ' (s/Call)',
-            data: overlay.map(function (d) { return d.nach_per_call; }),
-            borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
-            yAxisID: 'yNach', spanGaps: true, tension: 0.25, order: 1,
-        });
-        if (visibleProd.idle) ocDatasets.push({
-            type: 'line', label: prodLabels.idle + ' (%)',
-            data: overlay.map(function (d) { return d.idle_pct; }),
-            borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
-        });
-        new Chart(oc.getContext('2d'), {
+        };
+    }
+
+    function buildCiOverlayChart(mode) {
+        if (!oc || !overlay || !overlay.length || !window.Chart) return;
+        if (ciOverlayChartInstance) {
+            ciOverlayChartInstance.destroy();
+            ciOverlayChartInstance = null;
+        }
+        var datasets = [ciCoachDataset()];
+        var scales = {
+            x: { ticks: { maxRotation: 45, minRotation: 0, maxTicksLimit: 24 } },
+            yCoach: {
+                type: 'linear', position: 'right', min: 0,
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Coachings' },
+                ticks: { precision: 0 },
+            },
+        };
+        if (mode === 'produktivitaet') {
+            scales.yQuote = { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } };
+            if (visibleProd.sign_on) datasets.push({
+                type: 'line', label: prodLabels.sign_on + ' (%)',
+                data: overlay.map(function (d) { return d.sign_on_pct; }),
+                borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visibleProd.prod) datasets.push({
+                type: 'line', label: prodLabels.prod + ' (%)',
+                data: overlay.map(function (d) { return d.prod_pct; }),
+                borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visibleProd.idle) datasets.push({
+                type: 'line', label: prodLabels.idle + ' (%)',
+                data: overlay.map(function (d) { return d.idle_pct; }),
+                borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visibleProd.nach) {
+                scales.yNach = {
+                    type: 'linear', position: 'left', min: 0,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 's/Call' },
+                };
+                datasets.push({
+                    type: 'line', label: prodLabels.nach + ' (s/Call)',
+                    data: overlay.map(function (d) { return d.nach_per_call; }),
+                    borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
+                    yAxisID: 'yNach', spanGaps: true, tension: 0.25, order: 1,
+                });
+            }
+        } else {
+            scales.yQuote = { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } };
+            if (visible.info) datasets.push({
+                type: 'line', label: 'Informationsquote (%)',
+                data: overlay.map(function (d) { return d.info_quote; }),
+                borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visible.loesung) datasets.push({
+                type: 'line', label: 'Lösungsquote (%)',
+                data: overlay.map(function (d) { return d.loes_quote; }),
+                borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visible.vertrieb) datasets.push({
+                type: 'line', label: 'Vertriebliche Ansprache (%)',
+                data: overlay.map(function (d) { return d.vertrieb_quote; }),
+                borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+            });
+            if (visible.nps) {
+                scales.yNps = {
+                    type: 'linear', position: 'right', min: -100, max: 100,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'NPS' },
+                };
+                datasets.push({
+                    type: 'line', label: 'NPS',
+                    data: overlay.map(function (d) { return d.nps; }),
+                    borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
+                    yAxisID: 'yNps', spanGaps: true, tension: 0.25, order: 2,
+                });
+            }
+            if (visible.fachkompetenz) {
+                scales.yStars = {
+                    type: 'linear', position: 'right', min: 0, max: 5,
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Sterne' },
+                    ticks: { stepSize: 1 },
+                };
+                datasets.push({
+                    type: 'line', label: 'Fachkompetenz (Ø Sterne)',
+                    data: overlay.map(function (d) { return d.fachkompetenz; }),
+                    borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.12)',
+                    yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
+                });
+            }
+        }
+        ciOverlayChartInstance = new Chart(oc.getContext('2d'), {
             data: {
                 labels: overlay.map(function (d) { return d.label; }),
-                datasets: ocDatasets,
+                datasets: datasets,
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 10 } } },
                 onClick: function (evt, elements) {
                     if (elements && elements.length) {
                         var idx = elements[0].index;
                         if (overlay[idx]) openCiDay(overlay[idx].date);
                     }
                 },
-                scales: {
-                    yQuote: { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } },
-                    yNps: { type: 'linear', position: 'right', min: -100, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'NPS' } },
-                    yCoach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Coachings' }, ticks: { precision: 0 } },
-                    yStars: { type: 'linear', position: 'right', min: 0, max: 5, grid: { drawOnChartArea: false }, title: { display: true, text: 'Sterne' }, ticks: { stepSize: 1 } },
-                    yNach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 's/Call' } },
-                },
+                scales: scales,
             },
+        });
+    }
+
+    function applyCiViewMode(mode) {
+        ciViewMode = mode;
+        localStorage.setItem('coachingImpactChartView', mode);
+        document.body.classList.remove('ci-view-qual', 'ci-view-prod');
+        document.body.classList.add(mode === 'produktivitaet' ? 'ci-view-prod' : 'ci-view-qual');
+        document.querySelectorAll('.ci-view-toggle .btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-ci-view') === mode);
+        });
+        buildCiOverlayChart(mode);
+    }
+
+    if (oc && overlay && overlay.length) {
+        var hasProdLines = visibleProd.sign_on || visibleProd.prod || visibleProd.nach || visibleProd.idle;
+        if (ciViewMode === 'produktivitaet' && !hasProdLines) ciViewMode = 'qualitaet';
+        applyCiViewMode(ciViewMode);
+        document.querySelectorAll('.ci-view-toggle .btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                applyCiViewMode(btn.getAttribute('data-ci-view'));
+            });
         });
     }
 
