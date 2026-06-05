@@ -144,7 +144,15 @@
     .tv-kpi-toggle .btn + .btn {
         border-left: 1px solid #555e67;
     }
-    .member-kpi-prod { display: none; }
+    #teamMemberCards .member-kpi-prod { display: none; }
+    #teamMemberCards.tv-mode-prod .member-kpi-qual { display: none; }
+    #teamMemberCards.tv-mode-prod .member-kpi-prod { display: block; }
+    .member-coach-rating {
+        border-top: 1px solid #555e67;
+        border-bottom: 1px solid #555e67;
+        margin: 0.5rem 0 0.75rem;
+        padding: 0.65rem 0;
+    }
     .member-card .stat-value-small { 
         font-size: 1.1rem; 
         font-weight: bold;
@@ -351,33 +359,16 @@
                 </div>
                 {% endif %}
             </div>
-            <div class="row">
+            <div class="row" id="teamMemberCards">
                 {% for member_stat in team_members_performance %}
                 <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                     <div class="card member-card h-100 shadow-sm">
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title text-center">{{ member_stat.name }}</h5>
 
-                            <div class="row member-kpi-grid">
-                            {% if card_settings.show_performance %}
-                            <div class="{% if kpi_features_enabled %}col-6{% else %}col-12{% endif %}">
-                            <div class="stat-group text-center">
-                                <div class="stat-label">Bewertung vom Coach</div>
-                                {% if member_stat.total_coachings > 0 %}
-                                <span class="kpi-chip kpi-chip-{{ member_stat.avg_score|kpi_status(card_settings.target_performance, card_settings.warn_performance) }}"
-                                      title="{{ member_stat.total_coachings }} Coaching{% if member_stat.total_coachings != 1 %}s{% endif %} berücksichtigt">
-                                    {{ (member_stat.avg_score / 10)|de_decimal(1) }}
-                                </span>
-                                {% else %}
-                                <span class="kpi-chip kpi-chip-na" title="Keine Bewertungen">k.A.</span>
-                                {% endif %}
-                            </div>
-                            </div>
-                            {% endif %}
-
                             {% if kpi_features_enabled %}
-                            <div class="col-12 member-kpi-qual">
-                            <div class="row">
+                            <div class="member-kpi-qual">
+                            <div class="row member-kpi-grid">
                             {% if card_settings.show_nps %}
                             <div class="col-6">
                             <div class="stat-group text-center">
@@ -477,8 +468,8 @@
                             {% endif %}
 
                             {% if kpi_features_enabled and has_productivity_data %}
-                            <div class="col-12 member-kpi-prod">
-                            <div class="row">
+                            <div class="member-kpi-prod">
+                            <div class="row member-kpi-grid">
                             {% if prod_vis.sign_on %}
                             <div class="col-6">
                             <div class="stat-group text-center">
@@ -555,6 +546,20 @@
                             </div>
                             {% endif %}
                             </div>
+                            </div>
+                            {% endif %}
+
+                            {% if card_settings.show_performance %}
+                            <div class="member-coach-rating text-center">
+                                <div class="stat-label">Bewertung vom Coach</div>
+                                {% if member_stat.total_coachings > 0 %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.avg_score|kpi_status(card_settings.target_performance, card_settings.warn_performance) }}"
+                                      title="{{ member_stat.total_coachings }} Coaching{% if member_stat.total_coachings != 1 %}s{% endif %} berücksichtigt">
+                                    {{ (member_stat.avg_score / 10)|de_decimal(1) }}
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na" title="Keine Bewertungen">k.A.</span>
+                                {% endif %}
                             </div>
                             {% endif %}
 
@@ -679,15 +684,9 @@ $(document).ready(function() {
         localStorage.setItem('teamViewKpiMode', mode);
         $('.tv-kpi-toggle .btn').removeClass('active');
         $('.tv-kpi-toggle .btn[data-tv-kpi-mode="' + mode + '"]').addClass('active');
-        if (mode === 'produktivitaet') {
-            $('.member-kpi-qual').hide();
-            $('.member-kpi-prod').show();
-        } else {
-            $('.member-kpi-qual').show();
-            $('.member-kpi-prod').hide();
-        }
+        $('#teamMemberCards').toggleClass('tv-mode-prod', mode === 'produktivitaet');
     }
-    if ($('.tv-kpi-toggle').length) {
+    if ($('.tv-kpi-toggle').length && $('#teamMemberCards').length) {
         applyTvKpiMode(tvKpiMode);
         $('.tv-kpi-toggle .btn').on('click', function () {
             applyTvKpiMode($(this).data('tv-kpi-mode'));
