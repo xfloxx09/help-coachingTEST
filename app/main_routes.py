@@ -5935,7 +5935,7 @@ def coaching_impact_day():
     for c in coachings:
         out.append({
             'agent': c.team_member.name if c.team_member else '-',
-            'coach': c.coach.username if c.coach else '-',
+            'coach': c.coach.coach_display_name if c.coach else '-',
             'subject': c.coaching_subject or '-',
             'style': c.coaching_style or '-',
             'performance': (c.performance_mark * 10) if c.performance_mark is not None else None,
