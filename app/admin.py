@@ -3507,8 +3507,201 @@ def _kpi_resolve_links(surveys):
     }
 
 
-def _kpi_commit(filename, surveys, stats):
-    """Replace-range commit: delete existing surveys in the file's date range, then insert."""
+def _kpi_answers_key_from_rows(answers):
+    if not answers:
+        return ()
+    if isinstance(answers[0], dict):
+        return tuple(sorted(
+            ((a.get('code') or '').strip(), (a.get('antwort') or '').strip())
+            for a in answers
+        ))
+    return tuple(answers)
+
+
+def _kpi_survey_snapshot_from_dict(s):
+    return {
+        'antwort_date': s.get('antwort_date'),
+        'be4': (s.get('be4') or '').strip(),
+        'ma_kenner': (s.get('ma_kenner') or '').strip(),
+        'studie': (s.get('studie') or '').strip(),
+        'nps_value': s.get('nps_value'),
+        'loesung_answer': (s.get('loesung_answer') or '').strip(),
+        'info_positive': s.get('info_positive'),
+        'loesung_positive': s.get('loesung_positive'),
+        'fachkompetenz_stars': s.get('fachkompetenz_stars'),
+        'vertrieb_positive': s.get('vertrieb_positive'),
+        'answers': _kpi_answers_key_from_rows(s.get('answers') or []),
+    }
+
+
+def _kpi_survey_snapshot_from_db(sv, answers_key):
+    return {
+        'antwort_date': sv.antwort_date,
+        'be4': (sv.be4 or '').strip(),
+        'ma_kenner': (sv.ma_kenner or '').strip(),
+        'studie': (sv.studie or '').strip(),
+        'nps_value': sv.nps_value,
+        'loesung_answer': (sv.loesung_answer or '').strip(),
+        'info_positive': sv.info_positive,
+        'loesung_positive': sv.loesung_positive,
+        'fachkompetenz_stars': sv.fachkompetenz_stars,
+        'vertrieb_positive': sv.vertrieb_positive,
+        'answers': answers_key or (),
+    }
+
+
+_KPI_DIFF_LABELS = (
+    ('antwort_date', 'Antwortdatum'),
+    ('be4', 'Team (be4)'),
+    ('ma_kenner', 'MA-Kennung'),
+    ('studie', 'Survey-Typ'),
+    ('nps_value', 'NPS'),
+    ('loesung_answer', 'Lösungsantwort'),
+    ('info_positive', 'Informationsquote'),
+    ('loesung_positive', 'Lösungsquote'),
+    ('fachkompetenz_stars', 'Fachkompetenz'),
+    ('vertrieb_positive', 'Vertriebliche Ansprache'),
+    ('answers', 'Antworten'),
+)
+
+
+def _kpi_diff_fields(incoming_snap, existing_snap):
+    diffs = []
+    for key, label in _KPI_DIFF_LABELS:
+        if incoming_snap.get(key) != existing_snap.get(key):
+            diffs.append(label)
+    return diffs
+
+
+def _kpi_load_answers_by_survey_id(survey_ids):
+    if not survey_ids:
+        return {}
+    buckets = {}
+    rows = db.session.query(
+        KpiAnswer.survey_id, KpiAnswer.frage_code, KpiAnswer.antwort,
+    ).filter(KpiAnswer.survey_id.in_(survey_ids)).all()
+    for sid, code, antwort in rows:
+        buckets.setdefault(sid, []).append(((code or '').strip(), (antwort or '').strip()))
+    return {sid: tuple(sorted(items)) for sid, items in buckets.items()}
+
+
+def _kpi_analyze_import_conflicts(surveys):
+    """Compare incoming surveys with DB: new, unchanged, changed, range orphans."""
+    dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
+    date_from = min(dates) if dates else None
+    date_to = max(dates) if dates else None
+    incoming_by_dsid = {s['datensatz_id']: s for s in surveys}
+    incoming_dsids = set(incoming_by_dsid)
+
+    existing_rows = []
+    if incoming_dsids:
+        existing_rows = KpiSurvey.query.filter(
+            KpiSurvey.datensatz_id.in_(incoming_dsids),
+        ).all()
+    existing_by_dsid = {sv.datensatz_id: sv for sv in existing_rows}
+    answers_by_id = _kpi_load_answers_by_survey_id([sv.id for sv in existing_rows])
+
+    new_count = unchanged_count = changed_count = 0
+    changed_samples = []
+    for dsid, incoming in incoming_by_dsid.items():
+        existing = existing_by_dsid.get(dsid)
+        if not existing:
+            new_count += 1
+            continue
+        in_snap = _kpi_survey_snapshot_from_dict(incoming)
+        ex_snap = _kpi_survey_snapshot_from_db(existing, answers_by_id.get(existing.id))
+        diffs = _kpi_diff_fields(in_snap, ex_snap)
+        if not diffs:
+            unchanged_count += 1
+        else:
+            changed_count += 1
+            if len(changed_samples) < 15:
+                changed_samples.append({
+                    'datensatz_id': dsid,
+                    'antwort_date': incoming.get('antwort_date'),
+                    'existing_date': existing.antwort_date,
+                    'be4': (incoming.get('be4') or '')[:40],
+                    'diffs': diffs,
+                })
+
+    range_rows = []
+    if date_from and date_to:
+        range_rows = KpiSurvey.query.filter(
+            KpiSurvey.antwort_date >= date_from,
+            KpiSurvey.antwort_date <= date_to,
+        ).all()
+    existing_in_range_count = len(range_rows)
+    orphan_rows = [sv for sv in range_rows if sv.datensatz_id not in incoming_dsids]
+    orphan_in_range_count = len(orphan_rows)
+    orphan_samples = [
+        {
+            'datensatz_id': sv.datensatz_id,
+            'antwort_date': sv.antwort_date,
+            'be4': (sv.be4 or '')[:40],
+        }
+        for sv in orphan_rows[:10]
+    ]
+
+    has_existing = bool(existing_by_dsid or range_rows)
+    needs_overwrite_choice = (
+        changed_count > 0 or unchanged_count > 0 or orphan_in_range_count > 0
+    )
+
+    return {
+        'date_from': date_from,
+        'date_to': date_to,
+        'date_from_fmt': date_from.strftime('%d.%m.%Y') if date_from else None,
+        'date_to_fmt': date_to.strftime('%d.%m.%Y') if date_to else None,
+        'new_count': new_count,
+        'unchanged_count': unchanged_count,
+        'changed_count': changed_count,
+        'changed_samples': changed_samples,
+        'existing_in_range_count': existing_in_range_count,
+        'orphan_in_range_count': orphan_in_range_count,
+        'orphan_samples': orphan_samples,
+        'has_existing': has_existing,
+        'needs_overwrite_choice': needs_overwrite_choice,
+    }
+
+
+def _kpi_insert_survey(batch_id, s):
+    survey = KpiSurvey(
+        datensatz_id=s['datensatz_id'],
+        interviewnummer=s['interviewnummer'],
+        antwort_date=s['antwort_date'],
+        kontakt_date=s['kontakt_date'],
+        be4=(s['be4'] or '')[:100],
+        ma_kenner=(s['ma_kenner'] or '')[:50],
+        ospname=s['ospname'],
+        kampagne=s['kampagne'],
+        studie=s['studie'],
+        queue=s['queue'],
+        vorname=s['vorname'],
+        nachname=s['nachname'],
+        team_id=s['team_id'],
+        project_id=s['project_id'],
+        team_member_id=s['team_member_id'],
+        nps_value=s['nps_value'],
+        loesung_answer=s['loesung_answer'],
+        info_positive=s['info_positive'],
+        loesung_positive=s['loesung_positive'],
+        fachkompetenz_stars=s.get('fachkompetenz_stars'),
+        vertrieb_positive=s.get('vertrieb_positive'),
+        batch_id=batch_id,
+    )
+    for a in s['answers']:
+        survey.answers.append(KpiAnswer(
+            frage_code=(a['code'] or '')[:40],
+            frage_text=a['text'],
+            antwort=a['antwort'],
+        ))
+    db.session.add(survey)
+    return survey
+
+
+def _kpi_commit(filename, surveys, stats, overwrite=False):
+    """Commit KPI import. overwrite=True replaces date range + updates existing datensatz_ids."""
+    conflicts = _kpi_analyze_import_conflicts(surveys)
     dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
     date_from = min(dates) if dates else None
     date_to = max(dates) if dates else None
@@ -3526,51 +3719,61 @@ def _kpi_commit(filename, surveys, stats):
     db.session.add(batch)
     db.session.flush()
 
-    if date_from and date_to:
-        old_ids = [
-            r[0] for r in db.session.query(KpiSurvey.id).filter(
-                KpiSurvey.antwort_date >= date_from,
-                KpiSurvey.antwort_date <= date_to,
-            ).all()
-        ]
-        if old_ids:
-            KpiAnswer.query.filter(KpiAnswer.survey_id.in_(old_ids)).delete(synchronize_session=False)
-            KpiSurvey.query.filter(KpiSurvey.id.in_(old_ids)).delete(synchronize_session=False)
+    result = {
+        'inserted': 0,
+        'skipped_unchanged': 0,
+        'skipped_changed': 0,
+        'deleted': 0,
+        'overwrite': overwrite,
+        'conflicts': conflicts,
+    }
 
-    for s in surveys:
-        survey = KpiSurvey(
-            datensatz_id=s['datensatz_id'],
-            interviewnummer=s['interviewnummer'],
-            antwort_date=s['antwort_date'],
-            kontakt_date=s['kontakt_date'],
-            be4=(s['be4'] or '')[:100],
-            ma_kenner=(s['ma_kenner'] or '')[:50],
-            ospname=s['ospname'],
-            kampagne=s['kampagne'],
-            studie=s['studie'],
-            queue=s['queue'],
-            vorname=s['vorname'],
-            nachname=s['nachname'],
-            team_id=s['team_id'],
-            project_id=s['project_id'],
-            team_member_id=s['team_member_id'],
-            nps_value=s['nps_value'],
-            loesung_answer=s['loesung_answer'],
-            info_positive=s['info_positive'],
-            loesung_positive=s['loesung_positive'],
-            fachkompetenz_stars=s.get('fachkompetenz_stars'),
-            vertrieb_positive=s.get('vertrieb_positive'),
-            batch_id=batch.id,
-        )
-        for a in s['answers']:
-            survey.answers.append(KpiAnswer(
-                frage_code=(a['code'] or '')[:40],
-                frage_text=a['text'],
-                antwort=a['antwort'],
-            ))
-        db.session.add(survey)
+    if overwrite:
+        ids_to_delete = set()
+        if date_from and date_to:
+            ids_to_delete.update(
+                r[0] for r in db.session.query(KpiSurvey.id).filter(
+                    KpiSurvey.antwort_date >= date_from,
+                    KpiSurvey.antwort_date <= date_to,
+                ).all()
+            )
+        incoming_dsids = {s['datensatz_id'] for s in surveys}
+        if incoming_dsids:
+            ids_to_delete.update(
+                r[0] for r in db.session.query(KpiSurvey.id).filter(
+                    KpiSurvey.datensatz_id.in_(incoming_dsids),
+                ).all()
+            )
+        if ids_to_delete:
+            KpiAnswer.query.filter(KpiAnswer.survey_id.in_(ids_to_delete)).delete(synchronize_session=False)
+            KpiSurvey.query.filter(KpiSurvey.id.in_(ids_to_delete)).delete(synchronize_session=False)
+            result['deleted'] = len(ids_to_delete)
+        for s in surveys:
+            _kpi_insert_survey(batch.id, s)
+            result['inserted'] += 1
+    else:
+        existing_by_dsid = {}
+        incoming_dsids = {s['datensatz_id'] for s in surveys}
+        if incoming_dsids:
+            for sv in KpiSurvey.query.filter(KpiSurvey.datensatz_id.in_(incoming_dsids)).all():
+                existing_by_dsid[sv.datensatz_id] = sv
+        answers_by_id = _kpi_load_answers_by_survey_id([sv.id for sv in existing_by_dsid.values()])
+        for s in surveys:
+            existing = existing_by_dsid.get(s['datensatz_id'])
+            if existing:
+                in_snap = _kpi_survey_snapshot_from_dict(s)
+                ex_snap = _kpi_survey_snapshot_from_db(existing, answers_by_id.get(existing.id))
+                if _kpi_diff_fields(in_snap, ex_snap):
+                    result['skipped_changed'] += 1
+                else:
+                    result['skipped_unchanged'] += 1
+                continue
+            _kpi_insert_survey(batch.id, s)
+            result['inserted'] += 1
+
+    batch.surveys_total = result['inserted']
     db.session.commit()
-    return batch, date_from, date_to
+    return batch, date_from, date_to, result
 
 
 def _kpi_cleanup_session_temp():
@@ -3617,13 +3820,14 @@ def import_kpi_csv():
             return redirect(url_for('admin.import_kpi_csv'))
 
         dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
+        conflicts = _kpi_analyze_import_conflicts(surveys)
         preview = {
             'total': len(surveys),
             'matched_team': stats['matched_team'],
             'matched_member': stats['matched_member'],
             'unassigned': stats['unassigned'],
-            'date_from': min(dates).strftime('%d.%m.%Y') if dates else None,
-            'date_to': max(dates).strftime('%d.%m.%Y') if dates else None,
+            'date_from': conflicts['date_from_fmt'],
+            'date_to': conflicts['date_to_fmt'],
             'nps_count': sum(1 for s in surveys if s['nps_value'] is not None),
             'loes_count': sum(1 for s in surveys if s['loesung_answer']),
             'no_date': sum(1 for s in surveys if not s['antwort_date']),
@@ -3631,6 +3835,7 @@ def import_kpi_csv():
             'unknown_be4_count': len(stats['unknown_be4']),
             'unknown_ma_count': len(stats['unknown_ma']),
             'unknown_ma_details': stats['unknown_ma_details'],
+            'conflicts': conflicts,
         }
         return render_template(
             'admin/import_kpi_preview.html',
@@ -3650,21 +3855,40 @@ def import_kpi_csv():
             surveys = _kpi_read_surveys(temp_path)
             stats = _kpi_resolve_links(surveys)
             _kpi_apply_mappings(surveys)
-            batch, date_from, date_to = _kpi_commit(filename, surveys, stats)
+            overwrite = request.form.get('confirm_overwrite') == '1'
+            batch, date_from, date_to, commit_result = _kpi_commit(
+                filename, surveys, stats, overwrite=overwrite,
+            )
         except Exception as e:
             db.session.rollback()
             flash(f'Import fehlgeschlagen: {e}', 'danger')
             return redirect(url_for('admin.import_kpi_csv'))
         _kpi_cleanup_session_temp()
-        rng = ''
-        if date_from and date_to:
-            rng = f' Zeitraum {date_from.strftime("%d.%m.%Y")}–{date_to.strftime("%d.%m.%Y")} ersetzt.'
-        flash(
-            f'KPI-Import abgeschlossen: {batch.surveys_total} Befragungen, '
-            f'{batch.surveys_matched_team} mit Team, {batch.surveys_matched_member} mit Agent, '
-            f'{batch.surveys_unassigned} ohne Team (unassigned).{rng}',
-            'success',
-        )
+        c = commit_result['conflicts']
+        parts = [f'{commit_result["inserted"]} Befragungen importiert']
+        if commit_result['skipped_unchanged']:
+            parts.append(f'{commit_result["skipped_unchanged"]} unverändert übersprungen')
+        if commit_result['skipped_changed']:
+            parts.append(
+                f'{commit_result["skipped_changed"]} geändert übersprungen '
+                f'(zum Überschreiben beim Import „Vorhandene ersetzen“ aktivieren)'
+            )
+        if commit_result['deleted']:
+            parts.append(f'{commit_result["deleted"]} vorhandene ersetzt/gelöscht')
+        if commit_result['inserted'] == 0 and (c['changed_count'] or c['unchanged_count']):
+            flash(
+                'Keine neuen Befragungen importiert. Alle Datensätze existieren bereits. '
+                'Aktivieren Sie „Vorhandene KPI-Daten überschreiben“, um geänderte oder '
+                'den Zeitraum zu ersetzen.',
+                'warning',
+            )
+        else:
+            flash(
+                f'KPI-Import abgeschlossen: {", ".join(parts)}. '
+                f'{batch.surveys_matched_team} mit Team, {batch.surveys_matched_member} mit Agent, '
+                f'{batch.surveys_unassigned} ohne Team (unassigned).',
+                'success',
+            )
         return redirect(url_for('admin.import_kpi_csv'))
 
     recent_batches = KpiImportBatch.query.order_by(desc(KpiImportBatch.imported_at)).limit(10).all()

@@ -124,16 +124,129 @@
     </div>
     {% endif %}
 
-    {% if preview.date_from %}
-    <div class="alert alert-warning">
-        <i class="fas fa-exclamation-triangle mr-1"></i>
-        Vorhandene KPI-Befragungen im Zeitraum <strong>{{ preview.date_from }} – {{ preview.date_to }}</strong>
-        werden beim Bestätigen <strong>ersetzt</strong>.
+    {% set conflicts = preview.conflicts %}
+    {% if conflicts and conflicts.needs_overwrite_choice %}
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h2 class="mb-0" style="font-size: 1.1rem;">
+                <i class="fas fa-exclamation-triangle mr-1"></i> Überschneidung mit vorhandenen KPI-Daten
+            </h2>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">
+                Ein Teil der Befragungen in dieser Datei existiert bereits in der Datenbank.
+                Bitte prüfen Sie die Details und entscheiden Sie, ob vorhandene Daten überschrieben werden sollen.
+            </p>
+            <div class="row text-center mb-3">
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="h4 mb-0 text-success">{{ conflicts.new_count }}</div>
+                    <small class="text-muted">neu</small>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="h4 mb-0">{{ conflicts.unchanged_count }}</div>
+                    <small class="text-muted">unverändert vorhanden</small>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="h4 mb-0 text-danger">{{ conflicts.changed_count }}</div>
+                    <small class="text-muted">vorhanden, aber geändert</small>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="h4 mb-0 text-warning">{{ conflicts.orphan_in_range_count }}</div>
+                    <small class="text-muted">nur in DB (Zeitraum)</small>
+                </div>
+            </div>
+
+            {% if conflicts.changed_samples %}
+            <h6 class="mt-2">Geänderte Befragungen (Auszug)</h6>
+            <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>datensatz_id</th>
+                            <th>Datum (CSV)</th>
+                            <th>Datum (DB)</th>
+                            <th>Team (be4)</th>
+                            <th>Abweichungen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in conflicts.changed_samples %}
+                        <tr>
+                            <td><code>{{ row.datensatz_id }}</code></td>
+                            <td>{{ row.antwort_date.strftime('%d.%m.%Y') if row.antwort_date else '–' }}</td>
+                            <td>{{ row.existing_date.strftime('%d.%m.%Y') if row.existing_date else '–' }}</td>
+                            <td>{{ row.be4 or '–' }}</td>
+                            <td>{{ row.diffs|join(', ') }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if conflicts.changed_count > conflicts.changed_samples|length %}
+            <p class="small text-muted">… und {{ conflicts.changed_count - conflicts.changed_samples|length }} weitere geänderte Befragungen.</p>
+            {% endif %}
+            {% endif %}
+
+            {% if conflicts.orphan_samples %}
+            <h6 class="mt-2">Vorhandene Befragungen im Zeitraum, die nicht in dieser CSV sind (Auszug)</h6>
+            <p class="small text-muted">
+                Diese werden nur entfernt, wenn Sie „Vorhandene KPI-Daten überschreiben“ aktivieren
+                {% if conflicts.date_from_fmt %} (Zeitraum {{ conflicts.date_from_fmt }} – {{ conflicts.date_to_fmt }}){% endif %}.
+            </p>
+            <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>datensatz_id</th>
+                            <th>Antwortdatum</th>
+                            <th>Team (be4)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in conflicts.orphan_samples %}
+                        <tr>
+                            <td><code>{{ row.datensatz_id }}</code></td>
+                            <td>{{ row.antwort_date.strftime('%d.%m.%Y') if row.antwort_date else '–' }}</td>
+                            <td>{{ row.be4 or '–' }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <div class="alert alert-light border mb-0">
+                <strong>Ohne Überschreiben:</strong> Es werden nur <em>neue</em> Befragungen hinzugefügt.
+                Bereits vorhandene (auch geänderte) Datensätze bleiben unberührt.<br>
+                <strong>Mit Überschreiben:</strong> Befragungen im Antwortdatum-Zeitraum der Datei sowie alle
+                in der CSV enthaltenen <code>datensatz_id</code> werden ersetzt.
+            </div>
+        </div>
+    </div>
+    {% elif preview.date_from %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle mr-1"></i>
+        Im Zeitraum <strong>{{ preview.date_from }} – {{ preview.date_to }}</strong> liegen noch keine
+        überschneidenden KPI-Daten vor – der Import fügt {{ conflicts.new_count if conflicts else preview.total }} neue Befragungen hinzu.
     </div>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}">
+    <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" id="kpiImportConfirmForm">
         <input type="hidden" name="action" value="confirm">
+        {% if conflicts and conflicts.needs_overwrite_choice %}
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="confirm_overwrite" id="confirm_overwrite" value="1">
+            <label class="form-check-label" for="confirm_overwrite">
+                <strong>Vorhandene KPI-Daten überschreiben / Zeitraum ersetzen</strong>
+            </label>
+            <small class="form-text text-muted">
+                Aktivieren, wenn geänderte Befragungen oder der Zeitraum aktualisiert werden soll.
+                {% if conflicts.changed_count %}
+                {{ conflicts.changed_count }} geänderte Datensätze würden dann ersetzt.
+                {% endif %}
+            </small>
+        </div>
+        {% endif %}
         <button type="submit" class="btn btn-success">
             <i class="fas fa-check mr-1"></i> Import bestätigen
         </button>
