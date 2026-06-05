@@ -403,6 +403,7 @@
 {% endblock %}
 
 {% block scripts %}
+{% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
 <script>
 (function () {
     var form = document.getElementById('ciFilterForm');
