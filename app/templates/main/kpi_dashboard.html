@@ -32,6 +32,9 @@
     .kpi-info .kpi-value { color: #36c6a0; }
     .kpi-loes .kpi-value { color: #4aa3ff; }
     .kpi-nps .kpi-value { color: #ffb648; }
+    .kpi-fach .kpi-value { color: #ffc107; }
+    .kpi-vert .kpi-value { color: #b388ff; }
+    #kpiChartWrap { position: relative; height: 340px; }
     .kpi-day-row { cursor: pointer; }
     .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
     .kpi-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
@@ -157,13 +160,36 @@
             </div>
         </div>
         {% endif %}
+        {% if visible.fachkompetenz %}
+        <div class="col-12 col-md-4 mb-3">
+            <div class="kpi-card kpi-fach">
+                <div class="kpi-label">Fachkompetenz</div>
+                <div class="kpi-value">{% if kpi.fachkompetenz is not none %}{{ kpi.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</div>
+                <div class="kpi-sub">Ø Sterne (0–5) · {{ kpi.fachkompetenz_total }} Bewertungen</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.vertrieb %}
+        <div class="col-12 col-md-4 mb-3">
+            <div class="kpi-card kpi-vert">
+                <div class="kpi-label">Vertriebliche Ansprache</div>
+                <div class="kpi-value">{% if kpi.vertrieb_quote is not none %}{{ kpi.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">{{ kpi.vertrieb_pos }} von {{ kpi.vertrieb_total }} positiv bewertet</div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
-    {% if daily %}
+    {% if chart_daily %}
     <div class="card mb-4">
-        <div class="card-header"><strong>Verlauf</strong> <span class="text-muted small">(Klick auf einen Tag zeigt die Rohdaten)</span></div>
+        <div class="card-header">
+            <strong>Verlauf</strong>
+            <span class="text-muted small">(kumulativ im Zeitraum · gestrichelte Linien = Ziel · Klick auf einen Tag zeigt Rohdaten)</span>
+        </div>
         <div class="card-body">
-            <canvas id="kpiChart" height="90"></canvas>
+            <div id="kpiChartWrap">
+                <canvas id="kpiChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -179,6 +205,8 @@
                             {% if visible.info %}<th class="text-right">Informationsquote</th>{% endif %}
                             {% if visible.loesung %}<th class="text-right">Lösungsquote</th>{% endif %}
                             {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
+                            {% if visible.fachkompetenz %}<th class="text-right">Fachkompetenz</th>{% endif %}
+                            {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
                             <th></th>
                         </tr>
                     </thead>
@@ -190,6 +218,8 @@
                             {% if visible.info %}<td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                             {% if visible.loesung %}<td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                             {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.fachkompetenz %}<td class="text-right">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.vertrieb %}<td class="text-right">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                             <td class="text-right"><i class="fas fa-search text-muted"></i></td>
                         </tr>
                     {% endfor %}
@@ -271,37 +301,81 @@
         sel.addEventListener('change', function () { form.submit(); });
     });
 
-    // Chart
-    var daily = {{ daily|tojson }};
+    // Chart (cumulative trend + Ziel reference lines)
+    var chartDaily = {{ chart_daily|tojson }};
     var visible = {{ visible|tojson }};
+    var targets = {{ targets|tojson }};
     var canvas = document.getElementById('kpiChart');
-    if (canvas && daily && daily.length && window.Chart) {
+    if (canvas && chartDaily && chartDaily.length && window.Chart) {
         var ctx = canvas.getContext('2d');
+        var labels = chartDaily.map(function (d) { return d.label; });
         var datasets = [];
-        if (visible.info) datasets.push({
-            label: 'Informationsquote (%)',
-            data: daily.map(function (d) { return d.info_quote; }),
-            borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.15)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25,
-        });
-        if (visible.loesung) datasets.push({
-            label: 'Lösungsquote (%)',
-            data: daily.map(function (d) { return d.loes_quote; }),
-            borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.15)',
-            yAxisID: 'yQuote', spanGaps: true, tension: 0.25,
-        });
-        if (visible.nps) datasets.push({
-            label: 'NPS',
-            data: daily.map(function (d) { return d.nps; }),
-            borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.15)',
-            yAxisID: 'yNps', spanGaps: true, tension: 0.25,
-        });
+
+        function addTargetLine(label, value, color, axisId) {
+            if (value === null || value === undefined) return;
+            datasets.push({
+                label: label,
+                data: labels.map(function () { return value; }),
+                borderColor: color,
+                backgroundColor: 'transparent',
+                borderDash: [7, 5],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                pointHitRadius: 0,
+                yAxisID: axisId,
+                order: 0,
+            });
+        }
+
+        if (visible.info) {
+            datasets.push({
+                label: 'Informationsquote (%)',
+                data: chartDaily.map(function (d) { return d.info_quote; }),
+                borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
+                yAxisID: 'yQuote', spanGaps: false, tension: 0.15, pointRadius: 2, order: 2,
+            });
+            addTargetLine('Ziel Info', targets.target_info, 'rgba(54,198,160,0.55)', 'yQuote');
+        }
+        if (visible.loesung) {
+            datasets.push({
+                label: 'Lösungsquote (%)',
+                data: chartDaily.map(function (d) { return d.loes_quote; }),
+                borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: false, tension: 0.15, pointRadius: 2, order: 2,
+            });
+            addTargetLine('Ziel Lösung', targets.target_loesung, 'rgba(74,163,255,0.55)', 'yQuote');
+        }
+        if (visible.vertrieb) {
+            datasets.push({
+                label: 'Vertriebliche Ansprache (%)',
+                data: chartDaily.map(function (d) { return d.vertrieb_quote; }),
+                borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
+                yAxisID: 'yQuote', spanGaps: false, tension: 0.15, pointRadius: 2, order: 2,
+            });
+            addTargetLine('Ziel Vertrieb', targets.target_vertrieb, 'rgba(179,136,255,0.55)', 'yQuote');
+        }
+        if (visible.nps) {
+            datasets.push({
+                label: 'NPS',
+                data: chartDaily.map(function (d) { return d.nps; }),
+                borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
+                yAxisID: 'yNps', spanGaps: false, tension: 0.15, pointRadius: 2, order: 2,
+            });
+            addTargetLine('Ziel NPS', targets.target_nps, 'rgba(255,182,72,0.55)', 'yNps');
+        }
+        if (visible.fachkompetenz) {
+            datasets.push({
+                label: 'Fachkompetenz (Ø Sterne)',
+                data: chartDaily.map(function (d) { return d.fachkompetenz; }),
+                borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.12)',
+                yAxisID: 'yStars', spanGaps: false, tension: 0.15, pointRadius: 2, order: 2,
+            });
+            addTargetLine('Ziel Fachkompetenz', targets.target_fachkompetenz, 'rgba(255,193,7,0.55)', 'yStars');
+        }
+
         new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: daily.map(function (d) { return d.label; }),
-                datasets: datasets,
-            },
+            data: { labels: labels, datasets: datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -309,8 +383,13 @@
                 onClick: function (evt, elements) {
                     if (elements && elements.length) {
                         var idx = elements[0].index;
-                        if (daily[idx]) openKpiDay(daily[idx].date);
+                        if (chartDaily[idx] && chartDaily[idx].count > 0) {
+                            openKpiDay(chartDaily[idx].date);
+                        }
                     }
+                },
+                plugins: {
+                    legend: { labels: { boxWidth: 12 } },
                 },
                 scales: {
                     yQuote: {
@@ -321,6 +400,12 @@
                         type: 'linear', position: 'right', min: -100, max: 100,
                         grid: { drawOnChartArea: false },
                         title: { display: true, text: 'NPS' },
+                    },
+                    yStars: {
+                        type: 'linear', position: 'right', min: 0, max: 5,
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Sterne' },
+                        ticks: { stepSize: 1 },
                     },
                 },
             },

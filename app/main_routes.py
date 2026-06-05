@@ -5122,34 +5122,175 @@ def _active_project_id(mode, sel_project, sel_team, sel_member):
 
 def _kpi_aggregate(rows):
     """rows: iterable of (info_positive, loesung_positive, nps_value). Returns KPI dict."""
-    info_pos = info_total = 0
-    loes_pos = loes_total = 0
-    nps_values = []
-    for info_positive, loesung_positive, nps_value in rows:
-        if info_positive is not None:
-            info_total += 1
-            if info_positive:
-                info_pos += 1
-        if loesung_positive is not None:
-            loes_total += 1
-            if loesung_positive:
-                loes_pos += 1
-        if nps_value is not None:
-            nps_values.append(nps_value)
-    nps = kpi_logic.compute_nps(nps_values)
+    full = _kpi_aggregate_full(
+        (info_positive, loesung_positive, nps_value, None, None)
+        for info_positive, loesung_positive, nps_value in rows
+    )
+    return {k: full[k] for k in (
+        'info_quote', 'info_total', 'info_pos',
+        'loes_quote', 'loes_total', 'loes_pos',
+        'nps', 'nps_total', 'nps_promoters', 'nps_neutrals', 'nps_detractors',
+    )}
+
+
+def _empty_kpi_cum():
     return {
-        'info_quote': kpi_logic.quote_percent(info_pos, info_total),
-        'info_total': info_total,
-        'info_pos': info_pos,
-        'loes_quote': kpi_logic.quote_percent(loes_pos, loes_total),
-        'loes_total': loes_total,
-        'loes_pos': loes_pos,
-        'nps': nps['nps'],
+        'info_pos': 0, 'info_total': 0,
+        'loes_pos': 0, 'loes_total': 0,
+        'nps': [],
+        'fach': [],
+        'vert_pos': 0, 'vert_total': 0,
+    }
+
+
+def _kpi_cum_add(cum, info_positive, loesung_positive, nps_value, fachkompetenz_stars, vertrieb_positive):
+    if info_positive is not None:
+        cum['info_total'] += 1
+        if info_positive:
+            cum['info_pos'] += 1
+    if loesung_positive is not None:
+        cum['loes_total'] += 1
+        if loesung_positive:
+            cum['loes_pos'] += 1
+    if nps_value is not None:
+        cum['nps'].append(nps_value)
+    if fachkompetenz_stars is not None:
+        cum['fach'].append(fachkompetenz_stars)
+    if vertrieb_positive is not None:
+        cum['vert_total'] += 1
+        if vertrieb_positive:
+            cum['vert_pos'] += 1
+
+
+def _kpi_cum_metrics(cum):
+    nps = kpi_logic.compute_nps(cum['nps'])
+    fach_avg = round(sum(cum['fach']) / len(cum['fach']), 2) if cum['fach'] else None
+    has_data = any((
+        cum['info_total'], cum['loes_total'], nps['total'],
+        cum['fach'], cum['vert_total'],
+    ))
+    if not has_data:
+        return {
+            'info_quote': None, 'loes_quote': None, 'nps': None,
+            'fachkompetenz': None, 'vertrieb_quote': None,
+        }
+    return {
+        'info_quote': kpi_logic.quote_percent(cum['info_pos'], cum['info_total']),
+        'loes_quote': kpi_logic.quote_percent(cum['loes_pos'], cum['loes_total']),
+        'nps': nps['nps'] if nps['total'] else None,
+        'fachkompetenz': fach_avg,
+        'vertrieb_quote': kpi_logic.quote_percent(cum['vert_pos'], cum['vert_total']),
+    }
+
+
+def _kpi_day_bucket_metrics(bucket):
+    nps_day = kpi_logic.compute_nps(bucket['nps'])
+    fach_avg = round(sum(bucket['fach']) / len(bucket['fach']), 2) if bucket['fach'] else None
+    return {
+        'info_quote': (
+            kpi_logic.quote_percent(int(sum(bucket['info'])), len(bucket['info']))
+            if bucket['info'] else None
+        ),
+        'loes_quote': (
+            kpi_logic.quote_percent(int(sum(bucket['loes'])), len(bucket['loes']))
+            if bucket['loes'] else None
+        ),
+        'nps': nps_day['nps'] if nps_day['total'] else None,
+        'fachkompetenz': fach_avg,
+        'vertrieb_quote': (
+            kpi_logic.quote_percent(int(sum(bucket['vert'])), len(bucket['vert']))
+            if bucket['vert'] else None
+        ),
+    }
+
+
+def _kpi_aggregate_full(rows):
+    """rows: iterable of (info, loes, nps, fach_stars, vertrieb_positive)."""
+    cum = _empty_kpi_cum()
+    for info_positive, loesung_positive, nps_value, fachkompetenz_stars, vertrieb_positive in rows:
+        _kpi_cum_add(cum, info_positive, loesung_positive, nps_value, fachkompetenz_stars, vertrieb_positive)
+    nps = kpi_logic.compute_nps(cum['nps'])
+    fach_avg = round(sum(cum['fach']) / len(cum['fach']), 2) if cum['fach'] else None
+    return {
+        'info_quote': kpi_logic.quote_percent(cum['info_pos'], cum['info_total']),
+        'info_total': cum['info_total'],
+        'info_pos': cum['info_pos'],
+        'loes_quote': kpi_logic.quote_percent(cum['loes_pos'], cum['loes_total']),
+        'loes_total': cum['loes_total'],
+        'loes_pos': cum['loes_pos'],
+        'nps': nps['nps'] if nps['total'] else None,
         'nps_total': nps['total'],
         'nps_promoters': nps['promoters'],
         'nps_neutrals': nps['neutrals'],
         'nps_detractors': nps['detractors'],
+        'fachkompetenz': fach_avg,
+        'fachkompetenz_total': len(cum['fach']),
+        'vertrieb_quote': kpi_logic.quote_percent(cum['vert_pos'], cum['vert_total']),
+        'vertrieb_total': cum['vert_total'],
+        'vertrieb_pos': cum['vert_pos'],
     }
+
+
+def _kpi_dashboard_daily_series(rows, start_date, end_date):
+    """Cumulative KPI trend for chart + per-day values for the table."""
+    by_day = {}
+    for info_p, loes_p, nps_v, fach_s, vert_p, d in rows:
+        if d is None:
+            continue
+        bucket = by_day.setdefault(d, {
+            'count': 0, 'surveys': [], 'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': [],
+        })
+        bucket['count'] += 1
+        bucket['surveys'].append((info_p, loes_p, nps_v, fach_s, vert_p))
+        if info_p is not None:
+            bucket['info'].append(1 if info_p else 0)
+        if loes_p is not None:
+            bucket['loes'].append(1 if loes_p else 0)
+        if nps_v is not None:
+            bucket['nps'].append(nps_v)
+        if fach_s is not None:
+            bucket['fach'].append(fach_s)
+        if vert_p is not None:
+            bucket['vert'].append(1 if vert_p else 0)
+
+    if not by_day:
+        return [], []
+
+    if start_date and end_date:
+        all_days = []
+        d = start_date
+        while d <= end_date:
+            all_days.append(d)
+            d += timedelta(days=1)
+    else:
+        all_days = sorted(by_day.keys())
+
+    cum = _empty_kpi_cum()
+    chart_daily = []
+    table_daily = []
+    for d in all_days:
+        bucket = by_day.get(d)
+        day_count = bucket['count'] if bucket else 0
+        if bucket:
+            for survey in bucket['surveys']:
+                _kpi_cum_add(cum, *survey)
+
+        cum_m = _kpi_cum_metrics(cum)
+        chart_daily.append({
+            'date': d.strftime('%Y-%m-%d'),
+            'label': d.strftime('%d.%m.'),
+            'count': day_count,
+            **cum_m,
+        })
+        if bucket:
+            day_m = _kpi_day_bucket_metrics(bucket)
+            table_daily.append({
+                'date': d.strftime('%Y-%m-%d'),
+                'label': d.strftime('%d.%m.'),
+                'count': day_count,
+                **day_m,
+            })
+    return chart_daily, table_daily
 
 
 @bp.route('/kpis')
@@ -5248,7 +5389,9 @@ def kpi_dashboard():
     )
 
     kpi = None
+    chart_daily = []
     daily = []
+    targets = kpi_logic.DEFAULT_TEAM_VIEW_CARD
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
@@ -5257,35 +5400,14 @@ def kpi_dashboard():
                 KpiSurvey.info_positive,
                 KpiSurvey.loesung_positive,
                 KpiSurvey.nps_value,
+                KpiSurvey.fachkompetenz_stars,
+                KpiSurvey.vertrieb_positive,
                 KpiSurvey.antwort_date,
             ).filter(*filters).all()
         )
-        kpi = _kpi_aggregate([(r[0], r[1], r[2]) for r in rows])
-
-        # Daily series grouped by antwort_date.
-        by_day = {}
-        for info_positive, loesung_positive, nps_value, d in rows:
-            if d is None:
-                continue
-            bucket = by_day.setdefault(d, {'info': [], 'loes': [], 'nps': [], 'count': 0})
-            bucket['count'] += 1
-            if info_positive is not None:
-                bucket['info'].append(1 if info_positive else 0)
-            if loesung_positive is not None:
-                bucket['loes'].append(1 if loesung_positive else 0)
-            if nps_value is not None:
-                bucket['nps'].append(nps_value)
-        for d in sorted(by_day.keys()):
-            b = by_day[d]
-            nps_day = kpi_logic.compute_nps(b['nps'])
-            daily.append({
-                'date': d.strftime('%Y-%m-%d'),
-                'label': d.strftime('%d.%m.'),
-                'count': b['count'],
-                'info_quote': (round(sum(b['info']) / len(b['info']) * 100, 2) if b['info'] else None),
-                'loes_quote': (round(sum(b['loes']) / len(b['loes']) * 100, 2) if b['loes'] else None),
-                'nps': nps_day['nps'],
-            })
+        kpi = _kpi_aggregate_full(rows)
+        chart_daily, daily = _kpi_dashboard_daily_series(rows, start_date, end_date)
+        targets = _team_view_card_settings(active_project_id)
 
         if mode == 'agent' and sel_member:
             scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
@@ -5307,7 +5429,9 @@ def kpi_dashboard():
         date_from=date_from_str,
         date_to=date_to_str,
         kpi=kpi,
+        chart_daily=chart_daily,
         daily=daily,
+        targets=targets,
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
