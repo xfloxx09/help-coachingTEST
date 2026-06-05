@@ -57,6 +57,16 @@
                                {% if visibility.nps %}checked{% endif %}>
                         <label class="form-check-label" for="show_nps">NPS</label>
                     </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="show_fachkompetenz" name="show_fachkompetenz" value="1"
+                               {% if visibility.fachkompetenz %}checked{% endif %}>
+                        <label class="form-check-label" for="show_fachkompetenz">Fachkompetenz</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="show_vertrieb" name="show_vertrieb" value="1"
+                               {% if visibility.vertrieb %}checked{% endif %}>
+                        <label class="form-check-label" for="show_vertrieb">Vertriebliche Ansprache</label>
+                    </div>
                 </div>
 
                 {% if survey_types %}
@@ -103,6 +113,8 @@
                                 <th>Survey-Typ (studie)</th>
                                 <th>NPS-Frage</th>
                                 <th>Lösungs-/Informations-Frage</th>
+                                <th>Fachkompetenz-Frage</th>
+                                <th>Vertriebliche Ansprache</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -127,6 +139,26 @@
                                         <option value="">(automatisch erkennen)</option>
                                         {% for q in st.questions %}
                                         <option value="{{ q.code }}" {% if q.code == st.loesung_code %}selected{% endif %}>
+                                            {{ q.code }} : {{ q.text[:60] }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="fachkompetenz" class="form-control form-control-sm">
+                                        <option value="">(automatisch erkennen)</option>
+                                        {% for q in st.questions %}
+                                        <option value="{{ q.code }}" {% if q.code == st.fachkompetenz_code %}selected{% endif %}>
+                                            {{ q.code }} : {{ q.text[:60] }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="vertrieb" class="form-control form-control-sm">
+                                        <option value="">(automatisch erkennen)</option>
+                                        {% for q in st.questions %}
+                                        <option value="{{ q.code }}" {% if q.code == st.vertrieb_code %}selected{% endif %}>
                                             {{ q.code }} : {{ q.text[:60] }}
                                         </option>
                                         {% endfor %}

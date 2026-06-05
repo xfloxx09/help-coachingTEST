@@ -490,6 +490,8 @@ class KpiSurvey(db.Model):
     loesung_answer = db.Column(db.String(255), nullable=True)
     info_positive = db.Column(db.Boolean, nullable=True)
     loesung_positive = db.Column(db.Boolean, nullable=True)
+    fachkompetenz_stars = db.Column(db.Integer, nullable=True)
+    vertrieb_positive = db.Column(db.Boolean, nullable=True)
     batch_id = db.Column(db.Integer, db.ForeignKey('kpi_import_batches.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -532,19 +534,21 @@ class ProjectKpiSource(db.Model):
 
 
 class ProjectKpiSetting(db.Model):
-    """Per-project toggle of which of the three KPIs are visible."""
+    """Per-project toggle of which KPIs are visible."""
     __tablename__ = 'project_kpi_settings'
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), primary_key=True)
     show_info = db.Column(db.Boolean, nullable=False, default=True)
     show_loesung = db.Column(db.Boolean, nullable=False, default=True)
     show_nps = db.Column(db.Boolean, nullable=False, default=True)
+    show_fachkompetenz = db.Column(db.Boolean, nullable=False, default=True)
+    show_vertrieb = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class KpiQuestionMapping(db.Model):
     """Per-project, per-survey-type question code that defines a KPI.
 
-    kpi_kind is 'nps' or 'loesung' ('loesung' drives both Informations- and
-    Lösungsquote). No mapping row = auto-detect the question by its text.
+    kpi_kind is 'nps', 'loesung', 'fachkompetenz', or 'vertrieb'.
+    'loesung' drives both Informations- and Lösungsquote.
     """
     __tablename__ = 'kpi_question_mappings'
     id = db.Column(db.Integer, primary_key=True)
@@ -565,13 +569,19 @@ class TeamViewCardSettings(db.Model):
     show_loesung = db.Column(db.Boolean, nullable=False, default=True)
     show_info = db.Column(db.Boolean, nullable=False, default=True)
     show_performance = db.Column(db.Boolean, nullable=False, default=True)
+    show_fachkompetenz = db.Column(db.Boolean, nullable=False, default=True)
+    show_vertrieb = db.Column(db.Boolean, nullable=False, default=True)
     # Green threshold (>= target = success)
     target_nps = db.Column(db.Float, nullable=False, default=50.0)
     target_loesung = db.Column(db.Float, nullable=False, default=80.0)
     target_info = db.Column(db.Float, nullable=False, default=80.0)
     target_performance = db.Column(db.Float, nullable=False, default=80.0)
+    target_fachkompetenz = db.Column(db.Float, nullable=False, default=4.0)
+    target_vertrieb = db.Column(db.Float, nullable=False, default=80.0)
     # Yellow threshold (>= warn = warning, below = danger)
     warn_nps = db.Column(db.Float, nullable=False, default=0.0)
     warn_loesung = db.Column(db.Float, nullable=False, default=60.0)
     warn_info = db.Column(db.Float, nullable=False, default=60.0)
     warn_performance = db.Column(db.Float, nullable=False, default=50.0)
+    warn_fachkompetenz = db.Column(db.Float, nullable=False, default=3.0)
+    warn_vertrieb = db.Column(db.Float, nullable=False, default=60.0)

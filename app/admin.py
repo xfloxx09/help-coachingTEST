@@ -3361,6 +3361,8 @@ def _kpi_read_surveys(temp_path):
                     'loesung_answer': None,
                     'info_positive': None,
                     'loesung_positive': None,
+                    'fachkompetenz_stars': None,
+                    'vertrieb_positive': None,
                 }
                 surveys[dsid] = s
                 order.append(dsid)
@@ -3375,11 +3377,13 @@ def _kpi_read_surveys(temp_path):
     # Default flags via auto-detection (no per-project mapping yet).
     result = [surveys[d] for d in order]
     for s in result:
-        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(s['answers'])
+        nps_v, loes_a, info_p, loes_p, fach_s, vert_p = kpi_logic.compute_survey_flags(s['answers'])
         s['nps_value'] = nps_v
         s['loesung_answer'] = loes_a
         s['info_positive'] = info_p
         s['loesung_positive'] = loes_p
+        s['fachkompetenz_stars'] = fach_s
+        s['vertrieb_positive'] = vert_p
     return result
 
 
@@ -3399,15 +3403,19 @@ def _kpi_apply_mappings(surveys):
         cfg = mappings.get((s.get('project_id'), s.get('studie')))
         if not cfg:
             continue
-        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(
+        nps_v, loes_a, info_p, loes_p, fach_s, vert_p = kpi_logic.compute_survey_flags(
             s['answers'],
             nps_code=cfg.get('nps'),
             loesung_code=cfg.get('loesung'),
+            fachkompetenz_code=cfg.get('fachkompetenz'),
+            vertrieb_code=cfg.get('vertrieb'),
         )
         s['nps_value'] = nps_v
         s['loesung_answer'] = loes_a
         s['info_positive'] = info_p
         s['loesung_positive'] = loes_p
+        s['fachkompetenz_stars'] = fach_s
+        s['vertrieb_positive'] = vert_p
 
 
 def _kpi_resolve_links(surveys):
@@ -3550,6 +3558,8 @@ def _kpi_commit(filename, surveys, stats):
             loesung_answer=s['loesung_answer'],
             info_positive=s['info_positive'],
             loesung_positive=s['loesung_positive'],
+            fachkompetenz_stars=s.get('fachkompetenz_stars'),
+            vertrieb_positive=s.get('vertrieb_positive'),
             batch_id=batch.id,
         )
         for a in s['answers']:
@@ -3716,14 +3726,19 @@ def _kpi_recompute_flags(project_id=None):
     updated = 0
     for sv in sv_q.all():
         cfg = mappings.get((sv.project_id, sv.studie)) or {}
-        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(
+        nps_v, loes_a, info_p, loes_p, fach_s, vert_p = kpi_logic.compute_survey_flags(
             answers_by_survey.get(sv.id, []),
-            nps_code=cfg.get('nps'), loesung_code=cfg.get('loesung'),
+            nps_code=cfg.get('nps'),
+            loesung_code=cfg.get('loesung'),
+            fachkompetenz_code=cfg.get('fachkompetenz'),
+            vertrieb_code=cfg.get('vertrieb'),
         )
         sv.nps_value = nps_v
         sv.loesung_answer = loes_a
         sv.info_positive = info_p
         sv.loesung_positive = loes_p
+        sv.fachkompetenz_stars = fach_s
+        sv.vertrieb_positive = vert_p
         updated += 1
     db.session.commit()
     return updated
@@ -3763,8 +3778,10 @@ def kpi_verwaltung():
             st_list = request.form.getlist('survey_type')
             nps_list = request.form.getlist('nps')
             loes_list = request.form.getlist('loesung')
+            fach_list = request.form.getlist('fachkompetenz')
+            vert_list = request.form.getlist('vertrieb')
             KpiQuestionMapping.query.filter_by(project_id=sel_project).delete()
-            for st, npsc, loesc in zip(st_list, nps_list, loes_list):
+            for st, npsc, loesc, fachc, vertc in zip(st_list, nps_list, loes_list, fach_list, vert_list):
                 st = (st or '').strip()
                 if not st:
                     continue
@@ -3774,6 +3791,12 @@ def kpi_verwaltung():
                 if loesc:
                     db.session.add(KpiQuestionMapping(
                         project_id=sel_project, survey_type=st, kpi_kind='loesung', frage_code=loesc.strip()))
+                if fachc:
+                    db.session.add(KpiQuestionMapping(
+                        project_id=sel_project, survey_type=st, kpi_kind='fachkompetenz', frage_code=fachc.strip()))
+                if vertc:
+                    db.session.add(KpiQuestionMapping(
+                        project_id=sel_project, survey_type=st, kpi_kind='vertrieb', frage_code=vertc.strip()))
 
             type_list = request.form.getlist('kpi_source_type')
             mode_list = request.form.getlist('kpi_source_mode')
@@ -3794,6 +3817,8 @@ def kpi_verwaltung():
             setting.show_info = bool(request.form.get('show_info'))
             setting.show_loesung = bool(request.form.get('show_loesung'))
             setting.show_nps = bool(request.form.get('show_nps'))
+            setting.show_fachkompetenz = bool(request.form.get('show_fachkompetenz'))
+            setting.show_vertrieb = bool(request.form.get('show_vertrieb'))
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
@@ -3805,7 +3830,7 @@ def kpi_verwaltung():
 
     survey_types = []
     project_name = None
-    visibility = {'info': True, 'loesung': True, 'nps': True}
+    visibility = {'info': True, 'loesung': True, 'nps': True, 'fachkompetenz': True, 'vertrieb': True}
     if sel_project:
         project_name = next((p['name'] for p in projects if p['id'] == sel_project), None)
         rows = (
@@ -3841,6 +3866,8 @@ def kpi_verwaltung():
                 'questions': qs,
                 'nps_code': existing.get((studie, 'nps'), ''),
                 'loesung_code': existing.get((studie, 'loesung'), ''),
+                'fachkompetenz_code': existing.get((studie, 'fachkompetenz'), ''),
+                'vertrieb_code': existing.get((studie, 'vertrieb'), ''),
                 'source_mode': source_mode,
             })
         setting = ProjectKpiSetting.query.get(sel_project)
@@ -3849,6 +3876,8 @@ def kpi_verwaltung():
                 'info': setting.show_info,
                 'loesung': setting.show_loesung,
                 'nps': setting.show_nps,
+                'fachkompetenz': setting.show_fachkompetenz,
+                'vertrieb': setting.show_vertrieb,
             }
 
     return render_template(
@@ -3893,14 +3922,20 @@ def team_view_kpis():
             row.show_loesung = bool(request.form.get('show_loesung'))
             row.show_info = bool(request.form.get('show_info'))
             row.show_performance = bool(request.form.get('show_performance'))
+            row.show_fachkompetenz = bool(request.form.get('show_fachkompetenz'))
+            row.show_vertrieb = bool(request.form.get('show_vertrieb'))
             row.target_nps = _float_form('target_nps', 50)
             row.target_loesung = _float_form('target_loesung', 80)
             row.target_info = _float_form('target_info', 80)
             row.target_performance = _float_form('target_performance', 80)
+            row.target_fachkompetenz = _float_form('target_fachkompetenz', 4)
+            row.target_vertrieb = _float_form('target_vertrieb', 80)
             row.warn_nps = _float_form('warn_nps', 0)
             row.warn_loesung = _float_form('warn_loesung', 60)
             row.warn_info = _float_form('warn_info', 60)
             row.warn_performance = _float_form('warn_performance', 50)
+            row.warn_fachkompetenz = _float_form('warn_fachkompetenz', 3)
+            row.warn_vertrieb = _float_form('warn_vertrieb', 60)
             db.session.commit()
             flash('Team-View KPI-Einstellungen gespeichert.', 'success')
             return redirect(url_for('admin.team_view_kpis', project_id=sel_project))

@@ -94,6 +94,48 @@
         font-weight: bold;
         color: #e20074;
     }
+    .kpi-chip {
+        display: inline-block;
+        min-width: 3.5rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 1.05rem;
+        line-height: 1.2;
+        cursor: default;
+        border: 1px solid transparent;
+    }
+    .kpi-chip-ok {
+        background: rgba(40, 167, 69, 0.18);
+        color: #6ee08a;
+        border-color: rgba(40, 167, 69, 0.35);
+    }
+    .kpi-chip-warn {
+        background: rgba(255, 193, 7, 0.15);
+        color: #ffd666;
+        border-color: rgba(255, 193, 7, 0.35);
+    }
+    .kpi-chip-bad {
+        background: rgba(220, 53, 69, 0.15);
+        color: #ff8a96;
+        border-color: rgba(220, 53, 69, 0.35);
+    }
+    .kpi-chip-na {
+        background: rgba(108, 117, 125, 0.2);
+        color: #adb5bd;
+        border-color: rgba(108, 117, 125, 0.35);
+    }
+    .kpi-stars {
+        font-size: 1.15rem;
+        letter-spacing: 0.08em;
+        cursor: default;
+        line-height: 1.4;
+    }
+    .kpi-stars-ok { color: #ffc107; }
+    .kpi-stars-warn { color: #ffb347; }
+    .kpi-stars-bad { color: #ff8a96; }
+    .kpi-stars-na { color: #6c757d; }
+    .kpi-stars .star-empty { color: #555e67; }
     .member-card .progress {
         height: 20px; 
         margin-bottom: 1rem; 
@@ -251,56 +293,103 @@
                             {% if card_settings.show_performance %}
                             <div class="stat-group text-center">
                                 <div class="stat-label">Bewertung vom Coach</div>
-                                <div class="progress mx-auto" style="max-width: 180px;">
-                                    <div class="progress-bar {% if member_stat.avg_score == 0 and member_stat.total_coachings == 0 %}bg-secondary{% else %}{{ member_stat.avg_score|kpi_bar_class(card_settings.target_performance, card_settings.warn_performance) }}{% endif %}" 
-                                         role="progressbar" 
-                                         style="width: {{ member_stat.avg_score|kpi_bar_width }}%;" 
-                                         aria-valuenow="{{ member_stat.avg_score }}" 
-                                         aria-valuemin="0" 
-                                         aria-valuemax="100">
-                                        {{ member_stat.avg_score|round(0) if member_stat.total_coachings > 0 else 'N/A' }}%
-                                    </div>
-                                </div>
+                                {% if member_stat.total_coachings > 0 %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.avg_score|kpi_status(card_settings.target_performance, card_settings.warn_performance) }}"
+                                      title="{{ member_stat.total_coachings }} Coaching{% if member_stat.total_coachings != 1 %}s{% endif %} berücksichtigt">
+                                    {{ (member_stat.avg_score / 10)|de_decimal(1) }}
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na" title="Keine Bewertungen">k.A.</span>
+                                {% endif %}
                             </div>
                             {% endif %}
 
                             {% if card_settings.show_nps %}
                             <div class="stat-group text-center">
                                 <div class="stat-label">NPS</div>
-                                <div class="progress mx-auto" style="max-width: 180px;">
-                                    <div class="progress-bar {% if member_stat.nps is none %}bg-secondary{% else %}{{ member_stat.nps|kpi_bar_class(card_settings.target_nps, card_settings.warn_nps) }}{% endif %}"
-                                         style="width: {{ member_stat.nps|nps_bar_width if member_stat.nps is not none else 0 }}%;">
-                                        {% if member_stat.nps is not none %}{{ member_stat.nps|de_decimal }}{% else %}k.A.{% endif %}
-                                    </div>
-                                </div>
+                                {% if member_stat.nps is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.nps|kpi_status(card_settings.target_nps, card_settings.warn_nps) }}"
+                                      title="{% if member_stat.nps_count == 1 %}1 Bewertung{% elif member_stat.nps_count > 1 %}{{ member_stat.nps_count }} Bewertungen{% else %}Keine Bewertungen{% endif %} berücksichtigt">
+                                    {{ member_stat.nps|de_decimal }}
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na"
+                                      title="{% if member_stat.nps_count == 1 %}1 Bewertung{% elif member_stat.nps_count > 1 %}{{ member_stat.nps_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
+                                {% endif %}
                             </div>
                             {% endif %}
 
                             {% if card_settings.show_loesung %}
                             <div class="stat-group text-center">
                                 <div class="stat-label">Lösungsquote</div>
-                                <div class="progress mx-auto" style="max-width: 180px;">
-                                    <div class="progress-bar {% if member_stat.loesung_quote is none %}bg-secondary{% else %}{{ member_stat.loesung_quote|kpi_bar_class(card_settings.target_loesung, card_settings.warn_loesung) }}{% endif %}"
-                                         style="width: {{ member_stat.loesung_quote|kpi_bar_width if member_stat.loesung_quote is not none else 0 }}%;">
-                                        {% if member_stat.loesung_quote is not none %}{{ member_stat.loesung_quote|de_decimal }}%{% else %}k.A.{% endif %}
-                                    </div>
-                                </div>
+                                {% if member_stat.loesung_quote is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.loesung_quote|kpi_status(card_settings.target_loesung, card_settings.warn_loesung) }}"
+                                      title="{% if member_stat.loesung_count == 1 %}1 Bewertung{% elif member_stat.loesung_count > 1 %}{{ member_stat.loesung_count }} Bewertungen{% else %}Keine Bewertungen{% endif %} berücksichtigt">
+                                    {{ member_stat.loesung_quote|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na"
+                                      title="{% if member_stat.loesung_count == 1 %}1 Bewertung{% elif member_stat.loesung_count > 1 %}{{ member_stat.loesung_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
+                                {% endif %}
                             </div>
                             {% endif %}
 
                             {% if card_settings.show_info %}
                             <div class="stat-group text-center">
                                 <div class="stat-label">Informationsquote</div>
-                                <div class="progress mx-auto" style="max-width: 180px;">
-                                    <div class="progress-bar {% if member_stat.info_quote is none %}bg-secondary{% else %}{{ member_stat.info_quote|kpi_bar_class(card_settings.target_info, card_settings.warn_info) }}{% endif %}"
-                                         style="width: {{ member_stat.info_quote|kpi_bar_width if member_stat.info_quote is not none else 0 }}%;">
-                                        {% if member_stat.info_quote is not none %}{{ member_stat.info_quote|de_decimal }}%{% else %}k.A.{% endif %}
-                                    </div>
-                                </div>
+                                {% if member_stat.info_quote is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.info_quote|kpi_status(card_settings.target_info, card_settings.warn_info) }}"
+                                      title="{% if member_stat.info_count == 1 %}1 Bewertung{% elif member_stat.info_count > 1 %}{{ member_stat.info_count }} Bewertungen{% else %}Keine Bewertungen{% endif %} berücksichtigt">
+                                    {{ member_stat.info_quote|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na"
+                                      title="{% if member_stat.info_count == 1 %}1 Bewertung{% elif member_stat.info_count > 1 %}{{ member_stat.info_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
+                                {% endif %}
                             </div>
                             {% endif %}
 
-                            <div class="row text-center mt-auto pt-3"> 
+                            {% if card_settings.show_fachkompetenz %}
+                            <div class="stat-group text-center">
+                                <div class="stat-label">Fachkompetenz</div>
+                                {% if member_stat.fachkompetenz is not none %}
+                                <div class="kpi-stars kpi-stars-{{ member_stat.fachkompetenz|kpi_status(card_settings.target_fachkompetenz, card_settings.warn_fachkompetenz) }}"
+                                     title="Ø {{ member_stat.fachkompetenz|de_decimal(1) }} von 5 · {% if member_stat.fachkompetenz_count == 1 %}1 Bewertung{% else %}{{ member_stat.fachkompetenz_count }} Bewertungen{% endif %} berücksichtigt">
+                                    {% set fach_avg = member_stat.fachkompetenz %}
+                                    {% for i in range(1, 6) %}
+                                        {% set level = fach_avg - (i - 1) %}
+                                        {% if level >= 1 %}
+                                            <i class="fas fa-star" aria-hidden="true"></i>
+                                        {% elif level >= 0.5 %}
+                                            <i class="fas fa-star-half-alt" aria-hidden="true"></i>
+                                        {% else %}
+                                            <i class="far fa-star star-empty" aria-hidden="true"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na"
+                                      title="{% if member_stat.fachkompetenz_count == 1 %}1 Bewertung{% elif member_stat.fachkompetenz_count > 1 %}{{ member_stat.fachkompetenz_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            {% if card_settings.show_vertrieb %}
+                            <div class="stat-group text-center">
+                                <div class="stat-label">Vertriebliche Ansprache</div>
+                                {% if member_stat.vertrieb_quote is not none %}
+                                <span class="kpi-chip kpi-chip-{{ member_stat.vertrieb_quote|kpi_status(card_settings.target_vertrieb, card_settings.warn_vertrieb) }}"
+                                      title="{% if member_stat.vertrieb_count == 1 %}1 Bewertung{% elif member_stat.vertrieb_count > 1 %}{{ member_stat.vertrieb_count }} Bewertungen{% else %}Keine Bewertungen{% endif %} berücksichtigt">
+                                    {{ member_stat.vertrieb_quote|de_decimal }}%
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na"
+                                      title="{% if member_stat.vertrieb_count == 1 %}1 Bewertung{% elif member_stat.vertrieb_count > 1 %}{{ member_stat.vertrieb_count }} Bewertungen{% else %}Keine Bewertungen{% endif %}">k.A.</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <div class="row text-center mt-auto pt-3">
                                 <div class="col-6 border-right" style="border-color: #555e67 !important;">
                                     <div class="stat-label">Coachings</div>
                                     <div class="stat-value">{{ member_stat.total_coachings }}</div>

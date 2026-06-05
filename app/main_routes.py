@@ -1168,6 +1168,7 @@ def _build_team_members_performance(team):
         else:
             avg_leitfaden = 0
 
+        kpi = kpi_map.get(member.id, {})
         team_members_performance.append({
             'id': member.id,
             'name': member.name,
@@ -1176,9 +1177,16 @@ def _build_team_members_performance(team):
             'total_time': total_t,
             'formatted_total_coaching_time': formatted_time,
             'avg_leitfaden_adherence': avg_leitfaden,
-            'nps': kpi_map.get(member.id, {}).get('nps'),
-            'loesung_quote': kpi_map.get(member.id, {}).get('loes_quote'),
-            'info_quote': kpi_map.get(member.id, {}).get('info_quote'),
+            'nps': kpi.get('nps'),
+            'nps_count': kpi.get('nps_count', 0),
+            'loesung_quote': kpi.get('loes_quote'),
+            'loesung_count': kpi.get('loes_count', 0),
+            'info_quote': kpi.get('info_quote'),
+            'info_count': kpi.get('info_count', 0),
+            'fachkompetenz': kpi.get('fachkompetenz'),
+            'fachkompetenz_count': kpi.get('fachkompetenz_count', 0),
+            'vertrieb_quote': kpi.get('vertrieb_quote'),
+            'vertrieb_count': kpi.get('vertrieb_count', 0),
         })
     return team_members_performance
 
@@ -5021,11 +5029,20 @@ def _kpi_counting_types(project_id):
 
 
 def _kpi_visibility(project_id):
-    """Which of the three KPIs are visible for a project (default: all)."""
+    """Which KPIs are visible for a project (default: all)."""
     setting = ProjectKpiSetting.query.get(project_id) if project_id else None
     if setting is None:
-        return {'info': True, 'loesung': True, 'nps': True}
-    return {'info': setting.show_info, 'loesung': setting.show_loesung, 'nps': setting.show_nps}
+        return {
+            'info': True, 'loesung': True, 'nps': True,
+            'fachkompetenz': True, 'vertrieb': True,
+        }
+    return {
+        'info': setting.show_info,
+        'loesung': setting.show_loesung,
+        'nps': setting.show_nps,
+        'fachkompetenz': setting.show_fachkompetenz,
+        'vertrieb': setting.show_vertrieb,
+    }
 
 
 def _active_project_id(mode, sel_project, sel_team, sel_member):

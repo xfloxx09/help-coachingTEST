@@ -1,16 +1,17 @@
-# app/kpi.py
-"""KPI logic for the "KPIs (Demo)" feature.
+"""KPI logic for SMS-survey raw data.
 
-Three KPIs derived from SMS-survey raw data:
-- Informationsquote: share of surveys where "Konnten wir Ihr Anliegen lösen?"
-  is answered "Ja" OR "Noch nicht. Ich wurde über das weitere Vorgehen informiert."
-- Lösungsquote: same question, but only "Ja" counts as positive.
-- NPS: from the NPS question (0-10); NPS = %promoters (9-10) - %detractors (0-6).
+KPIs derived from survey answers:
+- Informationsquote / Lösungsquote: „Konnten wir Ihr Anliegen lösen?“
+- NPS: 0–10 scale
+- Fachkompetenz: 0–5 stars
+- Vertriebliche Ansprache: positive/negative offer question → %
 """
 
 # Question identifiers (the CSV "frage" cell is "<code> : <text>").
 INFO_LOESUNG_CODE = '21000002002300'  # "Konnten wir Ihr Anliegen lösen?"
 NPS_CODE = '21000002004601'           # "NPS >|<"
+FACHKOMPETENZ_CODE = '21000002001200'  # "Wie bewerten Sie die Fachkompetenz …?"
+VERTRIEB_CODE = '21000002001800'       # "Wurde Ihnen … ein Produkt oder Tarif … angeboten?"
 
 # Answer sets for the Info/Lösung question.
 INFO_POSITIVE_ANSWERS = {
@@ -128,24 +129,73 @@ def is_loesung_question(text):
     return 'konnten wir ihr anliegen' in _norm_cmp(text)
 
 
-def compute_survey_flags(answers, nps_code=None, loesung_code=None):
-    """Derive (nps_value, loesung_answer, info_positive, loesung_positive) from a
-    survey's answers.
+def is_fachkompetenz_question(text):
+    return 'fachkompetenz' in _norm_cmp(text)
+
+
+def is_vertrieb_question(text):
+    t = _norm_cmp(text)
+    return 'produkt oder tarif' in t or 'festnetz oder mobilfunk' in t
+
+
+def parse_stars(answer):
+    """Parse a 0–5 star rating; return int or None."""
+    a = normalize_text(answer)
+    if not a:
+        return None
+    try:
+        val = int(round(float(a.replace(',', '.').split()[0])))
+    except (ValueError, TypeError, IndexError):
+        return None
+    if val < 0 or val > 5:
+        return None
+    return val
+
+
+def classify_vertrieb(answer):
+    """True = positive offer, False = negative, None = unknown."""
+    a = _norm_cmp(answer)
+    if not a:
+        return None
+    if a == 'nein' or a.startswith('nein ') or a.startswith('nein,'):
+        return False
+    return True
+
+
+def compute_survey_flags(
+    answers,
+    nps_code=None,
+    loesung_code=None,
+    fachkompetenz_code=None,
+    vertrieb_code=None,
+):
+    """Derive precomputed KPI fields from a survey's answers.
 
     answers: iterable of dicts with keys 'code', 'text', 'antwort'.
-    nps_code / loesung_code: explicit question codes (per-project mapping). When a
-    code is None, the question is auto-detected from its text.
+    Explicit *_code overrides auto-detection from question text.
     """
     nps_value = None
     loesung_answer = None
     info_positive = None
     loesung_positive = None
+    fachkompetenz_stars = None
+    vertrieb_positive = None
     for a in answers:
         code = (a.get('code') or '').strip()
         text = a.get('text') or ''
         antwort = a.get('antwort') or ''
         is_nps = (code == nps_code) if nps_code else (nps_code is None and is_nps_question(text))
         is_loes = (code == loesung_code) if loesung_code else (loesung_code is None and is_loesung_question(text))
+        is_fach = (
+            (code == fachkompetenz_code)
+            if fachkompetenz_code
+            else (fachkompetenz_code is None and (code == FACHKOMPETENZ_CODE or is_fachkompetenz_question(text)))
+        )
+        is_vert = (
+            (code == vertrieb_code)
+            if vertrieb_code
+            else (vertrieb_code is None and (code == VERTRIEB_CODE or is_vertrieb_question(text)))
+        )
         if is_nps and nps_value is None:
             v = parse_nps(antwort)
             if v is not None:
@@ -156,7 +206,18 @@ def compute_survey_flags(answers, nps_code=None, loesung_code=None):
                 loesung_answer = norm[:255]
                 info_positive = classify_info(antwort)
                 loesung_positive = classify_loesung(antwort)
-    return nps_value, loesung_answer, info_positive, loesung_positive
+        if is_fach and fachkompetenz_stars is None:
+            stars = parse_stars(antwort)
+            if stars is not None:
+                fachkompetenz_stars = stars
+        if is_vert and vertrieb_positive is None:
+            vp = classify_vertrieb(antwort)
+            if vp is not None:
+                vertrieb_positive = vp
+    return (
+        nps_value, loesung_answer, info_positive, loesung_positive,
+        fachkompetenz_stars, vertrieb_positive,
+    )
 
 
 def quote_percent(positive, total):
@@ -212,19 +273,42 @@ def nps_bar_width(nps_value):
     return metric_bar_width(nps_value, bar_min=-100.0, bar_max=100.0)
 
 
+def metric_status(value, target_green, target_yellow):
+    """Return 'ok' | 'warn' | 'bad' | 'na' for KPI chip styling."""
+    if value is None:
+        return 'na'
+    try:
+        v = float(value)
+        tg = float(target_green)
+        ty = float(target_yellow)
+    except (TypeError, ValueError):
+        return 'na'
+    if v >= tg:
+        return 'ok'
+    if v >= ty:
+        return 'warn'
+    return 'bad'
+
+
 DEFAULT_TEAM_VIEW_CARD = {
     'show_nps': True,
     'show_loesung': True,
     'show_info': True,
     'show_performance': True,
+    'show_fachkompetenz': True,
+    'show_vertrieb': True,
     'target_nps': 50.0,
     'target_loesung': 80.0,
     'target_info': 80.0,
     'target_performance': 80.0,
+    'target_fachkompetenz': 4.0,
+    'target_vertrieb': 80.0,
     'warn_nps': 0.0,
     'warn_loesung': 60.0,
     'warn_info': 60.0,
     'warn_performance': 50.0,
+    'warn_fachkompetenz': 3.0,
+    'warn_vertrieb': 60.0,
 }
 
 
@@ -274,15 +358,19 @@ def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
         KpiSurvey.info_positive,
         KpiSurvey.loesung_positive,
         KpiSurvey.nps_value,
+        KpiSurvey.fachkompetenz_stars,
+        KpiSurvey.vertrieb_positive,
     ).filter(*filters).all()
     buckets = {}
-    for mid, info_p, loes_p, nps_v in rows:
-        buckets.setdefault(mid, []).append((info_p, loes_p, nps_v))
+    for mid, info_p, loes_p, nps_v, fach_s, vert_p in rows:
+        buckets.setdefault(mid, []).append((info_p, loes_p, nps_v, fach_s, vert_p))
 
     def _agg(items):
         info_pos = info_total = loes_pos = loes_total = 0
         nps_values = []
-        for info_positive, loesung_positive, nps_value in items:
+        fach_values = []
+        vert_pos = vert_total = 0
+        for info_positive, loesung_positive, nps_value, fachkompetenz_stars, vertrieb_positive in items:
             if info_positive is not None:
                 info_total += 1
                 if info_positive:
@@ -293,7 +381,14 @@ def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
                     loes_pos += 1
             if nps_value is not None:
                 nps_values.append(nps_value)
+            if fachkompetenz_stars is not None:
+                fach_values.append(fachkompetenz_stars)
+            if vertrieb_positive is not None:
+                vert_total += 1
+                if vertrieb_positive:
+                    vert_pos += 1
         nps = compute_nps(nps_values)
+        fach_avg = round(sum(fach_values) / len(fach_values), 2) if fach_values else None
         return {
             'info_quote': quote_percent(info_pos, info_total),
             'info_count': info_total,
@@ -301,12 +396,19 @@ def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
             'loes_count': loes_total,
             'nps': nps['nps'],
             'nps_count': nps['total'],
+            'fachkompetenz': fach_avg,
+            'fachkompetenz_count': len(fach_values),
+            'vertrieb_quote': quote_percent(vert_pos, vert_total),
+            'vertrieb_count': vert_total,
             'surveys_total': len(items),
         }
 
     empty = {
         'info_quote': None, 'info_count': 0,
         'loes_quote': None, 'loes_count': 0,
-        'nps': None, 'nps_count': 0, 'surveys_total': 0,
+        'nps': None, 'nps_count': 0,
+        'fachkompetenz': None, 'fachkompetenz_count': 0,
+        'vertrieb_quote': None, 'vertrieb_count': 0,
+        'surveys_total': 0,
     }
     return {mid: _agg(buckets[mid]) if mid in buckets else dict(empty) for mid in member_ids}

@@ -710,6 +710,68 @@ def create_app(config_class=Config):
                 conn.rollback()
                 print(f"ℹ️ team_view_card_settings: {e}")
 
+        # 19. Fachkompetenz + Vertriebliche Ansprache KPI columns
+        if 'kpi_surveys' in inspector.get_table_names():
+            ks_cols = [c['name'] for c in inspect(db.engine).get_columns('kpi_surveys')]
+            for col, ddl in (
+                ('fachkompetenz_stars', 'INTEGER'),
+                ('vertrieb_positive', 'BOOLEAN'),
+            ):
+                if col not in ks_cols:
+                    try:
+                        conn.execute(text(f'ALTER TABLE kpi_surveys ADD COLUMN {col} {ddl}'))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'kpi_surveys' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ kpi_surveys.{col}: {e}")
+
+        if 'project_kpi_settings' in inspector.get_table_names():
+            pks_cols = [c['name'] for c in inspect(db.engine).get_columns('project_kpi_settings')]
+            for col in ('show_fachkompetenz', 'show_vertrieb'):
+                if col not in pks_cols:
+                    try:
+                        conn.execute(text(
+                            f'ALTER TABLE project_kpi_settings ADD COLUMN {col} BOOLEAN NOT NULL DEFAULT TRUE'
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'project_kpi_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ project_kpi_settings.{col}: {e}")
+
+        if 'team_view_card_settings' in inspector.get_table_names():
+            tv_cols = [c['name'] for c in inspect(db.engine).get_columns('team_view_card_settings')]
+            tv_add_bool = ('show_fachkompetenz', 'show_vertrieb')
+            tv_add_float = (
+                ('target_fachkompetenz', 4),
+                ('target_vertrieb', 80),
+                ('warn_fachkompetenz', 3),
+                ('warn_vertrieb', 60),
+            )
+            for col in tv_add_bool:
+                if col not in tv_cols:
+                    try:
+                        conn.execute(text(
+                            f'ALTER TABLE team_view_card_settings ADD COLUMN {col} BOOLEAN NOT NULL DEFAULT TRUE'
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'team_view_card_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ team_view_card_settings.{col}: {e}")
+            for col, default in tv_add_float:
+                if col not in tv_cols:
+                    try:
+                        conn.execute(text(
+                            f'ALTER TABLE team_view_card_settings ADD COLUMN {col} FLOAT NOT NULL DEFAULT {default}'
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'team_view_card_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ team_view_card_settings.{col}: {e}")
+
         print("--- Migration abgeschlossen ---")
 
     # --- Blueprint registration ---
@@ -797,6 +859,11 @@ def create_app(config_class=Config):
     def de_decimal(value, decimals=2):
         from app.kpi import format_de
         return format_de(value, decimals)
+
+    @app.template_filter('kpi_status')
+    def kpi_status(value, target_green, target_yellow):
+        from app.kpi import metric_status
+        return metric_status(value, target_green, target_yellow)
 
     @app.template_filter('kpi_bar_class')
     def kpi_bar_class(value, target_green, target_yellow):
