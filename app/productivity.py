@@ -197,41 +197,16 @@ def active_metric_columns(settings, metric_key):
 
 
 def prod_formula_hint(settings):
-    """Explanation text for the Produktivität KPI (dynamic column list from Verwaltung)."""
+    """Column list for the Produktivität KPI hint (from KPI-Verwaltung)."""
     settings = settings or settings_dict(None)
     labels = settings.get('labels') or labels_dict(None)
     label = labels.get('prod') or DEFAULT_LABELS['prod']
     cols = active_metric_columns(settings, 'prod')
     cols_expr = ' + '.join(cols) if cols else '—'
-    interval = int(settings.get('interval_sec') or INTERVAL_DEFAULT)
-    pause_col = settings.get('pause_col') or DEFAULT_PAUSE_COL
-    excluded = set(settings.get('excluded_cols') or [])
-    if pause_col and pause_col not in excluded:
-        denominator = (
-            f'Prozentwert = Summe ÷ KPI-Nenner × 100. '
-            f'KPI-Nenner = Intervall ({interval} s) minus Pause-Spalte „{pause_col}“.'
-        )
-    else:
-        denominator = (
-            f'Prozentwert = Summe ÷ KPI-Nenner × 100. '
-            f'KPI-Nenner = Intervall ({interval} s).'
-        )
-    if cols:
-        summary = (
-            f'„{label}“ addiert pro ODVS-Intervall die Sekunden aus den in der '
-            f'KPI-Verwaltung gewählten Rohdaten-Spalten und rechnet sie in einen Prozentwert um.'
-        )
-    else:
-        summary = (
-            f'„{label}“ hat noch keine Spalten in der KPI-Verwaltung. '
-            f'Bitte unter Produktivität Spalten auswählen.'
-        )
     return {
         'label': label,
         'columns': cols,
         'columns_expr': cols_expr,
-        'summary': summary,
-        'denominator': denominator,
     }
 
 
