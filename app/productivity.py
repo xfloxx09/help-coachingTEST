@@ -42,7 +42,7 @@ def settings_dict(row):
         'prod_cols': _json_list(row.prod_cols if row else None, DEFAULT_PROD_COLS),
         'nach_cols': _json_list(row.nach_cols if row else None, DEFAULT_NACH_COLS),
         'idle_cols': _json_list(row.idle_cols if row else None, DEFAULT_IDLE_COLS),
-        'excluded_cols': set(_json_list(row.excluded_cols if row else None, [])),
+        'excluded_cols': _json_list(row.excluded_cols if row else None, []),
         'target_sign_on': row.target_sign_on if row else 95.0,
         'target_prod': row.target_prod if row else 85.0,
         'target_nach_per_call': row.target_nach_per_call if row else 30.0,
@@ -158,7 +158,7 @@ def idle_cols_for_sum(settings):
 def merge_rows_to_slot(rows, settings):
     """Aggregate multiple CSV rows for same agent+slot."""
     interval_sec = settings['interval_sec']
-    excluded = settings['excluded_cols']
+    excluded = set(settings['excluded_cols'])
     pause_col = settings['pause_col']
     calls_col = settings['calls_col']
     has_pause = pause_col not in excluded
