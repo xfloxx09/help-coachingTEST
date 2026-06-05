@@ -244,25 +244,7 @@
         <hr style="border-color:#34343c;">
 
         <div class="form-row align-items-end">
-            <div class="col-12 col-md-3 mb-2">
-                <div class="ci-mini-label mb-1">zeitraum</div>
-                <select name="period" id="ciPeriod" class="form-control form-control-sm">
-                    <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
-                    <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
-                    <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
-                    <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
-                    <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
-                    <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2 mb-2 ci-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
-                <div class="ci-mini-label mb-1">von</div>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-            </div>
-            <div class="col-6 col-md-2 mb-2 ci-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
-                <div class="ci-mini-label mb-1">bis</div>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-            </div>
+            {% include 'main/_kpi_period_filter.html' with context, period_select_id='ciPeriod', vonbis_field_class='ci-vonbis-field', mini_label_class='ci-mini-label' %}
             <div class="col-6 col-md-2 mb-2">
                 <div class="ci-mini-label mb-1">wirkungsfenster</div>
                 <select name="window" class="form-control form-control-sm">
@@ -271,7 +253,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-6 col-md-3 mb-2">
+            <div class="col-6 col-md-2 mb-2">
                 <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
             </div>
         </div>
@@ -384,7 +366,7 @@
     <div class="ci-chart-card-header mb-2">
         <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
             Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
-            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf einen Tag öffnet Befragungs-Rohdaten)</span>
+            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Auflösung: {% if chart_granularity == 'day' %}Tag{% elif chart_granularity == 'week' %}Woche{% else %}Monat{% endif %}{% if chart_granularity == 'day' %} · Klick öffnet Befragungs-Rohdaten{% endif %})</span>
         </div>
         <div>
             <div class="ci-mini-label mb-1">korrelation</div>
@@ -414,12 +396,14 @@
             <div class="card h-100" style="background:#22222a;border-color:#34343c;">
                 <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Tagesübersicht</strong></div>
                 <div class="card-body p-0">
+                    {% if chart_granularity == 'day' %}
                     <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
+                    {% endif %}
                     <div class="table-responsive ci-day-table-scroll">
                         <table class="table table-sm table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Datum</th>
+                                    <th>{% if chart_granularity == 'day' %}Datum{% else %}Zeitraum{% endif %}</th>
                                     <th class="text-right">Coachings</th>
                                     {% if visible.info %}<th class="text-right ci-col-qual">Info</th>{% endif %}
                                     {% if visible.loesung %}<th class="text-right ci-col-qual">Lösung</th>{% endif %}
@@ -439,6 +423,7 @@
                                     <td>
                                         <div class="ci-day-date-cell">
                                             <span>{{ d.label }}</span>
+                                            {% if chart_granularity == 'day' %}
                                             <span class="ci-day-actions">
                                                 <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-survey"
                                                         data-date="{{ d.date }}" aria-label="Befragungs-Rohdaten"
@@ -453,6 +438,7 @@
                                                     <i class="fas fa-chalkboard-teacher"></i>
                                                 </button>
                                             </span>
+                                            {% endif %}
                                         </div>
                                     </td>
                                     <td class="text-right">{% if d.coachings %}{{ d.coachings }}{% else %}–{% endif %}</td>

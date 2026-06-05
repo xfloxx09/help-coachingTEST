@@ -1,0 +1,35 @@
+{# Shared Zeitraum filter for KPI Qualität, Produktivität, Coaching VS KPI #}
+{% set _mini = mini_label_class|default('kpi-mini-label') %}
+{% set _vonbis = vonbis_field_class|default('kpi-vonbis-field') %}
+<div class="col-12 col-md-3 mb-2">
+    <div class="{{ _mini }} mb-1">zeitraum</div>
+    <select name="period" id="{{ period_select_id|default('kpiPeriod') }}" class="form-control form-control-sm kpi-period-select">
+        <option value="7days" {% if period == '7days' %}selected{% endif %}>Letzte 7 Tage</option>
+        <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+        <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
+        <option value="6months" {% if period == '6months' %}selected{% endif %}>Letzte 6 Monate</option>
+        <option value="12months" {% if period == '12months' %}selected{% endif %}>Letzte 12 Monate</option>
+        <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
+        <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
+        <option value="last_year" {% if period == 'last_year' %}selected{% endif %}>Letztes Jahr</option>
+        <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
+        <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
+    </select>
+</div>
+<div class="col-6 col-md-2 mb-2 {{ _vonbis }}" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+    <div class="{{ _mini }} mb-1">von</div>
+    <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+</div>
+<div class="col-6 col-md-2 mb-2 {{ _vonbis }}" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+    <div class="{{ _mini }} mb-1">bis</div>
+    <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+</div>
+<div class="col-6 col-md-2 mb-2">
+    <div class="{{ _mini }} mb-1">auflösung</div>
+    <select name="granularity" class="form-control form-control-sm">
+        <option value="auto" {% if (granularity|default('auto')) == 'auto' %}selected{% endif %}>Auto</option>
+        <option value="day" {% if granularity == 'day' %}selected{% endif %}>Tag</option>
+        <option value="week" {% if granularity == 'week' %}selected{% endif %}>Woche</option>
+        <option value="month" {% if granularity == 'month' %}selected{% endif %}>Monat</option>
+    </select>
+</div>

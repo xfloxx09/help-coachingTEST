@@ -503,3 +503,96 @@ def cumulative_from_intervals(intervals, start_date, end_date):
             cur += timedelta(days=1)
         return result
     return [by_day[d] for d in sorted(by_day.keys())]
+
+
+def _interval_dates(intervals):
+    out = []
+    for iv in intervals:
+        slot = iv.slot_at if hasattr(iv, 'slot_at') else iv.get('slot_at')
+        if slot:
+            out.append(slot.date() if isinstance(slot, datetime) else slot)
+    return out
+
+
+def build_dashboard_series(intervals, start_date, end_date, chart_granularity, bucket_ranges_fn):
+    """Chart + table series with optional week/month bucketing."""
+    if chart_granularity == 'day':
+        chart_daily = cumulative_from_intervals(intervals, start_date, end_date)
+        _, daily = aggregate_daily(intervals, start_date, end_date)
+        return chart_daily, daily
+
+    periods = bucket_ranges_fn(
+        chart_granularity, start_date, end_date, _interval_dates(intervals),
+    )
+    if not periods:
+        return [], []
+
+    sorted_ivs = sorted(
+        intervals,
+        key=lambda x: (x.slot_at if hasattr(x, 'slot_at') else x.get('slot_at')) or datetime.min,
+    )
+    acc_isec = acc_kden = 0.0
+    acc_sign = acc_prod = acc_nach = acc_idle = 0.0
+    acc_nach_sec = acc_calls = 0.0
+    idx = 0
+    chart_daily = []
+    daily = []
+
+    for period in periods:
+        end_d = period['end']
+        period_count = 0
+        while idx < len(sorted_ivs):
+            iv = sorted_ivs[idx]
+            slot = iv.slot_at if hasattr(iv, 'slot_at') else iv.get('slot_at')
+            if not slot or slot.date() > end_d:
+                break
+            d = slot.date()
+            if d >= period['start']:
+                period_count += 1
+            isec = _iv_val(iv, 'interval_sec', INTERVAL_DEFAULT) or INTERVAL_DEFAULT
+            kden = _iv_val(iv, 'kpi_denom', isec) or isec
+            acc_isec += isec
+            acc_kden += kden
+            acc_sign += _iv_val(iv, 'sign_on_sec', 0)
+            acc_prod += _iv_val(iv, 'prod_sec', 0)
+            acc_nach += _iv_val(iv, 'nach_sec', 0)
+            acc_idle += _iv_val(iv, 'idle_sec', 0)
+            acc_nach_sec += _iv_val(iv, 'nach_sec', 0)
+            acc_calls += _iv_val(iv, 'calls', 0)
+            idx += 1
+
+        chart_daily.append({
+            'date': period['key'],
+            'label': period['label'],
+            'count': period_count,
+            'sign_on_pct': round(acc_sign / acc_isec * 100, 2) if acc_isec else None,
+            'prod_pct': round(acc_prod / acc_kden * 100, 2) if acc_kden else None,
+            'nach_pct': round(acc_nach / acc_kden * 100, 2) if acc_kden else None,
+            'idle_pct': round(acc_idle / acc_isec * 100, 2) if acc_isec else None,
+            'nach_per_call': round(acc_nach_sec / acc_calls, 2) if acc_calls else None,
+            'calls': round(acc_calls, 1),
+        })
+
+        period_ivs = []
+        for iv in intervals:
+            slot = iv.slot_at if hasattr(iv, 'slot_at') else iv.get('slot_at')
+            if not slot:
+                continue
+            d = slot.date()
+            if period['start'] <= d <= period['end']:
+                period_ivs.append(iv)
+        if period_ivs:
+            sm = aggregate_summary(period_ivs)
+            daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': len(period_ivs),
+                'sign_on_pct': sm['sign_on_pct'],
+                'prod_pct': sm['prod_pct'],
+                'nach_pct': sm['nach_pct'],
+                'idle_pct': sm['idle_pct'],
+                'nach_per_call': sm['nach_per_call'],
+                'calls': sm['calls'],
+            })
+
+    return chart_daily, daily

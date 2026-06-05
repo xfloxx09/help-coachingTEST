@@ -72,27 +72,8 @@
         </div>
         <hr style="border-color:#34343c;">
         <div class="form-row align-items-end">
-            <div class="col-12 col-md-3 mb-2">
-                <div class="kpi-mini-label mb-1">zeitraum</div>
-                <select name="period" id="kpiPeriod" class="form-control form-control-sm">
-                    <option value="7days" {% if period == '7days' %}selected{% endif %}>Letzte 7 Tage</option>
-                    <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
-                    <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
-                    <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
-                    <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
-                    <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
-                    <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
-                <div class="kpi-mini-label mb-1">von</div>
-                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-            </div>
-            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
-                <div class="kpi-mini-label mb-1">bis</div>
-                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-            </div>
-            <div class="col-12 col-md-3 mb-2">
+            {% include 'main/_kpi_period_filter.html' %}
+            <div class="col-12 col-md-2 mb-2">
                 <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
             </div>
         </div>
@@ -149,7 +130,7 @@
     </div>
 
     {% if chart_daily %}
-    <div class="mb-2"><h5 class="mb-1">Verlauf</h5><p class="text-muted small mb-3">Kumulativ · gestrichelte Linie = Ziel</p></div>
+    <div class="mb-2"><h5 class="mb-1">Verlauf</h5><p class="text-muted small mb-3">Kumulativ · Auflösung: {% if chart_granularity == 'day' %}Tag{% elif chart_granularity == 'week' %}Woche{% else %}Monat{% endif %} · gestrichelte Linie = Ziel</p></div>
     <div class="row mb-4">
         {% if visible.sign_on %}
         <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.sign_on }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>

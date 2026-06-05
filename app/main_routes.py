@@ -31,6 +31,7 @@ from app.models import (
 )
 from app import kpi as kpi_logic
 from app import productivity as productivity_logic
+from app import kpi_time
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
 from app.utils import (
     bogen_layout_for_project,
@@ -4895,32 +4896,7 @@ def reject_assigned_coaching(assignment_id):
 
 def _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str):
     """Return (start_date, end_date, period) as Python date objects."""
-    today = datetime.now(timezone.utc).date()
-    if period_arg == 'vonbis':
-        start = end = None
-        try:
-            if date_from_str:
-                start = datetime.strptime(date_from_str, '%Y-%m-%d').date()
-            if date_to_str:
-                end = datetime.strptime(date_to_str, '%Y-%m-%d').date()
-        except ValueError:
-            start = end = None
-        if start and end and start <= end:
-            return start, end, 'vonbis'
-        # fall through to default if invalid
-        period_arg = '30days'
-    if period_arg == '7days':
-        return today - timedelta(days=6), today, '7days'
-    if period_arg == '90days':
-        return today - timedelta(days=89), today, '90days'
-    if period_arg == 'this_month':
-        return today.replace(day=1), today, 'this_month'
-    if period_arg == 'this_year':
-        return today.replace(month=1, day=1), today, 'this_year'
-    if period_arg == 'all':
-        return None, None, 'all'
-    # default
-    return today - timedelta(days=29), today, '30days'
+    return kpi_time.dashboard_date_range(period_arg, date_from_str, date_to_str)
 
 
 def _kpi_scope():
@@ -5331,8 +5307,8 @@ def _kpi_aggregate_full(rows):
     }
 
 
-def _kpi_dashboard_daily_series(rows, start_date, end_date):
-    """Cumulative KPI trend for chart + per-day values for the table."""
+def _kpi_dashboard_daily_series(rows, start_date, end_date, chart_granularity='day'):
+    """Cumulative KPI trend for chart + per-period values for the table."""
     by_day = {}
     for info_p, loes_p, nps_v, fach_s, vert_p, d in rows:
         if d is None:
@@ -5356,38 +5332,49 @@ def _kpi_dashboard_daily_series(rows, start_date, end_date):
     if not by_day:
         return [], []
 
-    if start_date and end_date:
-        all_days = []
-        d = start_date
-        while d <= end_date:
-            all_days.append(d)
-            d += timedelta(days=1)
-    else:
-        all_days = sorted(by_day.keys())
+    periods = kpi_time.bucket_ranges(
+        chart_granularity, start_date, end_date, list(by_day.keys()),
+    )
+    if not periods:
+        return [], []
 
     cum = _empty_kpi_cum()
     chart_daily = []
     table_daily = []
-    for d in all_days:
-        bucket = by_day.get(d)
-        day_count = bucket['count'] if bucket else 0
-        if bucket:
-            for survey in bucket['surveys']:
+    for period in periods:
+        period_bucket = {
+            'count': 0, 'surveys': [], 'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': [],
+        }
+        d = period['start']
+        while d <= period['end']:
+            day_b = by_day.get(d)
+            if day_b:
+                period_bucket['count'] += day_b['count']
+                period_bucket['surveys'].extend(day_b['surveys'])
+                period_bucket['info'].extend(day_b['info'])
+                period_bucket['loes'].extend(day_b['loes'])
+                period_bucket['nps'].extend(day_b['nps'])
+                period_bucket['fach'].extend(day_b['fach'])
+                period_bucket['vert'].extend(day_b['vert'])
+            d += timedelta(days=1)
+
+        if period_bucket['surveys']:
+            for survey in period_bucket['surveys']:
                 _kpi_cum_add(cum, *survey)
 
         cum_m = _kpi_cum_metrics(cum)
         chart_daily.append({
-            'date': d.strftime('%Y-%m-%d'),
-            'label': d.strftime('%d.%m.'),
-            'count': day_count,
+            'date': period['key'],
+            'label': period['label'],
+            'count': period_bucket['count'],
             **cum_m,
         })
-        if bucket:
-            day_m = _kpi_day_bucket_metrics(bucket)
+        if period_bucket['count']:
+            day_m = _kpi_day_bucket_metrics(period_bucket)
             table_daily.append({
-                'date': d.strftime('%Y-%m-%d'),
-                'label': d.strftime('%d.%m.'),
-                'count': day_count,
+                'date': period['key'],
+                'label': period['label'],
+                'count': period_bucket['count'],
                 **day_m,
             })
     return chart_daily, table_daily
@@ -5474,6 +5461,7 @@ def kpi_dashboard_qualitaet():
     period_arg = (request.args.get('period') or '30days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
+    granularity_arg = (request.args.get('granularity') or 'auto').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     # --- Build the active query filters from scope + mode + date ---
@@ -5501,6 +5489,7 @@ def kpi_dashboard_qualitaet():
     kpi = None
     chart_daily = []
     daily = []
+    chart_granularity = 'day'
     targets = kpi_logic.DEFAULT_TEAM_VIEW_CARD
     scope_label = ''
     has_any_data = bool(projects)
@@ -5516,7 +5505,13 @@ def kpi_dashboard_qualitaet():
             ).filter(*filters).all()
         )
         kpi = _kpi_aggregate_full(r[:5] for r in rows)
-        chart_daily, daily = _kpi_dashboard_daily_series(rows, start_date, end_date)
+        data_dates = [r[5] for r in rows if r[5] is not None]
+        chart_granularity = kpi_time.resolve_granularity(
+            granularity_arg, period_arg, start_date, end_date, data_dates,
+        )
+        chart_daily, daily = _kpi_dashboard_daily_series(
+            rows, start_date, end_date, chart_granularity,
+        )
         targets = _team_view_card_settings(active_project_id)
 
         if mode == 'agent' and sel_member:
@@ -5538,6 +5533,8 @@ def kpi_dashboard_qualitaet():
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
+        granularity=granularity_arg,
+        chart_granularity=chart_granularity,
         kpi=kpi,
         chart_daily=chart_daily,
         daily=daily,
@@ -5611,6 +5608,7 @@ def kpi_dashboard_produktivitaet():
     period_arg = (request.args.get('period') or '30days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
+    granularity_arg = (request.args.get('granularity') or 'auto').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
@@ -5639,13 +5637,19 @@ def kpi_dashboard_produktivitaet():
     summary = None
     chart_daily = []
     daily = []
+    chart_granularity = 'day'
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
         intervals = ProductivityInterval.query.filter(*filters).order_by(ProductivityInterval.slot_at).all()
         summary = productivity_logic.aggregate_summary(intervals)
-        chart_daily = productivity_logic.cumulative_from_intervals(intervals, start_date, end_date)
-        _, daily = productivity_logic.aggregate_daily(intervals, start_date, end_date)
+        chart_granularity = kpi_time.resolve_granularity(
+            granularity_arg, period_arg, start_date, end_date,
+            productivity_logic._interval_dates(intervals),
+        )
+        chart_daily, daily = productivity_logic.build_dashboard_series(
+            intervals, start_date, end_date, chart_granularity, kpi_time.bucket_ranges,
+        )
 
         if mode == 'agent' and sel_member:
             scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
@@ -5666,6 +5670,8 @@ def kpi_dashboard_produktivitaet():
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
+        granularity=granularity_arg,
+        chart_granularity=chart_granularity,
         summary=summary,
         chart_daily=chart_daily,
         daily=daily,
@@ -5832,6 +5838,52 @@ def _impact_avg(values):
     if not values:
         return None
     return round(sum(values) / len(values), 2)
+
+
+def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity):
+    data_dates = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
+    periods = kpi_time.bucket_ranges(chart_granularity, start_date, end_date, data_dates)
+    overlay = []
+    for period in periods:
+        kb = {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []}
+        cb = {'count': 0, 'perf': [], 'time': 0}
+        prod_ivs = []
+        d = period['start']
+        while d <= period['end']:
+            day_kb = kpi_by_day.get(d)
+            if day_kb:
+                kb['info'].extend(day_kb['info'])
+                kb['loes'].extend(day_kb['loes'])
+                kb['nps'].extend(day_kb['nps'])
+                kb['fach'].extend(day_kb['fach'])
+                kb['vert'].extend(day_kb['vert'])
+            day_cb = coaching_by_day.get(d)
+            if day_cb:
+                cb['count'] += day_cb['count']
+                cb['perf'].extend(day_cb['perf'])
+                cb['time'] += day_cb['time']
+            prod_ivs.extend(prod_by_day.get(d, []))
+            d += timedelta(days=1)
+
+        nps_day = kpi_logic.compute_nps(kb['nps'])
+        prod_sm = productivity_logic.aggregate_summary(prod_ivs)
+        overlay.append({
+            'date': period['key'],
+            'label': period['label'],
+            'info_quote': (round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None),
+            'loes_quote': (round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None),
+            'nps': nps_day['nps'] if nps_day['total'] else None,
+            'fachkompetenz': (_impact_avg(kb['fach']) if kb['fach'] else None),
+            'vertrieb_quote': (round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None),
+            'sign_on_pct': prod_sm['sign_on_pct'] if prod_sm else None,
+            'prod_pct': prod_sm['prod_pct'] if prod_sm else None,
+            'nach_per_call': prod_sm['nach_per_call'] if prod_sm else None,
+            'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
+            'coachings': cb['count'],
+            'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
+            'coaching_time': cb['time'] or 0,
+        })
+    return overlay
 
 
 def _impact_before_after(events, surveys_by_member, window):
@@ -6085,6 +6137,7 @@ def coaching_impact():
     period_arg = (request.args.get('period') or '90days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
+    granularity_arg = (request.args.get('granularity') or 'auto').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     window = request.args.get('window', type=int) or IMPACT_WINDOW_DEFAULT
@@ -6103,6 +6156,7 @@ def coaching_impact():
     summary = None
     kpi = None
     scope_label = ''
+    chart_granularity = 'day'
     has_any_data = bool(projects)
     visible = {
         'info': True, 'loesung': True, 'nps': True,
@@ -6218,29 +6272,13 @@ def coaching_impact():
             if iv.slot_at:
                 prod_by_day.setdefault(iv.slot_at.date(), []).append(iv)
 
-        # Merge KPI + productivity + coaching onto one date axis
-        all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
-        for d in all_days:
-            kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []})
-            cb = coaching_by_day.get(d, {'count': 0, 'perf': [], 'time': 0})
-            nps_day = kpi_logic.compute_nps(kb['nps'])
-            prod_sm = productivity_logic.aggregate_summary(prod_by_day.get(d, []))
-            overlay.append({
-                'date': d.strftime('%Y-%m-%d'),
-                'label': d.strftime('%d.%m.'),
-                'info_quote': (round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None),
-                'loes_quote': (round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None),
-                'nps': nps_day['nps'] if nps_day['total'] else None,
-                'fachkompetenz': (_impact_avg(kb['fach']) if kb['fach'] else None),
-                'vertrieb_quote': (round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None),
-                'sign_on_pct': prod_sm['sign_on_pct'] if prod_sm else None,
-                'prod_pct': prod_sm['prod_pct'] if prod_sm else None,
-                'nach_per_call': prod_sm['nach_per_call'] if prod_sm else None,
-                'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
-                'coachings': cb['count'],
-                'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
-                'coaching_time': cb['time'] or 0,
-            })
+        data_dates = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
+        chart_granularity = kpi_time.resolve_granularity(
+            granularity_arg, period_arg, start_date, end_date, data_dates,
+        )
+        overlay = _coaching_impact_overlay(
+            kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity,
+        )
 
         # Before/after: pull surveys for involved members across the extended window
         surveys_by_member = {}
@@ -6321,6 +6359,8 @@ def coaching_impact():
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
+        granularity=granularity_arg,
+        chart_granularity=chart_granularity,
         window=window,
         windows=IMPACT_WINDOWS,
         overlay=overlay,
