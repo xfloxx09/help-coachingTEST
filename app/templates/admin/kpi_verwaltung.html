@@ -4,11 +4,11 @@
 <div class="container mt-4">
     <h1 class="mb-3"><i class="fas fa-sliders-h text-info"></i> KPI Verwaltung</h1>
     <p class="text-muted">
-        Legen Sie pro Projekt fest, aus welcher Frage (je Survey-Typ) die <strong>NPS</strong>- und die
-        <strong>Lösungs-/Informationsquote</strong> berechnet werden. Die gleiche Frage
-        („Konnten wir Ihr Anliegen lösen?“) liefert sowohl die Informations- als auch die Lösungsquote –
-        nur die Antwort-Logik unterscheidet sich. Ohne explizite Zuordnung wird die Frage automatisch
-        anhand ihres Texts erkannt.
+        Pro Projekt legen Sie fest, welche KPIs sichtbar sind, welche Survey-Typen zählen, und aus welcher
+        Frage (je Survey-Typ) <strong>NPS</strong> sowie <strong>Lösungs-/Informationsquote</strong> berechnet
+        werden. Die gleiche Frage („Konnten wir Ihr Anliegen lösen?“) liefert sowohl die Informations- als auch
+        die Lösungsquote – nur die Antwort-Logik unterscheidet sich. Ohne explizite Zuordnung wird die Frage
+        automatisch anhand ihres Texts erkannt.
     </p>
 
     <div class="card mb-4">
@@ -34,15 +34,68 @@
         <input type="hidden" name="project_id" value="{{ sel_project }}">
         <div class="card mb-3">
             <div class="card-header telekom-bg-magenta text-white d-flex justify-content-between align-items-center">
-                <h2 class="mb-0" style="font-size: 1.1rem;">Zuordnung für: {{ project_name }}</h2>
-                <div>
-                    <button type="submit" name="action" value="save" class="btn btn-light btn-sm">
-                        <i class="fas fa-save mr-1"></i>Speichern
-                    </button>
-                </div>
+                <h2 class="mb-0" style="font-size: 1.1rem;">KPI-Einstellungen für: {{ project_name }}</h2>
+                <button type="submit" name="action" value="save" class="btn btn-light btn-sm">
+                    <i class="fas fa-save mr-1"></i>Speichern
+                </button>
             </div>
             <div class="card-body">
+                <div class="form-group mb-4">
+                    <label class="form-control-label d-block mb-1"><strong>Sichtbare KPIs</strong></label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="show_info" name="show_info" value="1"
+                               {% if visibility.info %}checked{% endif %}>
+                        <label class="form-check-label" for="show_info">Informationsquote</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="show_loesung" name="show_loesung" value="1"
+                               {% if visibility.loesung %}checked{% endif %}>
+                        <label class="form-check-label" for="show_loesung">Lösungsquote</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="show_nps" name="show_nps" value="1"
+                               {% if visibility.nps %}checked{% endif %}>
+                        <label class="form-check-label" for="show_nps">NPS</label>
+                    </div>
+                </div>
+
                 {% if survey_types %}
+                <div class="form-group mb-4">
+                    <label class="form-control-label d-block mb-1"><strong>KPI-Quellen (Survey-Typen)</strong></label>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-1">
+                            <thead>
+                                <tr>
+                                    <th>Survey-Typ</th>
+                                    <th style="width: 240px;">Verwendung</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for st in survey_types %}
+                                <tr>
+                                    <td class="align-middle">{{ st.name }}</td>
+                                    <td>
+                                        <input type="hidden" name="kpi_source_type" value="{{ st.name }}">
+                                        <select name="kpi_source_mode" class="form-control form-control-sm">
+                                            <option value="count" {% if st.source_mode == 'count' %}selected{% endif %}>Zählt in KPIs</option>
+                                            <option value="show" {% if st.source_mode == 'show' %}selected{% endif %}>Nur Rohdaten anzeigen</option>
+                                            <option value="off" {% if st.source_mode == 'off' %}selected{% endif %}>Nicht berücksichtigen</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="form-text text-muted">
+                        <strong>Zählt in KPIs</strong>: fließt in NPS/Informations-/Lösungsquote ein und ist in den Rohdaten sichtbar.
+                        <strong>Nur Rohdaten anzeigen</strong>: erscheint im Befragungs-Popup (als „zählt nicht“ markiert), wird aber nicht gewertet.
+                        <strong>Nicht berücksichtigen</strong>: taucht gar nicht auf.
+                    </small>
+                </div>
+
+                <hr>
+                <h5 class="mb-3">Frage-Zuordnung je Survey-Typ</h5>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">
                         <thead>
@@ -85,10 +138,13 @@
                     </table>
                 </div>
                 <button type="submit" name="action" value="save" class="btn telekom-button">
-                    <i class="fas fa-save mr-1"></i>Zuordnung speichern
+                    <i class="fas fa-save mr-1"></i>Alle KPI-Einstellungen speichern
                 </button>
                 {% else %}
-                <p class="text-muted mb-0">Für dieses Projekt liegen keine KPI-Befragungen vor.</p>
+                <p class="text-muted mb-3">Für dieses Projekt liegen noch keine KPI-Befragungen vor.</p>
+                <button type="submit" name="action" value="save" class="btn telekom-button">
+                    <i class="fas fa-save mr-1"></i>Sichtbare KPIs speichern
+                </button>
                 {% endif %}
             </div>
         </div>

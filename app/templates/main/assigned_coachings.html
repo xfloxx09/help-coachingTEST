@@ -214,6 +214,18 @@
     .perf-kpi-toolbar select {
         max-width: 220px;
     }
+    .perf-kpi-custom-range {
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .perf-kpi-custom-range.is-visible {
+        display: flex;
+    }
+    .perf-kpi-custom-range input[type="date"] {
+        max-width: 150px;
+    }
     .perf-table-wrap {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -307,18 +319,28 @@
 
             <form method="GET" action="{{ url_for('main.assigned_coachings') }}" class="perf-kpi-toolbar" id="kpiPeriodForm">
                 {% for key, val in request.args.items(multi=True) %}
-                    {% if key != 'kpi_period' %}
+                    {% if key not in ('kpi_period', 'kpi_from', 'kpi_to') %}
                     <input type="hidden" name="{{ key }}" value="{{ val }}">
                     {% endif %}
                 {% endfor %}
                 <label for="kpi_period"><i class="fas fa-calendar-alt mr-1"></i>KPI-Zeitraum:</label>
-                <select name="kpi_period" id="kpi_period" class="form-control form-control-sm custom-select" onchange="this.form.submit()">
+                <select name="kpi_period" id="kpi_period" class="form-control form-control-sm custom-select">
                     <option value="this_month" {% if kpi_period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
                     <option value="30days" {% if kpi_period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
                     <option value="90days" {% if kpi_period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
                     <option value="this_year" {% if kpi_period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
                     <option value="all" {% if kpi_period == 'all' %}selected{% endif %}>Gesamt</option>
+                    <option value="custom" {% if kpi_period == 'custom' %}selected{% endif %}>Von … bis …</option>
                 </select>
+                <div id="kpiCustomRange" class="perf-kpi-custom-range{% if kpi_period == 'custom' %} is-visible{% endif %}">
+                    <label for="kpi_from" class="mb-0">von</label>
+                    <input type="date" name="kpi_from" id="kpi_from" class="form-control form-control-sm"
+                           value="{{ kpi_from or '' }}">
+                    <label for="kpi_to" class="mb-0">bis</label>
+                    <input type="date" name="kpi_to" id="kpi_to" class="form-control form-control-sm"
+                           value="{{ kpi_to or '' }}">
+                    <button type="submit" class="btn btn-sm telekom-button">Anwenden</button>
+                </div>
                 <span class="text-muted small">KPIs für <strong>{{ kpi_period_label }}</strong> · Zahl in Klammern = Anzahl Befragungen</span>
             </form>
 
@@ -583,6 +605,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const params = new URLSearchParams();
             ids.forEach(id => params.append('member_ids', id));
             window.location = base + (base.indexOf('?') >= 0 ? '&' : '?') + params.toString();
+        });
+    }
+
+    // KPI period: custom von/bis range
+    const kpiPeriodSel = document.getElementById('kpi_period');
+    const kpiCustomRange = document.getElementById('kpiCustomRange');
+    const kpiPeriodForm = document.getElementById('kpiPeriodForm');
+    if (kpiPeriodSel && kpiCustomRange && kpiPeriodForm) {
+        kpiPeriodSel.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                kpiCustomRange.classList.add('is-visible');
+            } else {
+                kpiCustomRange.classList.remove('is-visible');
+                kpiPeriodForm.submit();
+            }
         });
     }
 

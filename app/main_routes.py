@@ -544,7 +544,7 @@ def _member_ids_from_assign_request():
     return deduped
 
 
-def _member_performance_for_assigned_page(project_id, kpi_period='this_month'):
+def _member_performance_for_assigned_page(project_id, kpi_period='this_month', kpi_from=None, kpi_to=None):
     members = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(
         Team.project_id == project_id,
         Team.name != ARCHIV_TEAM_NAME,
@@ -597,7 +597,9 @@ def _member_performance_for_assigned_page(project_id, kpi_period='this_month'):
             'last_coaching_date': r['last_coaching_date'],
             'active_assignment_count': active_counts.get(m.id, 0),
         })
-    kpi_map = _members_kpi_map(project_id, member_ids, kpi_period=kpi_period)
+    kpi_map = _members_kpi_map(
+        project_id, member_ids, kpi_period=kpi_period, kpi_from=kpi_from, kpi_to=kpi_to,
+    )
     for row in out:
         k = kpi_map.get(row['id'], {})
         row['nps'] = k.get('nps')
@@ -4189,11 +4191,15 @@ def assigned_coachings():
     assignments = q.paginate(page=page, per_page=15, error_out=False)
 
     kpi_period = (request.args.get('kpi_period') or 'this_month').strip()
-    if kpi_period not in ('this_month', '30days', '90days', 'this_year', 'all'):
+    kpi_from = (request.args.get('kpi_from') or '').strip()
+    kpi_to = (request.args.get('kpi_to') or '').strip()
+    if kpi_period not in ('this_month', '30days', '90days', 'this_year', 'all', 'custom'):
         kpi_period = 'this_month'
-    _, _, kpi_period_label = _kpi_period_dates(kpi_period)
+    _, _, kpi_period_label = _kpi_period_dates(kpi_period, kpi_from, kpi_to)
     member_performance = (
-        _member_performance_for_assigned_page(project_id, kpi_period=kpi_period)
+        _member_performance_for_assigned_page(
+            project_id, kpi_period=kpi_period, kpi_from=kpi_from, kpi_to=kpi_to,
+        )
         if view_type == 'pl' else []
     )
 
@@ -4212,6 +4218,11 @@ def assigned_coachings():
         project_bar_extra_hidden['sort_dir'] = sort_dir
     if kpi_period != 'this_month':
         project_bar_extra_hidden['kpi_period'] = kpi_period
+    if kpi_period == 'custom':
+        if kpi_from:
+            project_bar_extra_hidden['kpi_from'] = kpi_from
+        if kpi_to:
+            project_bar_extra_hidden['kpi_to'] = kpi_to
 
     return render_template(
         'main/assigned_coachings.html',
@@ -4233,6 +4244,8 @@ def assigned_coachings():
         member_performance=member_performance,
         kpi_period=kpi_period,
         kpi_period_label=kpi_period_label,
+        kpi_from=kpi_from,
+        kpi_to=kpi_to,
         can_add_coaching=current_user.has_permission('add_coaching'),
         config=current_app.config,
     )
@@ -4868,9 +4881,25 @@ def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
     return filters
 
 
-def _kpi_period_dates(period):
+def _parse_kpi_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip()[:10], '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _kpi_period_dates(period, date_from_str=None, date_to_str=None):
     """Return (date_from, date_to, label) for KPI aggregation in assigned-coachings overview."""
     today = datetime.now(timezone.utc).date()
+    if period == 'custom':
+        date_from = _parse_kpi_date(date_from_str)
+        date_to = _parse_kpi_date(date_to_str)
+        if date_from and date_to and date_from <= date_to:
+            label = f'{date_from.strftime("%d.%m.%Y")} – {date_to.strftime("%d.%m.%Y")}'
+            return date_from, date_to, label
+        return today.replace(day=1), today, 'Dieser Monat'
     if period == '30days':
         return today - timedelta(days=29), today, 'Letzte 30 Tage'
     if period == '90days':
@@ -4883,8 +4912,8 @@ def _kpi_period_dates(period):
     return today.replace(day=1), today, 'Dieser Monat'
 
 
-def _members_kpi_map(project_id, member_ids, kpi_period='this_month'):
-    date_from, date_to, _ = _kpi_period_dates(kpi_period)
+def _members_kpi_map(project_id, member_ids, kpi_period='this_month', kpi_from=None, kpi_to=None):
+    date_from, date_to, _ = _kpi_period_dates(kpi_period, kpi_from, kpi_to)
     return kpi_logic.members_kpi_quotes(project_id, member_ids, date_from, date_to)
 
 

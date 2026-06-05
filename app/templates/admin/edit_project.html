@@ -29,65 +29,10 @@
                         {{ form.abteilung_id(class="form-control custom-select") }}
                     </div>
 
-                    <hr>
-                    <h4 class="mb-2"><i class="fas fa-chart-line text-info"></i> KPIs</h4>
-
-                    <div class="form-group">
-                        <label class="form-control-label d-block mb-1"><strong>Sichtbare KPIs</strong></label>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="show_info" name="show_info" value="1"
-                                   {% if visibility.info %}checked{% endif %}>
-                            <label class="form-check-label" for="show_info">Informationsquote</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="show_loesung" name="show_loesung" value="1"
-                                   {% if visibility.loesung %}checked{% endif %}>
-                            <label class="form-check-label" for="show_loesung">Lösungsquote</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="show_nps" name="show_nps" value="1"
-                                   {% if visibility.nps %}checked{% endif %}>
-                            <label class="form-check-label" for="show_nps">NPS</label>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-control-label d-block mb-1"><strong>KPI-Quellen (Survey-Typen)</strong></label>
-                        {% if all_survey_types %}
-                            <table class="table table-sm mb-1">
-                                <thead>
-                                    <tr>
-                                        <th>Survey-Typ</th>
-                                        <th style="width: 240px;">Verwendung</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for st in all_survey_types %}
-                                    <tr>
-                                        <td class="align-middle">{{ st }}</td>
-                                        <td>
-                                            <input type="hidden" name="kpi_source_type" value="{{ st }}">
-                                            <select name="kpi_source_mode" class="form-control form-control-sm">
-                                                <option value="count" {% if source_modes[st] == 'count' %}selected{% endif %}>Zählt in KPIs</option>
-                                                <option value="show" {% if source_modes[st] == 'show' %}selected{% endif %}>Nur Rohdaten anzeigen</option>
-                                                <option value="off" {% if source_modes[st] == 'off' %}selected{% endif %}>Nicht berücksichtigen</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                            <small class="form-text text-muted">
-                                <strong>Zählt in KPIs</strong>: fließt in NPS/Informations-/Lösungsquote ein und ist in den Rohdaten sichtbar.
-                                <strong>Nur Rohdaten anzeigen</strong>: erscheint im Befragungs-Popup (als „zählt nicht“ markiert), wird aber nicht gewertet.
-                                <strong>Nicht berücksichtigen</strong>: taucht gar nicht auf.
-                                Die genaue Frage-Zuordnung je Typ erfolgt in der
-                                <a href="{{ url_for('admin.kpi_verwaltung', project_id=project.id) }}">KPI Verwaltung</a>.
-                            </small>
-                        {% else %}
-                            <p class="text-muted mb-0">Es liegen noch keine importierten KPI-Daten vor.</p>
-                        {% endif %}
-                    </div>
+                    <p class="text-muted small mb-3">
+                        KPI-Einstellungen (sichtbare KPIs, Survey-Typen, Frage-Zuordnung) finden Sie in der
+                        <a href="{{ url_for('admin.kpi_verwaltung', project_id=project.id) }}">KPI Verwaltung</a>.
+                    </p>
 
                     <div class="form-group">
                         {{ form.submit(class="btn telekom-button") }}

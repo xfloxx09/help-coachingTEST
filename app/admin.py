@@ -484,64 +484,14 @@ def edit_project(project_id):
         project.description = form.description.data
         project.abteilung_id = _abteilung_pk_from_form(form)
 
-        # KPI sources: per survey type -> 'count' | 'show' | 'off' (none configured = all count)
-        type_list = request.form.getlist('kpi_source_type')
-        mode_list = request.form.getlist('kpi_source_mode')
-        ProjectKpiSource.query.filter_by(project_id=project.id).delete()
-        for st, mode in zip(type_list, mode_list):
-            st = (st or '').strip()
-            if not st:
-                continue
-            if mode == 'count':
-                db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st, counts=True))
-            elif mode == 'show':
-                db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st, counts=False))
-            # 'off' -> no row (survey type not relevant for this project)
-
-        # KPI visibility toggles
-        setting = ProjectKpiSetting.query.get(project.id)
-        if setting is None:
-            setting = ProjectKpiSetting(project_id=project.id)
-            db.session.add(setting)
-        setting.show_info = bool(request.form.get('show_info'))
-        setting.show_loesung = bool(request.form.get('show_loesung'))
-        setting.show_nps = bool(request.form.get('show_nps'))
-
         db.session.commit()
         flash('Projekt aktualisiert.', 'success')
         return redirect(url_for('admin.manage_projects'))
 
-    # Available survey types (distinct studie across all imported KPI data)
-    all_survey_types = sorted(
-        (s or '').strip() for (s,) in db.session.query(KpiSurvey.studie).distinct().all()
-        if (s or '').strip()
-    )
-    source_rows = ProjectKpiSource.query.filter_by(project_id=project.id).all()
-    has_source_config = bool(source_rows)
-    row_by_type = {r.survey_type: r for r in source_rows}
-    source_modes = {}
-    for st in all_survey_types:
-        row = row_by_type.get(st)
-        if not has_source_config:
-            source_modes[st] = 'count'  # no config = all count (backward compatible)
-        elif row is None:
-            source_modes[st] = 'off'
-        else:
-            source_modes[st] = 'count' if row.counts else 'show'
-
-    setting = ProjectKpiSetting.query.get(project.id)
-    visibility = {
-        'info': setting.show_info if setting else True,
-        'loesung': setting.show_loesung if setting else True,
-        'nps': setting.show_nps if setting else True,
-    }
     return render_template(
         'admin/edit_project.html',
         form=form,
         project=project,
-        all_survey_types=all_survey_types,
-        source_modes=source_modes,
-        visibility=visibility,
     )
 
 
@@ -3824,8 +3774,29 @@ def kpi_verwaltung():
                 if loesc:
                     db.session.add(KpiQuestionMapping(
                         project_id=sel_project, survey_type=st, kpi_kind='loesung', frage_code=loesc.strip()))
+
+            type_list = request.form.getlist('kpi_source_type')
+            mode_list = request.form.getlist('kpi_source_mode')
+            ProjectKpiSource.query.filter_by(project_id=sel_project).delete()
+            for st, mode in zip(type_list, mode_list):
+                st = (st or '').strip()
+                if not st:
+                    continue
+                if mode == 'count':
+                    db.session.add(ProjectKpiSource(project_id=sel_project, survey_type=st, counts=True))
+                elif mode == 'show':
+                    db.session.add(ProjectKpiSource(project_id=sel_project, survey_type=st, counts=False))
+
+            setting = ProjectKpiSetting.query.get(sel_project)
+            if setting is None:
+                setting = ProjectKpiSetting(project_id=sel_project)
+                db.session.add(setting)
+            setting.show_info = bool(request.form.get('show_info'))
+            setting.show_loesung = bool(request.form.get('show_loesung'))
+            setting.show_nps = bool(request.form.get('show_nps'))
+
             db.session.commit()
-            flash('KPI-Zuordnung gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
+            flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
             return redirect(url_for('admin.kpi_verwaltung', project_id=sel_project))
 
     sel_project = request.args.get('project_id', type=int)
@@ -3834,6 +3805,7 @@ def kpi_verwaltung():
 
     survey_types = []
     project_name = None
+    visibility = {'info': True, 'loesung': True, 'nps': True}
     if sel_project:
         project_name = next((p['name'] for p in projects if p['id'] == sel_project), None)
         rows = (
@@ -3852,14 +3824,32 @@ def kpi_verwaltung():
             (m.survey_type, m.kpi_kind): m.frage_code
             for m in KpiQuestionMapping.query.filter_by(project_id=sel_project).all()
         }
+        source_rows = ProjectKpiSource.query.filter_by(project_id=sel_project).all()
+        has_source_config = bool(source_rows)
+        row_by_type = {r.survey_type: r for r in source_rows}
         for studie in sorted(types):
             qs = [{'code': c, 'text': types[studie][c]} for c in sorted(types[studie])]
+            row = row_by_type.get(studie)
+            if not has_source_config:
+                source_mode = 'count'
+            elif row is None:
+                source_mode = 'off'
+            else:
+                source_mode = 'count' if row.counts else 'show'
             survey_types.append({
                 'name': studie,
                 'questions': qs,
                 'nps_code': existing.get((studie, 'nps'), ''),
                 'loesung_code': existing.get((studie, 'loesung'), ''),
+                'source_mode': source_mode,
             })
+        setting = ProjectKpiSetting.query.get(sel_project)
+        if setting:
+            visibility = {
+                'info': setting.show_info,
+                'loesung': setting.show_loesung,
+                'nps': setting.show_nps,
+            }
 
     return render_template(
         'admin/kpi_verwaltung.html',
@@ -3867,6 +3857,7 @@ def kpi_verwaltung():
         sel_project=sel_project,
         project_name=project_name,
         survey_types=survey_types,
+        visibility=visibility,
         config=current_app.config,
     )
 
