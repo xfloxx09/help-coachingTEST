@@ -98,6 +98,10 @@
                     {% endfor %}
                 </select>
             </div>
+
+            <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
+                {% include 'main/_kpi_granularity_toggle.html' %}
+            </div>
         </div>
 
         <hr style="border-color:#34343c;">
@@ -163,12 +167,9 @@
     </div>
 
     {% if chart_daily %}
-    <div class="d-flex justify-content-between align-items-start flex-wrap mb-2" style="gap:0.75rem;">
-        <div>
-            <h5 class="mb-1">Verlauf</h5>
-            <p class="text-muted small mb-0">Kumulativ im Zeitraum · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
-        </div>
-        {% include 'main/_kpi_granularity_toggle.html' %}
+    <div class="mb-2">
+        <h5 class="mb-1">Verlauf</h5>
+        <p class="text-muted small mb-0">Kumulativ im Zeitraum · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
     </div>
     <div class="row mb-4">
         {% if visible.info %}
@@ -301,11 +302,12 @@
     if (!form) return;
 
     // Mode toggle buttons set the hidden mode field and toggle dependent fields.
-    document.querySelectorAll('.kpi-mode-group .btn').forEach(function (btn) {
+    document.querySelectorAll('[data-mode]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var mode = btn.getAttribute('data-mode');
             document.getElementById('kpiMode').value = mode;
-            document.querySelectorAll('.kpi-mode-group .btn').forEach(function (b) { b.classList.remove('active'); });
+            var group = btn.closest('.btn-group');
+            if (group) group.querySelectorAll('.btn').forEach(function (b) { b.classList.remove('active'); });
             btn.classList.add('active');
             // Reset deeper selections when switching to a broader mode.
             var teamField = document.querySelector('.kpi-team-field');

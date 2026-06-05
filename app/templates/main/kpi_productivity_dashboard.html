@@ -69,6 +69,10 @@
                     {% for m in members %}<option value="{{ m.id }}" {% if sel_member == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
                 </select>
             </div>
+
+            <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
+                {% include 'main/_kpi_granularity_toggle.html' %}
+            </div>
         </div>
         <hr style="border-color:#34343c;">
         <div class="form-row align-items-end">
@@ -130,12 +134,9 @@
     </div>
 
     {% if chart_daily %}
-    <div class="d-flex justify-content-between align-items-start flex-wrap mb-2" style="gap:0.75rem;">
-        <div>
-            <h5 class="mb-1">Verlauf</h5>
-            <p class="text-muted small mb-0">Kumulativ · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
-        </div>
-        {% include 'main/_kpi_granularity_toggle.html' %}
+    <div class="mb-2">
+        <h5 class="mb-1">Verlauf</h5>
+        <p class="text-muted small mb-0">Kumulativ · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
     </div>
     <div class="row mb-4">
         {% if visible.sign_on %}
@@ -212,11 +213,12 @@
 
     var form = document.getElementById('kpiFilterForm');
     if (!form) return;
-    document.querySelectorAll('.kpi-mode-group .btn').forEach(function (btn) {
+    document.querySelectorAll('[data-mode]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var mode = btn.getAttribute('data-mode');
             document.getElementById('kpiMode').value = mode;
-            document.querySelectorAll('.kpi-mode-group .btn').forEach(function (b) { b.classList.remove('active'); });
+            var group = btn.closest('.btn-group');
+            if (group) group.querySelectorAll('.btn').forEach(function (b) { b.classList.remove('active'); });
             btn.classList.add('active');
             var tf = document.querySelector('.kpi-team-field'), af = document.querySelector('.kpi-agent-field');
             if (mode === 'project') { if (tf) tf.style.display = 'none'; if (af) af.style.display = 'none'; }

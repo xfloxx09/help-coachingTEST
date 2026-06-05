@@ -5468,6 +5468,9 @@ def kpi_dashboard_qualitaet():
     date_to_str = (request.args.get('date_to') or '').strip()
     granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+    chart_granularity = kpi_time.resolve_granularity(
+        granularity_arg, period_arg, start_date, end_date, None,
+    )
 
     # --- Build the active query filters from scope + mode + date ---
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
@@ -5494,7 +5497,6 @@ def kpi_dashboard_qualitaet():
     kpi = None
     chart_daily = []
     daily = []
-    chart_granularity = 'day'
     targets = kpi_logic.DEFAULT_TEAM_VIEW_CARD
     scope_label = ''
     has_any_data = bool(projects)
@@ -5615,6 +5617,9 @@ def kpi_dashboard_produktivitaet():
     date_to_str = (request.args.get('date_to') or '').strip()
     granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+    chart_granularity = kpi_time.resolve_granularity(
+        granularity_arg, period_arg, start_date, end_date, None,
+    )
 
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
     visible = _prod_dashboard_visibility(active_project_id)
@@ -5642,7 +5647,6 @@ def kpi_dashboard_produktivitaet():
     summary = None
     chart_daily = []
     daily = []
-    chart_granularity = 'day'
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
@@ -6144,6 +6148,9 @@ def coaching_impact():
     date_to_str = (request.args.get('date_to') or '').strip()
     granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+    chart_granularity = kpi_time.resolve_granularity(
+        granularity_arg, period_arg, start_date, end_date, None,
+    )
 
     window = request.args.get('window', type=int) or IMPACT_WINDOW_DEFAULT
     if window not in IMPACT_WINDOWS:
@@ -6161,7 +6168,6 @@ def coaching_impact():
     summary = None
     kpi = None
     scope_label = ''
-    chart_granularity = 'day'
     has_any_data = bool(projects)
     visible = {
         'info': True, 'loesung': True, 'nps': True,

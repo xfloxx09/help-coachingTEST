@@ -68,6 +68,9 @@
         color: #fff;
     }
     .ci-view-toggle .btn + .btn { border-left: 1px solid #4a4a55; }
+    .kpi-mode-group .btn { border-color: #4a4a55; color: #d6d6dd; background: #2a2a31; }
+    .kpi-mode-group .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-toolbar-toggles { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
     .ci-chart-wrap {
         position: relative;
         height: min(52vh, 480px);
@@ -230,15 +233,17 @@
                 </select>
             </div>
 
-            {% if has_productivity_data %}
             <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
-                <div class="ci-mini-label mb-1">kpi-kategorie</div>
-                <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
-                    <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
-                    <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
+                <div class="kpi-toolbar-toggles">
+                    {% if has_productivity_data %}
+                    <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
+                        <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
+                        <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
+                    </div>
+                    {% endif %}
+                    {% include 'main/_kpi_granularity_toggle.html' %}
                 </div>
             </div>
-            {% endif %}
         </div>
 
         <hr style="border-color:#34343c;">
@@ -373,17 +378,10 @@
             <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
             {% endif %}
         </div>
-        <div class="d-flex flex-wrap align-items-end" style="gap:0.75rem;">
-            {% set mini_label_class = 'ci-mini-label' %}
-            {% include 'main/_kpi_granularity_toggle.html' %}
-            <div>
-                <div class="ci-mini-label mb-1">korrelation</div>
-                <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
-                    <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
-                    <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
-                    <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
-                </div>
-            </div>
+        <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
+            <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
+            <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
+            <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
         </div>
     </div>
     <div class="ci-chart-wrap mb-4">
