@@ -577,20 +577,13 @@ def _member_performance_for_assigned_page(project_id, kpi_period='this_month', k
         })
     if not raw:
         return []
-    max_c = max(r['coaching_count'] for r in raw) or 1
-    max_t = max(r['total_time'] for r in raw) or 1
     out = []
     for r in raw:
         m = r['member']
-        perf_part = float(r['avg_score'])
-        cnt_part = (r['coaching_count'] / max_c) * 100.0
-        time_part = (r['total_time'] / max_t) * 100.0 if max_t else 0.0
-        combined = 0.4 * perf_part + 0.3 * cnt_part + 0.3 * time_part
         out.append({
             'id': m.id,
             'name': m.name,
             'team_name': m.team.name if m.team else '',
-            'combined_score': combined,
             'avg_score': r['avg_score'],
             'coaching_count': r['coaching_count'],
             'total_time': r['total_time'],

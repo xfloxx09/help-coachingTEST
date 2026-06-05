@@ -232,7 +232,7 @@
         max-width: 100%;
     }
     .performance-table {
-        min-width: 960px;
+        min-width: 880px;
         margin-bottom: 0;
         font-size: 0.9rem;
     }
@@ -307,11 +307,7 @@
                 <span class="info-icon tooltip-custom">
                     <i class="fas fa-info-circle"></i>
                     <span class="tooltip-text">
-                        Berechnung des Gesamtscores:<br>
-                        • Performance-Note (40%)<br>
-                        • Anzahl Coachings (30%)<br>
-                        • Gesamtcoachingzeit (30%)<br>
-                        Alle Werte werden normalisiert (0-100).
+                        <strong>Bewertung vom Coach</strong>: Durchschnitt der Performance-Noten aus abgeschlossenen Coachings (Skala 1–10, als Prozent angezeigt).
                     </span>
                 </span>
             </h4>
@@ -379,8 +375,7 @@
                                                     <input type="checkbox" class="member-assign-checkbox team-select-all" title="Alle in diesem Team auswählen" aria-label="Team auswählen">
                                                 </th>
                                                 <th class="sortable-header col-sticky-name" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header" data-sort="score">Gesamtscore <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header col-perf-bar" data-sort="performance">Ø Performance <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="sortable-header col-perf-bar" data-sort="performance" title="Durchschnitt der Coach-Performance-Noten (1–10)">Bewertung vom Coach <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="col-kpi" title="NPS · (Anzahl NPS-Bewertungen im gewählten Zeitraum)">NPS</th>
                                                 <th class="col-kpi" title="Lösungsquote · (Anzahl Antworten zur Lösungsfrage)">Lösung</th>
                                                 <th class="col-kpi" title="Informationsquote · (Anzahl Antworten zur Info/Lösungsfrage)">Info</th>
@@ -392,7 +387,7 @@
                                         </thead>
                                         <tbody>
                                             {% for member in members %}
-                                            <tr data-name="{{ member.name }}" data-score="{{ member.combined_score }}" data-performance="{{ member.avg_score }}" data-coachings="{{ member.coaching_count }}" data-time="{{ member.total_time }}" data-last="{{ member.last_coaching_date.isoformat() if member.last_coaching_date else '' }}">
+                                            <tr data-name="{{ member.name }}" data-performance="{{ member.avg_score }}" data-coachings="{{ member.coaching_count }}" data-time="{{ member.total_time }}" data-last="{{ member.last_coaching_date.isoformat() if member.last_coaching_date else '' }}">
                                                 <td class="member-select-col">
                                                     <input type="checkbox" class="member-assign-checkbox member-row-select" value="{{ member.id }}" aria-label="{{ member.name }} auswählen">
                                                 </td>
@@ -404,7 +399,6 @@
                                                     </span>
                                                     {% endif %}
                                                 </td>
-                                                <td><strong>{{ member.combined_score|round(1) }}%</strong></td>
                                                 <td class="col-perf-bar">
                                                     <div class="progress">
                                                         <div class="progress-bar" role="progressbar" style="width: {{ member.avg_score }}%;" aria-valuenow="{{ member.avg_score }}" aria-valuemin="0" aria-valuemax="100">
