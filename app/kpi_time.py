@@ -155,6 +155,31 @@ def month_label_de(year, month):
     return f'{month:02d}.{year}'
 
 
+def span_days(start_date, end_date, data_dates=None):
+    if start_date and end_date:
+        return (end_date - start_date).days + 1
+    if data_dates:
+        sd, ed = min(data_dates), max(data_dates)
+        return (ed - sd).days + 1
+    return 0
+
+
+def chart_granularity_for_span(table_granularity, start_date, end_date, data_dates=None):
+    """
+    Keep table granularity as chosen by the user, but cap chart buckets for long spans
+    so multi-year KPI views stay responsive.
+    """
+    g = (table_granularity or 'day').strip()
+    span = span_days(start_date, end_date, data_dates)
+    if span <= 0:
+        return g
+    if g == 'day' and span > 62:
+        return 'week'
+    if g in ('day', 'week') and span > 400:
+        return 'month'
+    return g
+
+
 def group_daily_by_month(daily_rows):
     """Group day-granularity table rows into calendar months (ordered)."""
     buckets = {}

@@ -662,3 +662,192 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
             })
 
     return chart_daily, daily
+
+
+def _totals_entry(day, count, isec, kden, sign, prod, nach, idle, calls):
+    isec = float(isec or 0)
+    kden = float(kden or isec or 0)
+    return {
+        'day': day,
+        'count': int(count or 0),
+        'isec': isec,
+        'kden': kden,
+        'sign': float(sign or 0),
+        'prod': float(prod or 0),
+        'nach': float(nach or 0),
+        'idle': float(idle or 0),
+        'calls': float(calls or 0),
+    }
+
+
+def _row_metrics_from_totals(totals, cumulative=False):
+    isec = totals['isec']
+    kden = totals['kden']
+    empty = 0 if cumulative else None
+    return {
+        'sign_on_pct': round(totals['sign'] / isec * 100, 2) if isec else empty,
+        'prod_pct': round(totals['prod'] / kden * 100, 2) if kden else empty,
+        'nach_pct': round(totals['nach'] / kden * 100, 2) if kden else empty,
+        'idle_pct': round(totals['idle'] / isec * 100, 2) if isec else empty,
+        'nach_per_call': round(totals['nach'] / totals['calls'], 2) if totals['calls'] else empty,
+        'calls': round(totals['calls'], 1),
+    }
+
+
+def query_interval_summary_sql(filters):
+    from sqlalchemy import func
+    from app import db
+    from app.models import ProductivityInterval
+
+    row = (
+        db.session.query(
+            func.count(ProductivityInterval.id),
+            func.sum(ProductivityInterval.interval_sec),
+            func.sum(ProductivityInterval.kpi_denom),
+            func.sum(ProductivityInterval.sign_on_sec),
+            func.sum(ProductivityInterval.prod_sec),
+            func.sum(ProductivityInterval.nach_sec),
+            func.sum(ProductivityInterval.idle_sec),
+            func.sum(ProductivityInterval.calls),
+        )
+        .filter(*filters)
+        .one()
+    )
+    if not row[0]:
+        return None
+    totals = _totals_entry(None, row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+    return {'intervals': totals['count'], **_row_metrics_from_totals(totals)}
+
+
+def query_daily_buckets_sql(filters):
+    from sqlalchemy import func, cast, Date
+    from app import db
+    from app.models import ProductivityInterval
+
+    day_col = cast(ProductivityInterval.slot_at, Date)
+    rows = (
+        db.session.query(
+            day_col,
+            func.count(ProductivityInterval.id),
+            func.sum(ProductivityInterval.interval_sec),
+            func.sum(ProductivityInterval.kpi_denom),
+            func.sum(ProductivityInterval.sign_on_sec),
+            func.sum(ProductivityInterval.prod_sec),
+            func.sum(ProductivityInterval.nach_sec),
+            func.sum(ProductivityInterval.idle_sec),
+            func.sum(ProductivityInterval.calls),
+        )
+        .filter(*filters)
+        .group_by(day_col)
+        .order_by(day_col)
+        .all()
+    )
+    return [
+        _totals_entry(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8])
+        for r in rows if r[0] is not None
+    ]
+
+
+def _sum_buckets(buckets):
+    out = {'count': 0, 'isec': 0.0, 'kden': 0.0, 'sign': 0.0, 'prod': 0.0, 'nach': 0.0, 'idle': 0.0, 'calls': 0.0}
+    for b in buckets:
+        if not b:
+            continue
+        out['count'] += b['count']
+        out['isec'] += b['isec']
+        out['kden'] += b['kden']
+        out['sign'] += b['sign']
+        out['prod'] += b['prod']
+        out['nach'] += b['nach']
+        out['idle'] += b['idle']
+        out['calls'] += b['calls']
+    return out
+
+
+def build_dashboard_series_from_buckets(
+    daily_buckets, start_date, end_date, chart_granularity, table_granularity, bucket_ranges_fn,
+):
+    table_granularity = table_granularity or chart_granularity
+    by_day = {b['day']: b for b in daily_buckets}
+    data_dates = list(by_day.keys())
+    if not data_dates:
+        return [], []
+
+    def _period_buckets(period):
+        items = []
+        d = period['start']
+        while d <= period['end']:
+            if d in by_day:
+                items.append(by_day[d])
+            d += timedelta(days=1)
+        return items
+
+    chart_periods = bucket_ranges_fn(chart_granularity, start_date, end_date, data_dates)
+    table_periods = (
+        chart_periods if table_granularity == chart_granularity
+        else bucket_ranges_fn(table_granularity, start_date, end_date, data_dates)
+    )
+
+    acc = _sum_buckets([])
+    chart_daily = []
+    if chart_granularity == 'day' and start_date and end_date:
+        cur = start_date
+        while cur <= end_date:
+            day_b = by_day.get(cur)
+            if day_b:
+                acc = _sum_buckets([acc, day_b])
+                metrics = _row_metrics_from_totals(acc, cumulative=True)
+                chart_daily.append({
+                    'date': cur.strftime('%Y-%m-%d'),
+                    'label': cur.strftime('%d.%m.'),
+                    'count': day_b['count'],
+                    **metrics,
+                })
+            else:
+                chart_daily.append({
+                    'date': cur.strftime('%Y-%m-%d'),
+                    'label': cur.strftime('%d.%m.'),
+                    'count': 0,
+                    'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
+                    'nach_per_call': 0, 'calls': 0,
+                })
+            cur += timedelta(days=1)
+    else:
+        for period in chart_periods or []:
+            period_totals = _sum_buckets(_period_buckets(period))
+            acc = _sum_buckets([acc, period_totals])
+            metrics = _row_metrics_from_totals(acc, cumulative=True)
+            chart_daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': period_totals['count'],
+                **metrics,
+            })
+
+    daily = []
+    for period in table_periods or []:
+        totals = _sum_buckets(_period_buckets(period))
+        if totals['count']:
+            daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': totals['count'],
+                **_row_metrics_from_totals(totals),
+            })
+        elif table_granularity == 'day':
+            daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': 0,
+                'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
+                'nach_per_call': 0, 'calls': 0,
+            })
+        else:
+            daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': 0,
+                'sign_on_pct': None, 'prod_pct': None, 'nach_pct': None, 'idle_pct': None,
+                'nach_per_call': None, 'calls': None,
+            })
+    return chart_daily, daily
