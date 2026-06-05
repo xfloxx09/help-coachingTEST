@@ -589,13 +589,14 @@ def quick_coaching_suggestions(limit=6, max_without_coaching=30):
     # KPI quotes per member (grouped by project via team)
     from app import kpi as kpi_logic
     kpi_by_member = {}
-    by_project = {}
-    for m in members:
-        if m.team and m.team.project_id:
-            by_project.setdefault(m.team.project_id, []).append(m.id)
-    for pid, mids in by_project.items():
-        for mid, kpi in kpi_logic.members_kpi_quotes(pid, mids).items():
-            kpi_by_member[mid] = kpi
+    if kpi_logic.kpi_features_enabled():
+        by_project = {}
+        for m in members:
+            if m.team and m.team.project_id:
+                by_project.setdefault(m.team.project_id, []).append(m.id)
+        for pid, mids in by_project.items():
+            for mid, kpi in kpi_logic.members_kpi_quotes(pid, mids).items():
+                kpi_by_member[mid] = kpi
 
     out = []
     plan_day = (today_athens_date() + timedelta(days=1)).isoformat()
@@ -619,17 +620,18 @@ def quick_coaching_suggestions(limit=6, max_without_coaching=30):
         info_q = kpi.get('info_quote')
         nps_v = kpi.get('nps')
         kpi_reason = None
-        if loes_q is not None and loes_q < 70:
-            score_need += (70.0 - loes_q) * 1.2
-            kpi_reason = 'Niedrige Lösungsquote'
-        if info_q is not None and info_q < 70:
-            score_need += (70.0 - info_q) * 0.9
-            if not kpi_reason:
-                kpi_reason = 'Niedrige Informationsquote'
-        if nps_v is not None and nps_v < 30:
-            score_need += (30.0 - nps_v) * 0.7
-            if not kpi_reason:
-                kpi_reason = 'Niedriger NPS'
+        if kpi_logic.kpi_features_enabled():
+            if loes_q is not None and loes_q < 70:
+                score_need += (70.0 - loes_q) * 1.2
+                kpi_reason = 'Niedrige Lösungsquote'
+            if info_q is not None and info_q < 70:
+                score_need += (70.0 - info_q) * 0.9
+                if not kpi_reason:
+                    kpi_reason = 'Niedrige Informationsquote'
+            if nps_v is not None and nps_v < 30:
+                score_need += (30.0 - nps_v) * 0.7
+                if not kpi_reason:
+                    kpi_reason = 'Niedriger NPS'
 
         if cnt == 0:
             reason = 'Noch kein Coaching'

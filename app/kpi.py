@@ -416,3 +416,15 @@ def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
         'surveys_total': 0,
     }
     return {mid: _agg(buckets[mid]) if mid in buckets else dict(empty) for mid in member_ids}
+
+
+def kpi_features_enabled():
+    """Platform-wide switch: survey KPI features in user-facing UI."""
+    try:
+        from app.models import PlatformSettings
+        row = PlatformSettings.query.get(1)
+        if row is None:
+            return True
+        return bool(row.kpi_features_enabled)
+    except Exception:
+        return True

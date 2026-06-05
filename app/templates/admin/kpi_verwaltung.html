@@ -3,6 +3,38 @@
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-3"><i class="fas fa-sliders-h text-info"></i> KPI Verwaltung</h1>
+
+    <div class="card mb-4 border-{% if kpi_features_enabled %}success{% else %}secondary{% endif %}">
+        <div class="card-header d-flex justify-content-between align-items-center {% if kpi_features_enabled %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+            <h2 class="mb-0 h5"><i class="fas fa-power-off mr-2"></i>KPI-Funktionen Plattform-weit</h2>
+            <span class="badge badge-light text-dark">
+                {% if kpi_features_enabled %}EIN{% else %}AUS{% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                Steuert, ob Befragungs-KPIs (NPS, Lösungs-/Informationsquote, Fachkompetenz, Vertrieb) in der
+                Anwendung sichtbar sind — z.&nbsp;B. Performance-Übersicht, Team-View, Coaching-Berichte und
+                Demo-Dashboards. Import, Konfiguration und Berechnung bleiben hier im Admin immer verfügbar.
+            </p>
+            <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}" class="form-inline">
+                {% if sel_project %}
+                <input type="hidden" name="project_id" value="{{ sel_project }}">
+                {% endif %}
+                <div class="custom-control custom-switch mr-3">
+                    <input type="checkbox" class="custom-control-input" id="kpi_features_enabled"
+                           name="kpi_features_enabled" value="1" {% if kpi_features_enabled %}checked{% endif %}>
+                    <label class="custom-control-label" for="kpi_features_enabled">
+                        KPI-Funktionen für alle Nutzer {% if kpi_features_enabled %}aktiv{% else %}inaktiv{% endif %}
+                    </label>
+                </div>
+                <button type="submit" name="action" value="save_global" class="btn telekom-button btn-sm">
+                    <i class="fas fa-save mr-1"></i>Speichern
+                </button>
+            </form>
+        </div>
+    </div>
+
     <p class="text-muted">
         Pro Projekt legen Sie fest, welche KPIs sichtbar sind, welche Survey-Typen zählen, und aus welcher
         Frage (je Survey-Typ) <strong>NPS</strong> sowie <strong>Lösungs-/Informationsquote</strong> berechnet

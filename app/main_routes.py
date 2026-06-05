@@ -590,9 +590,11 @@ def _member_performance_for_assigned_page(project_id, kpi_period='this_month', k
             'last_coaching_date': r['last_coaching_date'],
             'active_assignment_count': active_counts.get(m.id, 0),
         })
-    kpi_map = _members_kpi_map(
-        project_id, member_ids, kpi_period=kpi_period, kpi_from=kpi_from, kpi_to=kpi_to,
-    )
+    kpi_map = {}
+    if kpi_logic.kpi_features_enabled():
+        kpi_map = _members_kpi_map(
+            project_id, member_ids, kpi_period=kpi_period, kpi_from=kpi_from, kpi_to=kpi_to,
+        )
     for row in out:
         k = kpi_map.get(row['id'], {})
         row['nps'] = k.get('nps')
@@ -1139,7 +1141,9 @@ def _build_team_members_performance(team):
     project_id = team.project_id
     members = TeamMember.query.filter_by(team_id=team.id).order_by(TeamMember.name).all()
     member_ids = [m.id for m in members]
-    kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
+    kpi_map = {}
+    if kpi_logic.kpi_features_enabled():
+        kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
     team_members_performance = []
     for member in members:
         m_stats = db.session.query(
@@ -4013,7 +4017,9 @@ def get_member_coaching_trend():
             coaching_iso.append('')
 
     project_id = tm_row.team.project_id if tm_row.team else None
-    kpi_daily = _member_kpi_daily_series(project_id, team_member_id, days=90) if project_id else []
+    kpi_daily = []
+    if project_id and kpi_logic.kpi_features_enabled():
+        kpi_daily = _member_kpi_daily_series(project_id, team_member_id, days=90)
     card_settings = _team_view_card_settings(project_id) if project_id else kpi_logic.DEFAULT_TEAM_VIEW_CARD
 
     return jsonify({
@@ -4707,9 +4713,36 @@ def assigned_coaching_report(assignment_id):
     end_nps = assignment.end_nps
     end_loes = assignment.end_loesung_quote
     end_info = assignment.end_info_quote
+    end_nps_count = assignment.end_nps_count
+    end_loes_count = assignment.end_loesung_count
+    end_info_count = assignment.end_info_count
     if assignment.status == 'completed' and end_nps is None and end_loes is None and end_info is None:
         live = _member_kpi_snapshot(project_id, assignment.team_member_id)
         end_nps, end_loes, end_info = live['nps'], live['loes_quote'], live['info_quote']
+        end_nps_count = live['nps_count']
+        end_loes_count = live['loes_count']
+        end_info_count = live['info_count']
+
+    start_nps_count = assignment.start_nps_count_at_assign
+    start_loes_count = assignment.start_loesung_count_at_assign
+    start_info_count = assignment.start_info_count_at_assign
+    if (
+        start_nps_count is None
+        and (assignment.start_nps_at_assign is not None
+             or assignment.start_loesung_quote_at_assign is not None
+             or assignment.start_info_quote_at_assign is not None)
+    ):
+        live_start = _member_kpi_snapshot(project_id, assignment.team_member_id)
+        start_nps_count = live_start['nps_count']
+        start_loes_count = live_start['loes_count']
+        start_info_count = live_start['info_count']
+    if assignment.status == 'completed' and end_nps_count is None and (
+        end_nps is not None or end_loes is not None or end_info is not None
+    ):
+        live_end = _member_kpi_snapshot(project_id, assignment.team_member_id)
+        end_nps_count = live_end['nps_count']
+        end_loes_count = live_end['loes_count']
+        end_info_count = live_end['info_count']
 
     report = {
         'assignment': assignment,
@@ -4722,9 +4755,15 @@ def assigned_coaching_report(assignment_id):
         'start_nps': assignment.start_nps_at_assign,
         'start_loesung': assignment.start_loesung_quote_at_assign,
         'start_info': assignment.start_info_quote_at_assign,
+        'start_nps_count': start_nps_count if start_nps_count is not None else 0,
+        'start_loes_count': start_loes_count if start_loes_count is not None else 0,
+        'start_info_count': start_info_count if start_info_count is not None else 0,
         'end_nps': end_nps,
         'end_loesung': end_loes,
         'end_info': end_info,
+        'end_nps_count': end_nps_count if end_nps_count is not None else 0,
+        'end_loes_count': end_loes_count if end_loes_count is not None else 0,
+        'end_info_count': end_info_count if end_info_count is not None else 0,
         'status': assignment.status,
     }
     return render_template(
@@ -4920,22 +4959,40 @@ def _members_kpi_map(project_id, member_ids, kpi_period='this_month', kpi_from=N
 
 def _member_kpi_snapshot(project_id, member_id):
     """Single-member KPI dict for assignment snapshots."""
+    empty = {
+        'nps': None, 'loes_quote': None, 'info_quote': None,
+        'nps_count': 0, 'loes_count': 0, 'info_count': 0,
+    }
     if not project_id or not member_id:
-        return {'nps': None, 'loes_quote': None, 'info_quote': None}
+        return empty
     m = _members_kpi_map(project_id, [member_id], kpi_period='all').get(member_id)
     if not m:
-        return {'nps': None, 'loes_quote': None, 'info_quote': None}
-    return {'nps': m.get('nps'), 'loes_quote': m.get('loes_quote'), 'info_quote': m.get('info_quote')}
+        return empty
+    return {
+        'nps': m.get('nps'),
+        'loes_quote': m.get('loes_quote'),
+        'info_quote': m.get('info_quote'),
+        'nps_count': m.get('nps_count') or 0,
+        'loes_count': m.get('loes_count') or 0,
+        'info_count': m.get('info_count') or 0,
+    }
 
 
 def _snapshot_assignment_start_kpis(assignment, project_id):
+    if not kpi_logic.kpi_features_enabled():
+        return
     snap = _member_kpi_snapshot(project_id, assignment.team_member_id)
     assignment.start_nps_at_assign = snap['nps']
     assignment.start_loesung_quote_at_assign = snap['loes_quote']
     assignment.start_info_quote_at_assign = snap['info_quote']
+    assignment.start_nps_count_at_assign = snap['nps_count']
+    assignment.start_loesung_count_at_assign = snap['loes_count']
+    assignment.start_info_count_at_assign = snap['info_count']
 
 
 def _snapshot_assignment_end_kpis(assignment):
+    if not kpi_logic.kpi_features_enabled():
+        return
     tm = assignment.team_member
     if not tm or not tm.team:
         return
@@ -4943,6 +5000,9 @@ def _snapshot_assignment_end_kpis(assignment):
     assignment.end_nps = snap['nps']
     assignment.end_loesung_quote = snap['loes_quote']
     assignment.end_info_quote = snap['info_quote']
+    assignment.end_nps_count = snap['nps_count']
+    assignment.end_loesung_count = snap['loes_count']
+    assignment.end_info_count = snap['info_count']
 
 
 def _team_view_card_settings(project_id):
@@ -5096,6 +5156,9 @@ def _kpi_aggregate(rows):
 @login_required
 @permission_required('view_kpi_dashboard')
 def kpi_dashboard():
+    if not kpi_logic.kpi_features_enabled():
+        flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
+        return redirect(url_for('main.index'))
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     base_filters = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
 
@@ -5413,6 +5476,9 @@ def _impact_before_after(events, surveys_by_member, window):
 @login_required
 @permission_required('view_coaching_impact')
 def coaching_impact():
+    if not kpi_logic.kpi_features_enabled():
+        flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
+        return redirect(url_for('main.index'))
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     kpi_base = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
     coaching_base = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
@@ -5646,6 +5712,8 @@ def coaching_impact():
 @permission_required('view_coaching_impact')
 def coaching_impact_day():
     """Coachings on a single day within the current scope (modal for the yellow badge)."""
+    if not kpi_logic.kpi_features_enabled():
+        return jsonify({'coachings': []})
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     filters = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
 

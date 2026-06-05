@@ -318,7 +318,7 @@
 
                             <div class="row member-kpi-grid">
                             {% if card_settings.show_performance %}
-                            <div class="col-6">
+                            <div class="{% if kpi_features_enabled %}col-6{% else %}col-12{% endif %}">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Bewertung vom Coach</div>
                                 {% if member_stat.total_coachings > 0 %}
@@ -333,7 +333,7 @@
                             </div>
                             {% endif %}
 
-                            {% if card_settings.show_nps %}
+                            {% if kpi_features_enabled and card_settings.show_nps %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">NPS</div>
@@ -350,7 +350,7 @@
                             </div>
                             {% endif %}
 
-                            {% if card_settings.show_loesung %}
+                            {% if kpi_features_enabled and card_settings.show_loesung %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Lösungsquote</div>
@@ -367,7 +367,7 @@
                             </div>
                             {% endif %}
 
-                            {% if card_settings.show_info %}
+                            {% if kpi_features_enabled and card_settings.show_info %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Informationsquote</div>
@@ -384,7 +384,7 @@
                             </div>
                             {% endif %}
 
-                            {% if card_settings.show_fachkompetenz %}
+                            {% if kpi_features_enabled and card_settings.show_fachkompetenz %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Fachkompetenz</div>
@@ -411,7 +411,7 @@
                             </div>
                             {% endif %}
 
-                            {% if card_settings.show_vertrieb %}
+                            {% if kpi_features_enabled and card_settings.show_vertrieb %}
                             <div class="col-6">
                             <div class="stat-group text-center">
                                 <div class="stat-label">Vertriebl. Ansprache</div>
@@ -512,6 +512,7 @@
                 <input class="form-check-input trend-metric-toggle" type="checkbox" id="togglePerf" value="perf" checked>
                 <label class="form-check-label text-light small" for="togglePerf">Bewertung vom Coach</label>
             </div>
+            {% if kpi_features_enabled %}
             <div class="col-auto form-check form-check-inline">
                 <input class="form-check-input trend-metric-toggle" type="checkbox" id="toggleNps" value="nps" checked>
                 <label class="form-check-label text-light small" for="toggleNps">NPS</label>
@@ -524,6 +525,7 @@
                 <input class="form-check-input trend-metric-toggle" type="checkbox" id="toggleInfo" value="info" checked>
                 <label class="form-check-label text-light small" for="toggleInfo">Informationsquote</label>
             </div>
+            {% endif %}
         </div>
         <div style="position: relative; height:40vh; min-height: 300px;">
             <canvas id="coachingTrendChart"></canvas>

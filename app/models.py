@@ -414,9 +414,15 @@ class AssignedCoaching(db.Model):
     start_nps_at_assign = db.Column(db.Float, nullable=True)
     start_loesung_quote_at_assign = db.Column(db.Float, nullable=True)
     start_info_quote_at_assign = db.Column(db.Float, nullable=True)
+    start_nps_count_at_assign = db.Column(db.Integer, nullable=True)
+    start_loesung_count_at_assign = db.Column(db.Integer, nullable=True)
+    start_info_count_at_assign = db.Column(db.Integer, nullable=True)
     end_nps = db.Column(db.Float, nullable=True)
     end_loesung_quote = db.Column(db.Float, nullable=True)
     end_info_quote = db.Column(db.Float, nullable=True)
+    end_nps_count = db.Column(db.Integer, nullable=True)
+    end_loesung_count = db.Column(db.Integer, nullable=True)
+    end_info_count = db.Column(db.Integer, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
     # Von Coach bei Ablehnung (pending → rejected); sichtbar für Zuweiser / Übersichten
     rejection_reason = db.Column(db.Text)
@@ -585,3 +591,10 @@ class TeamViewCardSettings(db.Model):
     warn_performance = db.Column(db.Float, nullable=False, default=50.0)
     warn_fachkompetenz = db.Column(db.Float, nullable=False, default=3.0)
     warn_vertrieb = db.Column(db.Float, nullable=False, default=60.0)
+
+
+class PlatformSettings(db.Model):
+    """Singleton platform-wide toggles (always use id=1)."""
+    __tablename__ = 'platform_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    kpi_features_enabled = db.Column(db.Boolean, nullable=False, default=True)

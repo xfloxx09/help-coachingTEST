@@ -4180,6 +4180,18 @@ def kpi_verwaltung():
     if request.method == 'POST':
         action = request.form.get('action')
         sel_project = _form_int('project_id')
+        if action == 'save_global':
+            from app.models import PlatformSettings
+            row = PlatformSettings.query.get(1)
+            if row is None:
+                row = PlatformSettings(id=1)
+                db.session.add(row)
+            row.kpi_features_enabled = bool(request.form.get('kpi_features_enabled'))
+            db.session.commit()
+            state = 'aktiviert' if row.kpi_features_enabled else 'deaktiviert'
+            flash(f'KPI-Funktionen in der Plattform wurden {state}.', 'success')
+            return redirect(url_for('admin.kpi_verwaltung', project_id=sel_project) if sel_project
+                            else url_for('admin.kpi_verwaltung'))
         if action == 'recompute':
             updated = _kpi_recompute_flags(sel_project)
             flash(f'KPIs neu berechnet: {updated} Befragungen aktualisiert.', 'success')
@@ -4295,6 +4307,7 @@ def kpi_verwaltung():
                 'vertrieb': setting.show_vertrieb,
             }
 
+    from app.kpi import kpi_features_enabled
     return render_template(
         'admin/kpi_verwaltung.html',
         projects=projects,
@@ -4302,6 +4315,7 @@ def kpi_verwaltung():
         project_name=project_name,
         survey_types=survey_types,
         visibility=visibility,
+        kpi_features_enabled=kpi_features_enabled(),
         config=current_app.config,
     )
 

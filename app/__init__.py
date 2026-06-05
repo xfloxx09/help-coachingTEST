@@ -685,6 +685,18 @@ def create_app(config_class=Config):
                     except Exception as e:
                         conn.rollback()
                         print(f"ℹ️ assigned_coachings.{col}: {e}")
+            for col in (
+                'start_nps_count_at_assign', 'start_loesung_count_at_assign', 'start_info_count_at_assign',
+                'end_nps_count', 'end_loesung_count', 'end_info_count',
+            ):
+                if col not in ac_cols:
+                    try:
+                        conn.execute(text(f'ALTER TABLE assigned_coachings ADD COLUMN {col} INTEGER'))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'assigned_coachings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ assigned_coachings.{col}: {e}")
 
         if 'team_view_card_settings' not in inspector.get_table_names():
             try:
@@ -772,6 +784,23 @@ def create_app(config_class=Config):
                         conn.rollback()
                         print(f"ℹ️ team_view_card_settings.{col}: {e}")
 
+        # 20. Platform-wide KPI toggle
+        if 'platform_settings' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE platform_settings ('
+                    'id INTEGER PRIMARY KEY, '
+                    'kpi_features_enabled BOOLEAN NOT NULL DEFAULT TRUE)'
+                ))
+                conn.execute(text(
+                    'INSERT INTO platform_settings (id, kpi_features_enabled) VALUES (1, TRUE)'
+                ))
+                conn.commit()
+                print("✅ Tabelle 'platform_settings' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ platform_settings: {e}")
+
         print("--- Migration abgeschlossen ---")
 
     # --- Blueprint registration ---
@@ -833,6 +862,11 @@ def create_app(config_class=Config):
                 return current_user.has_permission(permission_name)
             return False
         return {'has_perm': has_perm}
+
+    @app.context_processor
+    def inject_kpi_features_enabled():
+        from app.kpi import kpi_features_enabled
+        return {'kpi_features_enabled': kpi_features_enabled()}
 
     @app.context_processor
     def inject_mein_team_nav():

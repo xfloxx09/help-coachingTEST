@@ -185,7 +185,7 @@
             <hr class="qc-divider">
             {% endif %}
             <div class="qc-section-title"><i class="fas fa-lightbulb mr-1"></i>Vorschläge</div>
-            <p class="qc-help">Priorisiert nach schlechten KPI-Werten, niedriger Performance und wenig Coaching-Zeit.</p>
+            <p class="qc-help">{% if kpi_features_enabled %}Priorisiert nach schlechten KPI-Werten, niedriger Performance und wenig Coaching-Zeit.{% else %}Priorisiert nach niedriger Performance und wenig Coaching-Zeit.{% endif %}</p>
             {% set qc_primary = quick_coaching_suggestions.primary or [] %}
             {% set qc_without = quick_coaching_suggestions.without_coaching or [] %}
             {% if qc_primary or qc_without %}
@@ -199,7 +199,7 @@
                         Team: {{ s.team_name }}<br>
                         Coachings: {{ s.coaching_count }} · Zeit: {{ s.total_time }} Min ·
                         Score: {% if s.avg_score is not none %}{{ s.avg_score }}%{% else %}k.A.{% endif %}
-                        {% if s.nps is not none or s.loesung_quote is not none or s.info_quote is not none %}
+                        {% if kpi_features_enabled and (s.nps is not none or s.loesung_quote is not none or s.info_quote is not none) %}
                         <br>KPI: {% if s.nps is not none %}NPS {{ s.nps|de_decimal }}{% endif %}
                         {% if s.loesung_quote is not none %} · Lös. {{ s.loesung_quote|de_decimal }}%{% endif %}
                         {% if s.info_quote is not none %} · Info {{ s.info_quote|de_decimal }}%{% endif %}
@@ -259,10 +259,10 @@
                     {% if has_perm('view_pl_qm_dashboard') %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.pl_qm_dashboard') }}">Teams</a></li>
                     {% endif %}
-                    {% if has_perm('view_kpi_dashboard') %}
+                    {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.kpi_dashboard') }}">KPIs <span class="badge badge-info">Demo</span></a></li>
                     {% endif %}
-                    {% if has_perm('view_coaching_impact') %}
+                    {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a></li>
                     {% endif %}
                     {% if current_user.role_name in ['Admin', 'Betriebsleiter'] %}

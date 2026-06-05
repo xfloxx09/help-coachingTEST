@@ -153,7 +153,7 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row {% if index_tile_count == 1 %}justify-content-center{% endif %}">
-        {% if has_perm('view_kpi_dashboard') %}
+        {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
         <div class="col-md-4 mb-3">
             <a href="{{ url_for('main.kpi_dashboard') }}" class="btn btn-lg btn-block p-4 index-choice-tile" style="--tile-accent:#36c6a0;">
                 <i class="fas fa-chart-line fa-3x mb-2"></i>
@@ -162,7 +162,7 @@
             </a>
         </div>
         {% endif %}
-        {% if has_perm('view_coaching_impact') %}
+        {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
         <div class="col-md-4 mb-3">
             <a href="{{ url_for('main.coaching_impact') }}" class="btn btn-lg btn-block p-4 index-choice-tile" style="--tile-accent:#ffb648;">
                 <i class="fas fa-bolt fa-3x mb-2"></i>
@@ -259,10 +259,10 @@
         <button id="indexHelpClose" class="index-help-close" type="button" aria-label="Schließen">×</button>
     </div>
     <ul class="index-help-list">
-        {% if has_perm('view_kpi_dashboard') %}
+        {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
         <li class="index-help-item"><strong>KPIs (Demo)</strong> Informationsquote, Lösungsquote und NPS aus den SMS-Befragungsrohdaten – nach Projekt, Team oder Agent.</li>
         {% endif %}
-        {% if has_perm('view_coaching_impact') %}
+        {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
         <li class="index-help-item"><strong>Coaching VS KPI</strong> Zeitverlauf von Coachings und KPIs sowie KPI-Wirkung vor/nach Coachings – nach Projekt, Team oder Agent.</li>
         {% endif %}
         {% if has_perm('view_coaching_dashboard') %}
