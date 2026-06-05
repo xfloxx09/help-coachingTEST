@@ -147,7 +147,7 @@ def create_app(config_class=Config):
                 'Geplante Coachings/Workshops anderer Coaches im Projektbereich einsehen (nur Ansicht)',
             ),
             ('terminkalender', 'Terminkalender anzeigen (Kalender mit Terminen und Coachings im Sichtbereich)'),
-            ('view_kpi_dashboard', 'KPIs (Demo): Informationsquote, Lösungsquote und NPS im eigenen Sichtbereich ansehen'),
+            ('view_kpi_dashboard', 'KPIs (Demo): Qualität und Produktivität im eigenen Sichtbereich ansehen'),
             ('view_coaching_impact', 'Coaching VS KPI: Wirkung von Coachings auf die realen KPIs im eigenen Sichtbereich ansehen'),
         ]
         for name, desc in default_permissions:
@@ -832,6 +832,22 @@ def create_app(config_class=Config):
             except Exception as e:
                 conn.rollback()
                 print(f"ℹ️ platform_settings: {e}")
+
+        # 21. KPI categories seed
+        if 'kpi_categories' in inspector.get_table_names():
+            try:
+                cnt = conn.execute(text('SELECT COUNT(*) FROM kpi_categories')).scalar()
+                if not cnt:
+                    conn.execute(text(
+                        "INSERT INTO kpi_categories (key, label, sort_order, is_system) VALUES "
+                        "('qualitaet', 'Qualität', 1, true), "
+                        "('produktivitaet', 'Produktivität', 2, true)"
+                    ))
+                    conn.commit()
+                    print("✅ KPI-Kategorien (Qualität, Produktivität) angelegt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ kpi_categories seed: {e}")
 
         print("--- Migration abgeschlossen ---")
 

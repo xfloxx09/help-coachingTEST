@@ -153,22 +153,19 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row {% if index_tile_count == 1 %}justify-content-center{% endif %}">
-        {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
+        {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
         <div class="col-md-4 mb-3">
-            <a href="{{ url_for('main.kpi_dashboard') }}" class="btn btn-lg btn-block p-4 index-choice-tile" style="--tile-accent:#36c6a0;">
+            <div class="btn btn-lg btn-block p-4 index-choice-tile text-left" style="--tile-accent:#36c6a0; cursor:default;">
                 <i class="fas fa-chart-line fa-3x mb-2"></i>
-                <h4 class="mb-0">KPIs <span class="badge badge-info">Demo</span></h4>
-                <p>Informationsquote, Lösungsquote, NPS</p>
-            </a>
-        </div>
-        {% endif %}
-        {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
-        <div class="col-md-4 mb-3">
-            <a href="{{ url_for('main.coaching_impact') }}" class="btn btn-lg btn-block p-4 index-choice-tile" style="--tile-accent:#ffb648;">
-                <i class="fas fa-bolt fa-3x mb-2"></i>
-                <h4 class="mb-0">Coaching VS KPI <span class="badge badge-info">Demo</span></h4>
-                <p>Wirkung der Coachings auf die echten KPIs</p>
-            </a>
+                <h4 class="mb-2">KPIs <span class="badge badge-info">Demo</span></h4>
+                {% if has_perm('view_kpi_dashboard') %}
+                <a href="{{ url_for('main.kpi_dashboard_qualitaet') }}" class="btn btn-sm btn-outline-light btn-block mb-1">KPIs Qualität</a>
+                <a href="{{ url_for('main.kpi_dashboard_produktivitaet') }}" class="btn btn-sm btn-outline-light btn-block mb-1">KPIs Produktivität</a>
+                {% endif %}
+                {% if has_perm('view_coaching_impact') %}
+                <a href="{{ url_for('main.coaching_impact') }}" class="btn btn-sm btn-outline-light btn-block">Coaching VS KPI</a>
+                {% endif %}
+            </div>
         </div>
         {% endif %}
         {% if has_perm('view_coaching_dashboard') %}
@@ -259,11 +256,12 @@
         <button id="indexHelpClose" class="index-help-close" type="button" aria-label="Schließen">×</button>
     </div>
     <ul class="index-help-list">
-        {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
-        <li class="index-help-item"><strong>KPIs (Demo)</strong> Informationsquote, Lösungsquote und NPS aus den SMS-Befragungsrohdaten – nach Projekt, Team oder Agent.</li>
+        {% if kpi_features_enabled and has_perm('view_kpi_dashboard') %}
+        <li class="index-help-item"><strong>KPIs Qualität</strong> Befragungs-KPIs (NPS, Informations-/Lösungsquote, …) nach Projekt, Team oder Agent.</li>
+        <li class="index-help-item"><strong>KPIs Produktivität</strong> ODVS-Intervalle: Sign-On, Produktivität, Nacharbeit, Idle.</li>
         {% endif %}
-        {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
-        <li class="index-help-item"><strong>Coaching VS KPI</strong> Zeitverlauf von Coachings und KPIs sowie KPI-Wirkung vor/nach Coachings – nach Projekt, Team oder Agent.</li>
+        {% if kpi_features_enabled and has_perm('view_coaching_impact') %}
+        <li class="index-help-item"><strong>Coaching VS KPI</strong> Coachings im Vergleich zu Qualitäts- und Produktivitäts-KPIs.</li>
         {% endif %}
         {% if has_perm('view_coaching_dashboard') %}
         <li class="index-help-item"><strong>Coachings</strong> Übersicht aller Einzelcoachings mit Filtern, Suche und Detailansicht.</li>

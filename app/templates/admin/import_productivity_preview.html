@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3">Produktivitäts-Import — Vorschau</h1>
+    <p class="text-muted">Datei: <strong>{{ filename }}</strong></p>
+
+    <div class="row mb-4">
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.rows_total }}</div><small class="text-muted">CSV-Zeilen</small></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.intervals }}</div><small class="text-muted">Intervalle</small></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.matched_member }}</div><small class="text-muted">mit Agent</small></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.unmatched_member }}</div><small class="text-muted">ohne Agent</small></div></div></div>
+    </div>
+
+    <p>Zeitraum: <strong>{{ preview.date_from }}</strong> bis <strong>{{ preview.date_to }}</strong></p>
+    <p class="text-muted small">{{ preview.headers_count }} Spalten erkannt.</p>
+
+    <form method="POST" action="{{ url_for('admin.import_productivity_csv') }}">
+        <input type="hidden" name="action" value="confirm">
+        <div class="custom-control custom-checkbox mb-3">
+            <input type="checkbox" class="custom-control-input" id="confirm_overwrite" name="confirm_overwrite" value="1">
+            <label class="custom-control-label" for="confirm_overwrite">Vorhandene Intervalle im Zeitraum ersetzen</label>
+        </div>
+        <button type="submit" class="btn telekom-button mr-2"><i class="fas fa-check mr-1"></i> Import starten</button>
+        <a href="{{ url_for('admin.import_productivity_csv') }}" class="btn btn-secondary">Abbrechen</a>
+    </form>
+</div>
+{% endblock %}

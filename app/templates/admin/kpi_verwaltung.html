@@ -61,6 +61,33 @@
         </div>
     </div>
 
+    <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}" class="card mb-4">
+        {% if sel_project %}<input type="hidden" name="project_id" value="{{ sel_project }}">{% endif %}
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h2 class="mb-0 h5">KPI-Kategorien</h2>
+            <button type="submit" name="action" value="save_categories" class="btn btn-light btn-sm">
+                <i class="fas fa-save mr-1"></i>Kategorien speichern
+            </button>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">Bezeichnung und Reihenfolge der KPI-Kategorien in Navigation und Überschriften.</p>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Schlüssel</th><th>Bezeichnung</th><th style="width:100px;">Reihenfolge</th></tr></thead>
+                    <tbody>
+                    {% for cat in categories %}
+                    <tr>
+                        <td class="align-middle"><code>{{ cat.key }}</code>{% if cat.is_system %} <span class="badge badge-secondary">System</span>{% endif %}</td>
+                        <td><input type="text" class="form-control form-control-sm" name="cat_label_{{ cat.id }}" value="{{ cat.label }}"></td>
+                        <td><input type="number" class="form-control form-control-sm" name="cat_sort_{{ cat.id }}" value="{{ cat.sort_order }}"></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+
     {% if sel_project %}
     <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}">
         <input type="hidden" name="project_id" value="{{ sel_project }}">
@@ -72,8 +99,9 @@
                 </button>
             </div>
             <div class="card-body">
+                <h4 class="text-success mb-3"><i class="fas fa-star mr-1"></i> Qualität</h4>
                 <div class="form-group mb-4">
-                    <label class="form-control-label d-block mb-1"><strong>KPI-Dashboard (/kpis)</strong></label>
+                    <label class="form-control-label d-block mb-1"><strong>KPI-Dashboard (/kpis/qualitaet)</strong></label>
                     <p class="text-muted small mb-2">
                         Welche KPIs in Übersichtskarten, Verlaufs-Graph und Tagesübersicht des KPI-Dashboards erscheinen.
                     </p>
@@ -242,10 +270,118 @@
                 </button>
                 {% else %}
                 <p class="text-muted mb-3">Für dieses Projekt liegen noch keine KPI-Befragungen vor.</p>
-                <button type="submit" name="action" value="save" class="btn telekom-button">
-                    <i class="fas fa-save mr-1"></i>Sichtbare KPIs speichern
-                </button>
                 {% endif %}
+
+                <hr class="my-4">
+                <h4 class="text-info mb-3"><i class="fas fa-tachometer-alt mr-1"></i> Produktivität</h4>
+                <div class="form-row mb-3">
+                    <div class="col-md-3 form-group">
+                        <label>Intervall (Sek.)</label>
+                        <input type="number" class="form-control form-control-sm" name="prod_interval_sec" value="{{ prod_settings.interval_sec }}">
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label>Pause-Spalte</label>
+                        <input type="text" class="form-control form-control-sm" name="prod_pause_col" value="{{ prod_settings.pause_col }}">
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label>Calls-Spalte</label>
+                        <input type="text" class="form-control form-control-sm" name="prod_calls_col" value="{{ prod_settings.calls_col }}">
+                    </div>
+                </div>
+                {% macro col_checks(name, selected) %}
+                <div class="border rounded p-2 mb-2" style="max-height:140px;overflow-y:auto;">
+                    {% for h in known_headers %}
+                    <div class="custom-control custom-checkbox custom-control-inline">
+                        <input type="checkbox" class="custom-control-input" id="{{ name }}_{{ loop.index }}" name="{{ name }}" value="{{ h }}"
+                               {% if h in selected %}checked{% endif %}>
+                        <label class="custom-control-label small" for="{{ name }}_{{ loop.index }}">{{ h }}</label>
+                    </div>
+                    {% else %}
+                    <span class="text-muted small">Spaltenliste nach Produktivitäts-Import verfügbar — oder Standardwerte unten.</span>
+                    {% endfor %}
+                </div>
+                {% endmacro %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="d-block"><strong>Sign-On Spalten</strong></label>
+                        {{ col_checks('prod_sign_on_cols', prod_settings.sign_on_cols) }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block"><strong>Produktivität Spalten</strong></label>
+                        {{ col_checks('prod_prod_cols', prod_settings.prod_cols) }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block"><strong>Nacharbeit Spalten</strong></label>
+                        {{ col_checks('prod_nach_cols', prod_settings.nach_cols) }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block"><strong>Idle Spalten</strong></label>
+                        {{ col_checks('prod_idle_cols', prod_settings.idle_cols) }}
+                    </div>
+                </div>
+                <div class="form-group mb-4">
+                    <label class="d-block mb-1"><strong>Dashboard (/kpis/produktivitaet)</strong></label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_sign_on" value="1" {% if prod_dashboard_visibility.sign_on %}checked{% endif %}>
+                        <label class="form-check-label">Sign-On</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_prod" value="1" {% if prod_dashboard_visibility.prod %}checked{% endif %}>
+                        <label class="form-check-label">Produktivität</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_nach" value="1" {% if prod_dashboard_visibility.nach %}checked{% endif %}>
+                        <label class="form-check-label">Nacharbeit</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_idle" value="1" {% if prod_dashboard_visibility.idle %}checked{% endif %}>
+                        <label class="form-check-label">Idle</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_calls" value="1" {% if prod_dashboard_visibility.calls %}checked{% endif %}>
+                        <label class="form-check-label">Calls</label>
+                    </div>
+                </div>
+                <div class="form-group mb-4">
+                    <label class="d-block mb-1"><strong>Coaching VS KPI (Produktivität)</strong></label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="impact_show_sign_on" value="1" {% if prod_impact_visibility.sign_on %}checked{% endif %}>
+                        <label class="form-check-label">Sign-On</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="impact_show_prod" value="1" {% if prod_impact_visibility.prod %}checked{% endif %}>
+                        <label class="form-check-label">Produktivität</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="impact_show_nach" value="1" {% if prod_impact_visibility.nach %}checked{% endif %}>
+                        <label class="form-check-label">Nacharbeit</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="impact_show_idle" value="1" {% if prod_impact_visibility.idle %}checked{% endif %}>
+                        <label class="form-check-label">Idle</label>
+                    </div>
+                </div>
+                <div class="form-row mb-4">
+                    <div class="col-md-3 form-group">
+                        <label>Ziel Sign-On (%)</label>
+                        <input type="number" step="0.1" class="form-control form-control-sm" name="target_sign_on" value="{{ prod_settings.target_sign_on }}">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label>Ziel Produktivität (%)</label>
+                        <input type="number" step="0.1" class="form-control form-control-sm" name="target_prod" value="{{ prod_settings.target_prod }}">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label>Ziel Nacharbeit (s/Call)</label>
+                        <input type="number" step="0.1" class="form-control form-control-sm" name="target_nach_per_call" value="{{ prod_settings.target_nach_per_call }}">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label>Ziel Idle max (%)</label>
+                        <input type="number" step="0.1" class="form-control form-control-sm" name="target_idle_max" value="{{ prod_settings.target_idle_max }}">
+                    </div>
+                </div>
+                <button type="submit" name="action" value="save" class="btn telekom-button">
+                    <i class="fas fa-save mr-1"></i>Alle KPI-Einstellungen speichern
+                </button>
             </div>
         </div>
     </form>

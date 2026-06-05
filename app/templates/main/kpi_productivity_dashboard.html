@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<style>
+    .kpi-toolbar { background: #1f1f24; border: 1px solid #34343c; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .kpi-mode-group .btn { border-color: #4a4a55; color: #d6d6dd; background: #2a2a31; }
+    .kpi-mode-group .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-card { border: 1px solid #34343c; border-radius: 12px; padding: 1.25rem; height: 100%; background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%); }
+    .kpi-card .kpi-value { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+    .kpi-card .kpi-label { font-size: 0.95rem; color: #b9b9c2; margin-bottom: 0.4rem; }
+    .kpi-card .kpi-sub { font-size: 0.8rem; color: #8a8a95; margin-top: 0.5rem; }
+    .kpi-sign .kpi-value { color: #4aa3ff; }
+    .kpi-prod .kpi-value { color: #36c6a0; }
+    .kpi-nach .kpi-value { color: #ffb648; }
+    .kpi-idle .kpi-value { color: #b388ff; }
+    .kpi-calls .kpi-value { color: #e20074; }
+    .kpi-chart-wrap { position: relative; height: 260px; }
+    .kpi-day-row { cursor: pointer; }
+    .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
+    .kpi-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
+        <h2 class="mb-0"><i class="fas fa-tachometer-alt text-info"></i> KPIs {{ kpi_category_labels.produktivitaet if kpi_category_labels else 'Produktivität' }} <span class="badge badge-info align-middle">Demo</span></h2>
+    </div>
+    {% include 'main/_kpi_subnav.html' %}
+
+    {% if not has_any_data %}
+    <div class="alert alert-secondary">
+        <i class="fas fa-info-circle mr-1"></i>
+        Es sind noch keine Produktivitätsdaten vorhanden. Ein Administrator muss zunächst
+        eine ODVS-CSV über den <strong>Produktivitäts-Import (Demo)</strong> hochladen.
+    </div>
+    {% endif %}
+
+    <form method="GET" action="{{ url_for('main.kpi_dashboard_produktivitaet') }}" id="kpiFilterForm" class="kpi-toolbar">
+        <input type="hidden" name="mode" id="kpiMode" value="{{ mode }}">
+        <div class="form-row align-items-end">
+            <div class="col-12 col-lg-auto mb-2">
+                <div class="kpi-mini-label mb-1">ansicht</div>
+                <div class="btn-group btn-group-sm kpi-mode-group" role="group">
+                    <button type="button" class="btn {% if mode == 'project' %}active{% endif %}" data-mode="project">Projekt</button>
+                    <button type="button" class="btn {% if mode == 'team' %}active{% endif %}" data-mode="team">Team</button>
+                    <button type="button" class="btn {% if mode == 'agent' %}active{% endif %}" data-mode="agent">Agent</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 mb-2">
+                <div class="kpi-mini-label mb-1">projekt</div>
+                <select name="project_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Projekt wählen --</option>
+                    {% for p in projects %}<option value="{{ p.id }}" {% if sel_project == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">team</div>
+                <select name="team_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Team wählen --</option>
+                    {% for t in teams %}<option value="{{ t.id }}" {% if sel_team == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">agent</div>
+                <select name="member_id" class="form-control form-control-sm kpi-auto">
+                    <option value="">-- Agent wählen --</option>
+                    {% for m in members %}<option value="{{ m.id }}" {% if sel_member == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+        <hr style="border-color:#34343c;">
+        <div class="form-row align-items-end">
+            <div class="col-12 col-md-3 mb-2">
+                <div class="kpi-mini-label mb-1">zeitraum</div>
+                <select name="period" id="kpiPeriod" class="form-control form-control-sm">
+                    <option value="7days" {% if period == '7days' %}selected{% endif %}>Letzte 7 Tage</option>
+                    <option value="30days" {% if period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+                    <option value="90days" {% if period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
+                    <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
+                    <option value="this_year" {% if period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>Gesamt</option>
+                    <option value="vonbis" {% if period == 'vonbis' %}selected{% endif %}>von-bis</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">von</div>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+            </div>
+            <div class="col-6 col-md-3 mb-2 kpi-vonbis-field" {% if period != 'vonbis' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label mb-1">bis</div>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+            </div>
+            <div class="col-12 col-md-3 mb-2">
+                <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
+            </div>
+        </div>
+    </form>
+
+    {% if selection_made and summary %}
+    <div class="mb-3"><h4 class="mb-0">{{ scope_label }}</h4></div>
+    <div class="row mb-4">
+        {% if visible.sign_on %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-sign">
+                <div class="kpi-label">Sign-On</div>
+                <div class="kpi-value">{% if summary.sign_on_pct is not none %}{{ summary.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">{{ summary.intervals }} Intervalle</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.prod %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-prod">
+                <div class="kpi-label">Produktivität</div>
+                <div class="kpi-value">{% if summary.prod_pct is not none %}{{ summary.prod_pct|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">gewichtet über KPI-Basis</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.nach %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-nach">
+                <div class="kpi-label">Nacharbeit</div>
+                <div class="kpi-value">{% if summary.nach_per_call is not none %}{{ summary.nach_per_call|de_decimal(1) }}s{% else %}–{% endif %}</div>
+                <div class="kpi-sub">Ø pro Call</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.idle %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-idle">
+                <div class="kpi-label">Idle</div>
+                <div class="kpi-value">{% if summary.idle_pct is not none %}{{ summary.idle_pct|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="kpi-sub">netto (ohne Pause)</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.calls %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-calls">
+                <div class="kpi-label">Calls</div>
+                <div class="kpi-value">{% if summary.calls is not none %}{{ summary.calls|de_decimal(0) }}{% else %}–{% endif %}</div>
+                <div class="kpi-sub">Summe im Zeitraum</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if chart_daily %}
+    <div class="mb-2"><h5 class="mb-1">Verlauf</h5><p class="text-muted small mb-3">Kumulativ · gestrichelte Linie = Ziel</p></div>
+    <div class="row mb-4">
+        {% if visible.sign_on %}
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Sign-On</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>
+        {% endif %}
+        {% if visible.prod %}
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Produktivität</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartProd"></canvas></div></div></div></div>
+        {% endif %}
+        {% if visible.nach %}
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Nacharbeit (s/Call)</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartNach"></canvas></div></div></div></div>
+        {% endif %}
+        {% if visible.idle %}
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Idle</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartIdle"></canvas></div></div></div></div>
+        {% endif %}
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><strong>Tagesübersicht</strong></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th>Datum</th><th class="text-right">Intervalle</th>
+                        {% if visible.sign_on %}<th class="text-right">Sign-On</th>{% endif %}
+                        {% if visible.prod %}<th class="text-right">Prod.</th>{% endif %}
+                        {% if visible.nach %}<th class="text-right">Nach. s/Call</th>{% endif %}
+                        {% if visible.idle %}<th class="text-right">Idle</th>{% endif %}
+                        {% if visible.calls %}<th class="text-right">Calls</th>{% endif %}
+                        <th></th>
+                    </tr></thead>
+                    <tbody>
+                    {% for d in daily %}
+                    <tr class="kpi-day-row" data-date="{{ d.date }}">
+                        <td>{{ d.label }}</td>
+                        <td class="text-right">{{ d.count }}</td>
+                        {% if visible.sign_on %}<td class="text-right">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                        {% if visible.prod %}<td class="text-right">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                        {% if visible.nach %}<td class="text-right">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                        {% if visible.idle %}<td class="text-right">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                        {% if visible.calls %}<td class="text-right">{% if d.calls is not none %}{{ d.calls|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
+                        <td class="text-right"><i class="fas fa-search text-muted"></i></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Keine Intervalle im gewählten Zeitraum.</div>
+    {% endif %}
+
+    {% elif has_any_data %}
+    <div class="alert alert-secondary"><i class="fas fa-hand-pointer mr-1"></i> Bitte oben eine Auswahl treffen.</div>
+    {% endif %}
+</div>
+
+<div class="modal fade" id="prodDayModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Intervalle <span id="prodDayModalDate"></span></h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+    <div class="modal-body" id="prodDayModalBody"><div class="text-center text-muted py-4">Lädt…</div></div>
+</div></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var form = document.getElementById('kpiFilterForm');
+    if (!form) return;
+    document.querySelectorAll('.kpi-mode-group .btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var mode = btn.getAttribute('data-mode');
+            document.getElementById('kpiMode').value = mode;
+            document.querySelectorAll('.kpi-mode-group .btn').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            var tf = document.querySelector('.kpi-team-field'), af = document.querySelector('.kpi-agent-field');
+            if (mode === 'project') { if (tf) tf.style.display = 'none'; if (af) af.style.display = 'none'; }
+            else if (mode === 'team') { if (tf) tf.style.display = ''; if (af) af.style.display = 'none'; }
+            else { if (tf) tf.style.display = ''; if (af) af.style.display = ''; }
+        });
+    });
+    var periodSel = document.getElementById('kpiPeriod');
+    if (periodSel) periodSel.addEventListener('change', function () {
+        document.querySelectorAll('.kpi-vonbis-field').forEach(function (el) {
+            el.style.display = periodSel.value === 'vonbis' ? '' : 'none';
+        });
+    });
+    document.querySelectorAll('.kpi-auto').forEach(function (sel) {
+        sel.addEventListener('change', function () { form.submit(); });
+    });
+
+    var chartDaily = {{ chart_daily|tojson }};
+    var visible = {{ visible|tojson }};
+    var targets = {{ targets|tojson }};
+    if (chartDaily && chartDaily.length && window.Chart) {
+        function buildChart(id, label, key, color, target, yScale, invertTarget) {
+            var canvas = document.getElementById(id);
+            if (!canvas) return;
+            var r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
+            var labels = chartDaily.map(function (d) { return d.label; });
+            var datasets = [{ label: label, data: chartDaily.map(function (d) { return d[key]; }), borderColor: color, backgroundColor: 'rgba('+r+','+g+','+b+',0.12)', tension: 0.15, pointRadius: 2 }];
+            if (target !== null && target !== undefined) {
+                datasets.push({ label: 'Ziel', data: labels.map(function () { return target; }), borderColor: color, borderDash: [7,5], borderWidth: 1.5, pointRadius: 0, backgroundColor: 'transparent' });
+            }
+            new Chart(canvas.getContext('2d'), { type: 'line', data: { labels: labels, datasets: datasets },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    onClick: function (e, el) { if (el && el.length && chartDaily[el[0].index]) openProdDay(chartDaily[el[0].index].date); },
+                    scales: { x: { ticks: { maxTicksLimit: 10 } }, y: yScale } } });
+        }
+        if (visible.sign_on) buildChart('prodChartSignOn', 'Sign-On (%)', 'sign_on_pct', '#4aa3ff', targets.target_sign_on, { min: 0, max: 100 });
+        if (visible.prod) buildChart('prodChartProd', 'Produktivität (%)', 'prod_pct', '#36c6a0', targets.target_prod, { min: 0, max: 100 });
+        if (visible.nach) buildChart('prodChartNach', 'Nacharbeit (s/Call)', 'nach_per_call', '#ffb648', targets.target_nach_per_call, { min: 0 });
+        if (visible.idle) buildChart('prodChartIdle', 'Idle (%)', 'idle_pct', '#b388ff', targets.target_idle_max, { min: 0, max: 100 });
+    }
+
+    var modalParams = { mode: {{ mode|tojson }}, project_id: {{ (sel_project or '')|tojson }}, team_id: {{ (sel_team or '')|tojson }}, member_id: {{ (sel_member or '')|tojson }} };
+    window.openProdDay = function (dateStr) {
+        var q = new URLSearchParams(); q.set('date', dateStr); q.set('mode', modalParams.mode);
+        if (modalParams.project_id) q.set('project_id', modalParams.project_id);
+        if (modalParams.team_id) q.set('team_id', modalParams.team_id);
+        if (modalParams.member_id) q.set('member_id', modalParams.member_id);
+        var body = document.getElementById('prodDayModalBody');
+        body.innerHTML = '<div class="text-center text-muted py-4">Lädt…</div>';
+        $('#prodDayModal').modal('show');
+        fetch('{{ url_for("main.productivity_day_detail") }}?' + q.toString()).then(function (r) { return r.json(); }).then(function (data) {
+            document.getElementById('prodDayModalDate').textContent = '— ' + data.date;
+            if (!data.intervals.length) { body.innerHTML = '<div class="text-muted">Keine Intervalle.</div>'; return; }
+            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">Sign-On</th><th class="text-right">Prod.</th><th class="text-right">Nach.</th><th class="text-right">Idle</th><th class="text-right">Calls</th></tr></thead><tbody>';
+            data.intervals.forEach(function (iv) {
+                html += '<tr><td>'+iv.time+'</td><td>'+iv.agent+'</td><td>'+iv.team+'</td>';
+                html += '<td class="text-right">'+(iv.sign_on_pct!=null?iv.sign_on_pct+'%':'–')+'</td>';
+                html += '<td class="text-right">'+(iv.prod_pct!=null?iv.prod_pct+'%':'–')+'</td>';
+                html += '<td class="text-right">'+(iv.nach_per_call!=null?iv.nach_per_call:'–')+'</td>';
+                html += '<td class="text-right">'+(iv.idle_pct!=null?iv.idle_pct+'%':'–')+'</td>';
+                html += '<td class="text-right">'+iv.calls+'</td></tr>';
+            });
+            body.innerHTML = html + '</tbody></table>';
+        });
+    };
+    document.querySelectorAll('.kpi-day-row').forEach(function (row) {
+        row.addEventListener('click', function () { openProdDay(row.getAttribute('data-date')); });
+    });
+})();
+</script>
+{% endblock %}

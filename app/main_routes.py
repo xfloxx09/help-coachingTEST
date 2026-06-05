@@ -25,8 +25,12 @@ from app.models import (
     ProjectKpiSource,
     ProjectKpiSetting,
     TeamViewCardSettings,
+    KpiCategory,
+    ProductivityInterval,
+    ProjectProductivitySetting,
 )
 from app import kpi as kpi_logic
+from app import productivity as productivity_logic
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
 from app.utils import (
     bogen_layout_for_project,
@@ -5105,6 +5109,38 @@ def _kpi_visibility(project_id):
     }
 
 
+def _prod_base_filters(accessible, sees_all_teams, my_team_ids):
+    """Scope filters for ProductivityInterval (mirrors KPI survey scope)."""
+    filters = []
+    if accessible is not None:
+        filters.append(ProductivityInterval.project_id.in_(accessible))
+    if not sees_all_teams and my_team_ids:
+        filters.append(ProductivityInterval.team_id.in_(my_team_ids))
+    return filters
+
+
+def _prod_dashboard_visibility(project_id):
+    row = ProjectProductivitySetting.query.get(project_id) if project_id else None
+    return productivity_logic.dashboard_visibility_dict(row)
+
+
+def _prod_impact_visibility(project_id):
+    row = ProjectProductivitySetting.query.get(project_id) if project_id else None
+    return productivity_logic.impact_visibility_dict(row)
+
+
+def _prod_settings(project_id):
+    row = ProjectProductivitySetting.query.get(project_id) if project_id else None
+    return productivity_logic.settings_dict(row)
+
+
+def _kpi_category_labels():
+    cats = KpiCategory.query.order_by(KpiCategory.sort_order, KpiCategory.id).all()
+    if not cats:
+        return {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'}
+    return {c.key: c.label for c in cats}
+
+
 def _kpi_dashboard_visibility(project_id):
     """Which KPIs appear on /kpis (cards, graph, daily table)."""
     setting = ProjectKpiSetting.query.get(project_id) if project_id else None
@@ -5313,7 +5349,17 @@ def _kpi_dashboard_daily_series(rows, start_date, end_date):
 @bp.route('/kpis')
 @login_required
 @permission_required('view_kpi_dashboard')
-def kpi_dashboard():
+def kpi_dashboard_redirect():
+    if not kpi_logic.kpi_features_enabled():
+        flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
+        return redirect(url_for('main.index'))
+    return redirect(url_for('main.kpi_dashboard_qualitaet', **request.args))
+
+
+@bp.route('/kpis/qualitaet')
+@login_required
+@permission_required('view_kpi_dashboard')
+def kpi_dashboard_qualitaet():
     if not kpi_logic.kpi_features_enabled():
         flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
         return redirect(url_for('main.index'))
@@ -5453,7 +5499,188 @@ def kpi_dashboard():
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
         visible=visible,
+        kpi_category_labels=_kpi_category_labels(),
+        active_kpi_nav='qualitaet',
     )
+
+
+@bp.route('/kpis/produktivitaet')
+@login_required
+@permission_required('view_kpi_dashboard')
+def kpi_dashboard_produktivitaet():
+    if not kpi_logic.kpi_features_enabled():
+        flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
+        return redirect(url_for('main.index'))
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    base_filters = _prod_base_filters(accessible, sees_all_teams, my_team_ids)
+
+    proj_q = (
+        db.session.query(Project.id, Project.name)
+        .join(ProductivityInterval, ProductivityInterval.project_id == Project.id)
+        .filter(*base_filters)
+        .distinct().order_by(Project.name)
+    )
+    projects = [{'id': pid, 'name': pname} for pid, pname in proj_q.all()]
+
+    mode = (request.args.get('mode') or 'project').strip()
+    if mode not in ('project', 'team', 'agent'):
+        mode = 'project'
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    team_filters = list(base_filters)
+    if sel_project:
+        team_filters.append(ProductivityInterval.project_id == sel_project)
+    team_q = (
+        db.session.query(Team.id, Team.name)
+        .join(ProductivityInterval, ProductivityInterval.team_id == Team.id)
+        .filter(*team_filters).distinct().order_by(Team.name)
+    )
+    teams = [{'id': tid, 'name': tname} for tid, tname in team_q.all()]
+
+    member_filters = list(base_filters)
+    if sel_project:
+        member_filters.append(ProductivityInterval.project_id == sel_project)
+    if sel_team:
+        member_filters.append(ProductivityInterval.team_id == sel_team)
+    member_q = (
+        db.session.query(TeamMember.id, TeamMember.name)
+        .join(ProductivityInterval, ProductivityInterval.team_member_id == TeamMember.id)
+        .filter(*member_filters).distinct().order_by(TeamMember.name)
+    )
+    members = [{'id': mid, 'name': mname} for mid, mname in member_q.all()]
+
+    valid_project_ids = {p['id'] for p in projects}
+    valid_team_ids = {t['id'] for t in teams}
+    valid_member_ids = {m['id'] for m in members}
+    if sel_project and sel_project not in valid_project_ids:
+        sel_project = None
+    if sel_team and sel_team not in valid_team_ids:
+        sel_team = None
+    if sel_member and sel_member not in valid_member_ids:
+        sel_member = None
+
+    period_arg = (request.args.get('period') or '30days').strip()
+    date_from_str = (request.args.get('date_from') or '').strip()
+    date_to_str = (request.args.get('date_to') or '').strip()
+    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
+
+    active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
+    visible = _prod_dashboard_visibility(active_project_id)
+    targets = _prod_settings(active_project_id)
+
+    filters = list(base_filters)
+    if mode == 'agent' and sel_member:
+        filters.append(ProductivityInterval.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        filters.append(ProductivityInterval.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        filters.append(ProductivityInterval.project_id == sel_project)
+    if start_date:
+        filters.append(ProductivityInterval.slot_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        filters.append(ProductivityInterval.slot_at <= datetime.combine(end_date, datetime.max.time()))
+
+    selection_made = (
+        (mode == 'project' and sel_project) or
+        (mode == 'team' and sel_team) or
+        (mode == 'agent' and sel_member)
+    )
+
+    summary = None
+    chart_daily = []
+    daily = []
+    scope_label = ''
+    has_any_data = bool(projects)
+    if selection_made:
+        intervals = ProductivityInterval.query.filter(*filters).order_by(ProductivityInterval.slot_at).all()
+        summary = productivity_logic.aggregate_summary(intervals)
+        chart_daily = productivity_logic.cumulative_from_intervals(intervals, start_date, end_date)
+        _, daily = productivity_logic.aggregate_daily(intervals, start_date, end_date)
+
+        if mode == 'agent' and sel_member:
+            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+        elif mode == 'team' and sel_team:
+            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+        elif mode == 'project' and sel_project:
+            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+
+    return render_template(
+        'main/kpi_productivity_dashboard.html',
+        mode=mode,
+        projects=projects,
+        teams=teams,
+        members=members,
+        sel_project=sel_project,
+        sel_team=sel_team,
+        sel_member=sel_member,
+        period=period_arg,
+        date_from=date_from_str,
+        date_to=date_to_str,
+        summary=summary,
+        chart_daily=chart_daily,
+        daily=daily,
+        targets=targets,
+        scope_label=scope_label,
+        selection_made=bool(selection_made),
+        has_any_data=has_any_data,
+        visible=visible,
+        kpi_category_labels=_kpi_category_labels(),
+        active_kpi_nav='produktivitaet',
+    )
+
+
+@bp.route('/kpis/produktivitaet/day')
+@login_required
+@any_permission_required('view_kpi_dashboard', 'view_coaching_impact')
+def productivity_day_detail():
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    filters = _prod_base_filters(accessible, sees_all_teams, my_team_ids)
+
+    day_str = (request.args.get('date') or '').strip()
+    try:
+        day = datetime.strptime(day_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Ungültiges Datum.'}), 400
+
+    mode = (request.args.get('mode') or 'project').strip()
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    filters.append(ProductivityInterval.slot_at >= datetime.combine(day, datetime.min.time()))
+    filters.append(ProductivityInterval.slot_at <= datetime.combine(day, datetime.max.time()))
+    if mode == 'agent' and sel_member:
+        filters.append(ProductivityInterval.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        filters.append(ProductivityInterval.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        filters.append(ProductivityInterval.project_id == sel_project)
+
+    rows = (
+        ProductivityInterval.query.options(
+            joinedload(ProductivityInterval.team_member),
+            joinedload(ProductivityInterval.team),
+        )
+        .filter(*filters)
+        .order_by(ProductivityInterval.slot_at)
+        .limit(500)
+        .all()
+    )
+    out = []
+    for r in rows:
+        out.append({
+            'time': r.slot_at.strftime('%H:%M') if r.slot_at else '-',
+            'agent': r.team_member.name if r.team_member else '-',
+            'team': r.team.name if r.team else '-',
+            'sign_on_pct': r.sign_on_pct,
+            'prod_pct': r.prod_pct,
+            'nach_per_call': r.nach_per_call,
+            'idle_pct': r.idle_pct,
+            'calls': r.calls,
+        })
+    return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'intervals': out})
 
 
 @bp.route('/kpis/day')
@@ -5641,6 +5868,75 @@ def _impact_before_after(events, surveys_by_member, window):
     return out
 
 
+def _impact_before_after_prod(events, intervals_by_member, window):
+    """Before/after productivity metrics around coaching events."""
+    acc = {
+        'sign_on': {'before': [], 'after': [], 'pairs': 0},
+        'prod': {'before': [], 'after': [], 'pairs': 0},
+        'nach': {'before': [], 'after': [], 'pairs': 0},
+        'idle': {'before': [], 'after': [], 'pairs': 0},
+    }
+    for member_id, d in events:
+        rows = intervals_by_member.get(member_id)
+        if not rows:
+            continue
+        before_lo, before_hi = d - timedelta(days=window), d - timedelta(days=1)
+        after_lo, after_hi = d + timedelta(days=1), d + timedelta(days=window)
+        b_sign, a_sign = [], []
+        b_prod, a_prod = [], []
+        b_nach, a_nach = [], []
+        b_idle, a_idle = [], []
+        for sd, sign_p, prod_p, nach_p, idle_p in rows:
+            if sd is None:
+                continue
+            day = sd.date() if isinstance(sd, datetime) else sd
+            if before_lo <= day <= before_hi:
+                if sign_p is not None:
+                    b_sign.append(sign_p)
+                if prod_p is not None:
+                    b_prod.append(prod_p)
+                if nach_p is not None:
+                    b_nach.append(nach_p)
+                if idle_p is not None:
+                    b_idle.append(idle_p)
+            elif after_lo <= day <= after_hi:
+                if sign_p is not None:
+                    a_sign.append(sign_p)
+                if prod_p is not None:
+                    a_prod.append(prod_p)
+                if nach_p is not None:
+                    a_nach.append(nach_p)
+                if idle_p is not None:
+                    a_idle.append(idle_p)
+        if b_sign and a_sign:
+            acc['sign_on']['before'].append(_impact_avg(b_sign))
+            acc['sign_on']['after'].append(_impact_avg(a_sign))
+            acc['sign_on']['pairs'] += 1
+        if b_prod and a_prod:
+            acc['prod']['before'].append(_impact_avg(b_prod))
+            acc['prod']['after'].append(_impact_avg(a_prod))
+            acc['prod']['pairs'] += 1
+        if b_nach and a_nach:
+            acc['nach']['before'].append(_impact_avg(b_nach))
+            acc['nach']['after'].append(_impact_avg(a_nach))
+            acc['nach']['pairs'] += 1
+        if b_idle and a_idle:
+            acc['idle']['before'].append(_impact_avg(b_idle))
+            acc['idle']['after'].append(_impact_avg(a_idle))
+            acc['idle']['pairs'] += 1
+
+    out = {}
+    for key, bucket in acc.items():
+        n = bucket['pairs']
+        if n:
+            before = round(sum(bucket['before']) / n, 2)
+            after = round(sum(bucket['after']) / n, 2)
+            out[key] = {'before': before, 'after': after, 'delta': round(after - before, 2), 'pairs': n}
+        else:
+            out[key] = {'before': None, 'after': None, 'delta': None, 'pairs': 0}
+    return out
+
+
 @bp.route('/coaching-impact')
 @login_required
 @permission_required('view_coaching_impact')
@@ -5650,15 +5946,28 @@ def coaching_impact():
         return redirect(url_for('main.index'))
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     kpi_base = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
+    prod_base = _prod_base_filters(accessible, sees_all_teams, my_team_ids)
     coaching_base = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
 
-    # --- Dropdowns: entities with KPI data in scope (impact needs KPI data) ---
-    proj_q = (
-        db.session.query(Project.id, Project.name)
-        .join(KpiSurvey, KpiSurvey.project_id == Project.id)
-        .filter(*kpi_base).distinct().order_by(Project.name)
-    )
-    projects = [{'id': pid, 'name': pname} for pid, pname in proj_q.all()]
+    qual_pids = {
+        r[0] for r in db.session.query(KpiSurvey.project_id).filter(
+            KpiSurvey.project_id.isnot(None), *kpi_base,
+        ).distinct().all()
+    }
+    prod_pids = {
+        r[0] for r in db.session.query(ProductivityInterval.project_id).filter(
+            ProductivityInterval.project_id.isnot(None), *prod_base,
+        ).distinct().all()
+    }
+    all_pids = qual_pids | prod_pids
+    if all_pids:
+        proj_rows = (
+            db.session.query(Project.id, Project.name)
+            .filter(Project.id.in_(all_pids)).order_by(Project.name).all()
+        )
+        projects = [{'id': pid, 'name': pname} for pid, pname in proj_rows]
+    else:
+        projects = []
 
     mode = (request.args.get('mode') or 'project').strip()
     if mode not in ('project', 'team', 'agent'):
@@ -5675,7 +5984,18 @@ def coaching_impact():
         .join(KpiSurvey, KpiSurvey.team_id == Team.id)
         .filter(*team_filters).distinct().order_by(Team.name)
     )
-    teams = [{'id': tid, 'name': tname} for tid, tname in team_q.all()]
+    prod_team_filters = list(prod_base)
+    if sel_project:
+        prod_team_filters.append(ProductivityInterval.project_id == sel_project)
+    prod_team_q = (
+        db.session.query(Team.id, Team.name)
+        .join(ProductivityInterval, ProductivityInterval.team_id == Team.id)
+        .filter(*prod_team_filters).distinct().order_by(Team.name)
+    )
+    team_map = {tid: tname for tid, tname in team_q.all()}
+    for tid, tname in prod_team_q.all():
+        team_map.setdefault(tid, tname)
+    teams = [{'id': tid, 'name': tname} for tid, tname in sorted(team_map.items(), key=lambda x: x[1])]
 
     member_filters = list(kpi_base)
     if sel_project:
@@ -5687,7 +6007,20 @@ def coaching_impact():
         .join(KpiSurvey, KpiSurvey.team_member_id == TeamMember.id)
         .filter(*member_filters).distinct().order_by(TeamMember.name)
     )
-    members = [{'id': mid, 'name': mname} for mid, mname in member_q.all()]
+    prod_member_filters = list(prod_base)
+    if sel_project:
+        prod_member_filters.append(ProductivityInterval.project_id == sel_project)
+    if sel_team:
+        prod_member_filters.append(ProductivityInterval.team_id == sel_team)
+    prod_member_q = (
+        db.session.query(TeamMember.id, TeamMember.name)
+        .join(ProductivityInterval, ProductivityInterval.team_member_id == TeamMember.id)
+        .filter(*prod_member_filters).distinct().order_by(TeamMember.name)
+    )
+    member_map = {mid: mname for mid, mname in member_q.all()}
+    for mid, mname in prod_member_q.all():
+        member_map.setdefault(mid, mname)
+    members = [{'id': mid, 'name': mname} for mid, mname in sorted(member_map.items(), key=lambda x: x[1])]
 
     valid_project_ids = {p['id'] for p in projects}
     valid_team_ids = {t['id'] for t in teams}
@@ -5717,6 +6050,7 @@ def coaching_impact():
 
     overlay = []
     before_after = None
+    before_after_prod = None
     summary = None
     kpi = None
     scope_label = ''
@@ -5725,11 +6059,13 @@ def coaching_impact():
         'info': True, 'loesung': True, 'nps': True,
         'fachkompetenz': True, 'vertrieb': True,
     }
+    visible_prod = productivity_logic.impact_visibility_dict(None)
 
     if selection_made:
         # KPI active filters (scope + mode + date)
         active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
         visible = _kpi_visibility(active_project_id)
+        visible_prod = _prod_impact_visibility(active_project_id)
         kpi_filters = list(kpi_base)
         kpi_filters.extend(_kpi_source_filter(active_project_id))
         coaching_filters = list(coaching_base)
@@ -5812,12 +6148,30 @@ def coaching_impact():
             if perf is not None:
                 cb['perf'].append(perf)
 
-        # Merge KPI + coaching onto one date axis
-        all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()))
+        prod_filters = list(prod_base)
+        if mode == 'agent' and sel_member:
+            prod_filters.append(ProductivityInterval.team_member_id == sel_member)
+        elif mode == 'team' and sel_team:
+            prod_filters.append(ProductivityInterval.team_id == sel_team)
+        elif mode == 'project' and sel_project:
+            prod_filters.append(ProductivityInterval.project_id == sel_project)
+        if start_date:
+            prod_filters.append(ProductivityInterval.slot_at >= datetime.combine(start_date, datetime.min.time()))
+        if end_date:
+            prod_filters.append(ProductivityInterval.slot_at <= datetime.combine(end_date, datetime.max.time()))
+        prod_rows = ProductivityInterval.query.filter(*prod_filters).all()
+        prod_by_day = {}
+        for iv in prod_rows:
+            if iv.slot_at:
+                prod_by_day.setdefault(iv.slot_at.date(), []).append(iv)
+
+        # Merge KPI + productivity + coaching onto one date axis
+        all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
         for d in all_days:
             kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []})
             cb = coaching_by_day.get(d, {'count': 0, 'perf': []})
             nps_day = kpi_logic.compute_nps(kb['nps'])
+            prod_sm = productivity_logic.aggregate_summary(prod_by_day.get(d, []))
             overlay.append({
                 'date': d.strftime('%Y-%m-%d'),
                 'label': d.strftime('%d.%m.'),
@@ -5826,6 +6180,10 @@ def coaching_impact():
                 'nps': nps_day['nps'] if nps_day['total'] else None,
                 'fachkompetenz': (_impact_avg(kb['fach']) if kb['fach'] else None),
                 'vertrieb_quote': (round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None),
+                'sign_on_pct': prod_sm['sign_on_pct'] if prod_sm else None,
+                'prod_pct': prod_sm['prod_pct'] if prod_sm else None,
+                'nach_per_call': prod_sm['nach_per_call'] if prod_sm else None,
+                'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
                 'coachings': cb['count'],
                 'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
             })
@@ -5858,6 +6216,34 @@ def coaching_impact():
                 )
         before_after = _impact_before_after(events, surveys_by_member, window)
 
+        intervals_by_member = {}
+        if events:
+            ev_dates = [d for _, d in events]
+            ext_start = min(ev_dates) - timedelta(days=window)
+            ext_end = max(ev_dates) + timedelta(days=window)
+            member_ids = {m for m, _ in events}
+            iv_filters = list(prod_base)
+            iv_filters.append(ProductivityInterval.team_member_id.in_(member_ids))
+            iv_filters.append(ProductivityInterval.slot_at >= datetime.combine(ext_start, datetime.min.time()))
+            iv_filters.append(ProductivityInterval.slot_at <= datetime.combine(ext_end, datetime.max.time()))
+            if active_project_id:
+                iv_filters.append(ProductivityInterval.project_id == active_project_id)
+            iv_rows = (
+                db.session.query(
+                    ProductivityInterval.team_member_id,
+                    ProductivityInterval.slot_at,
+                    ProductivityInterval.sign_on_pct,
+                    ProductivityInterval.prod_pct,
+                    ProductivityInterval.nach_per_call,
+                    ProductivityInterval.idle_pct,
+                ).filter(*iv_filters).all()
+            )
+            for member_id, slot_at, sign_p, prod_p, nach_p, idle_p in iv_rows:
+                intervals_by_member.setdefault(member_id, []).append(
+                    (slot_at, sign_p, prod_p, nach_p, idle_p)
+                )
+        before_after_prod = _impact_before_after_prod(events, intervals_by_member, window)
+
         summary = {
             'coachings': len(events),
             'total_time': total_time,
@@ -5869,6 +6255,7 @@ def coaching_impact():
     return render_template(
         'main/coaching_impact.html',
         visible=visible,
+        visible_prod=visible_prod,
         mode=mode,
         projects=projects,
         teams=teams,
@@ -5883,11 +6270,14 @@ def coaching_impact():
         windows=IMPACT_WINDOWS,
         overlay=overlay,
         before_after=before_after,
+        before_after_prod=before_after_prod,
         summary=summary,
         kpi=kpi,
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
+        kpi_category_labels=_kpi_category_labels(),
+        active_kpi_nav='coaching_impact',
     )
 
 

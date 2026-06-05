@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3"><i class="fas fa-tachometer-alt text-info"></i> Produktivitäts-Import (Demo)</h1>
+    <p class="text-muted">
+        ODVS-Intervall-CSV importieren (z.&nbsp;B. <code>einzel_ODVS2_*_gesamt.csv</code>).
+        Pro Agent und Zeit-Slot werden Sign-On, Produktivität, Nacharbeit und Idle berechnet.
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-header telekom-bg-magenta text-white">
+            <h2 class="mb-0" style="font-size: 1.15rem;">CSV hochladen</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.import_productivity_csv') }}" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="prod_csv_file">Produktivitäts-Rohdaten (CSV)</label>
+                    <input type="file" class="form-control-file" id="prod_csv_file" name="prod_csv_file" accept=".csv" required>
+                    <small class="form-text text-muted">
+                        Erwartete Spalten u.&nbsp;a.: <code>BE4</code>, <code>DAG_ID</code>, <code>DAG_VN_NN</code>,
+                        <code>Datum</code>, <code>Zeit</code>, <code>SignOn</code>, <code>CF_IB_Gespraech</code>, …
+                    </small>
+                </div>
+                <button type="submit" class="btn telekom-button">
+                    <i class="fas fa-upload mr-1"></i> Hochladen &amp; Vorschau
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-secondary text-white">
+            <h2 class="mb-0" style="font-size: 1.1rem;">Letzte Importe</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_batches %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Datei</th>
+                            <th>Zeitraum</th>
+                            <th class="text-right">Intervalle</th>
+                            <th class="text-right">mit Agent</th>
+                            <th class="text-right">ohne Agent</th>
+                            <th>Von</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for b in recent_batches %}
+                        <tr>
+                            <td>{{ b.imported_at.strftime('%d.%m.%Y %H:%M') if b.imported_at else '-' }}</td>
+                            <td>{{ b.filename or '-' }}</td>
+                            <td>
+                                {% if b.date_from and b.date_to %}
+                                {{ b.date_from.strftime('%d.%m.%Y') }}–{{ b.date_to.strftime('%d.%m.%Y') }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="text-right">{{ b.intervals_stored }}</td>
+                            <td class="text-right">{{ b.matched_member }}</td>
+                            <td class="text-right">{{ b.unmatched_member }}</td>
+                            <td>{{ b.imported_by.username if b.imported_by else '-' }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin.import_productivity_csv_revert', batch_id=b.id) }}"
+                                      onsubmit="return confirm('Import #{{ b.id }} wirklich löschen?');" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Zurücksetzen</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Noch keine Produktivitäts-Importe.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

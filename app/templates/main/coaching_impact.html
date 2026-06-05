@@ -32,6 +32,10 @@
     .ci-nps .ci-label { color: #ffb648; }
     .ci-fach .ci-label { color: #ffc107; }
     .ci-vert .ci-label { color: #b388ff; }
+    .ci-sign .ci-label { color: #4aa3ff; }
+    .ci-prod .ci-label { color: #36c6a0; }
+    .ci-nachp .ci-label { color: #ffb648; }
+    .ci-idle .ci-label { color: #b388ff; }
     .ci-stat { border: 1px solid #34343c; border-radius: 10px; padding: 0.85rem 1rem; background: #22222a; height: 100%; }
     .ci-stat .ci-stat-val { font-size: 1.6rem; font-weight: 700; }
     .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
@@ -43,12 +47,14 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-bolt text-warning"></i> Coaching VS KPI <span class="badge badge-info align-middle">Demo</span></h2>
     </div>
+    {% include 'main/_kpi_subnav.html' %}
 
     {% if not has_any_data %}
     <div class="alert alert-secondary">
         <i class="fas fa-info-circle mr-1"></i>
         Es sind noch keine KPI-Daten in Ihrem Sichtbereich vorhanden. Ein Administrator muss zunächst
-        Rohdaten über den <strong>KPI-Import (Demo)</strong> hochladen.
+        Befragungs- und/oder Produktivitäts-Rohdaten über <strong>KPI-Import (Demo)</strong> bzw.
+        <strong>Produktivitäts-Import (Demo)</strong> hochladen.
     </div>
     {% endif %}
 
@@ -160,8 +166,8 @@
         </div>
     </div>
 
-    <!-- Before/After impact cards -->
-    <h5 class="mb-2">Wirkung: KPI vor vs. nach Coaching</h5>
+    <!-- Before/After impact cards — Qualität -->
+    <h5 class="mb-2">Wirkung: {{ kpi_category_labels.qualitaet if kpi_category_labels else 'Qualität' }} vor vs. nach Coaching</h5>
     <p class="text-muted small mb-3">
         Durchschnittlicher KPI-Wert {{ window }} Tage <em>vor</em> einem Coaching im Vergleich zu {{ window }} Tagen <em>danach</em>,
         gemittelt über alle Coachings mit Befragungsdaten auf beiden Seiten.
@@ -197,6 +203,40 @@
         {% endfor %}
     </div>
 
+    {% if before_after_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
+    <h5 class="mb-2 mt-2">Wirkung: {{ kpi_category_labels.produktivitaet if kpi_category_labels else 'Produktivität' }} vor vs. nach Coaching</h5>
+    <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
+    <div class="row mb-4">
+        {% set prod_parts = [] %}
+        {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', 'Sign-On', 'ci-sign', '%')) %}{% endif %}
+        {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', 'Produktivität', 'ci-prod', '%')) %}{% endif %}
+        {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', 'Nacharbeit', 'ci-nachp', 's')) %}{% endif %}
+        {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', 'Idle', 'ci-idle', '%')) %}{% endif %}
+        {% for key, label, cls, unit in prod_parts %}
+        {% set ba = before_after_prod[key] %}
+        <div class="col-12 col-md-4 mb-3">
+            <div class="ci-card {{ cls }}">
+                <div class="ci-label">{{ label }}</div>
+                {% if ba.pairs %}
+                <div>
+                    <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                    <i class="fas fa-arrow-right ci-arrow"></i>
+                    <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                </div>
+                <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                    {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                </div>
+                <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
+                {% else %}
+                <div class="ci-ba text-muted">–</div>
+                <div class="ci-sub">Keine Intervalle auf beiden Seiten im Fenster.</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if overlay %}
     <div class="card mb-4">
         <div class="card-header"><strong>Zeitverlauf</strong> <span class="text-muted small">(Balken = Coachings/Tag, Linien = KPIs · Klick auf einen Tag zeigt die Rohdaten)</span></div>
@@ -229,6 +269,10 @@
                                     {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
                                     {% if visible.fachkompetenz %}<th class="text-right">Fachk.</th>{% endif %}
                                     {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
+                                    {% if visible_prod.sign_on %}<th class="text-right">Sign-On</th>{% endif %}
+                                    {% if visible_prod.prod %}<th class="text-right">Prod.</th>{% endif %}
+                                    {% if visible_prod.nach %}<th class="text-right">Nach.</th>{% endif %}
+                                    {% if visible_prod.idle %}<th class="text-right">Idle</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -241,6 +285,10 @@
                                     {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible.fachkompetenz %}<td class="text-right">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible.vertrieb %}<td class="text-right">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.sign_on %}<td class="text-right">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.prod %}<td class="text-right">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.nach %}<td class="text-right">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible_prod.idle %}<td class="text-right">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                 </tr>
                             {% endfor %}
                             </tbody>
@@ -322,7 +370,9 @@
 
     var overlay = {{ overlay|tojson }};
     var ba = {{ before_after|tojson if before_after else 'null' }};
+    var baProd = {{ before_after_prod|tojson if before_after_prod else 'null' }};
     var visible = {{ visible|tojson }};
+    var visibleProd = {{ visible_prod|tojson }};
 
     // Overlay mixed chart
     var oc = document.getElementById('ciOverlayChart');
@@ -366,6 +416,30 @@
             borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.12)',
             yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
         });
+        if (visibleProd.sign_on) ocDatasets.push({
+            type: 'line', label: 'Sign-On (%)',
+            data: overlay.map(function (d) { return d.sign_on_pct; }),
+            borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+        });
+        if (visibleProd.prod) ocDatasets.push({
+            type: 'line', label: 'Produktivität (%)',
+            data: overlay.map(function (d) { return d.prod_pct; }),
+            borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.12)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+        });
+        if (visibleProd.nach) ocDatasets.push({
+            type: 'line', label: 'Nacharbeit (s/Call)',
+            data: overlay.map(function (d) { return d.nach_per_call; }),
+            borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
+            yAxisID: 'yNach', spanGaps: true, tension: 0.25, order: 1,
+        });
+        if (visibleProd.idle) ocDatasets.push({
+            type: 'line', label: 'Idle (%)',
+            data: overlay.map(function (d) { return d.idle_pct; }),
+            borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+        });
         new Chart(oc.getContext('2d'), {
             data: {
                 labels: overlay.map(function (d) { return d.label; }),
@@ -386,6 +460,7 @@
                     yNps: { type: 'linear', position: 'right', min: -100, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'NPS' } },
                     yCoach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Coachings' }, ticks: { precision: 0 } },
                     yStars: { type: 'linear', position: 'right', min: 0, max: 5, grid: { drawOnChartArea: false }, title: { display: true, text: 'Sterne' }, ticks: { stepSize: 1 } },
+                    yNach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 's/Call' } },
                 },
             },
         });
@@ -400,6 +475,12 @@
         if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
         if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
         if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
+        if (baProd) {
+            if (visibleProd.sign_on) { baLabels.push('Sign-On'); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
+            if (visibleProd.prod) { baLabels.push('Produktivität'); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
+            if (visibleProd.nach) { baLabels.push('Nacharbeit'); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
+            if (visibleProd.idle) { baLabels.push('Idle'); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
+        }
         new Chart(bc.getContext('2d'), {
             type: 'bar',
             data: {

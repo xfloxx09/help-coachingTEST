@@ -44,8 +44,9 @@
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
-        <h2 class="mb-0"><i class="fas fa-chart-line text-info"></i> KPIs <span class="badge badge-info align-middle">Demo</span></h2>
+        <h2 class="mb-0"><i class="fas fa-chart-line text-info"></i> KPIs {{ kpi_category_labels.qualitaet if kpi_category_labels else 'Qualität' }} <span class="badge badge-info align-middle">Demo</span></h2>
     </div>
+    {% include 'main/_kpi_subnav.html' %}
 
     {% if not has_any_data %}
     <div class="alert alert-secondary">
@@ -55,7 +56,7 @@
     </div>
     {% endif %}
 
-    <form method="GET" action="{{ url_for('main.kpi_dashboard') }}" id="kpiFilterForm" class="kpi-toolbar">
+    <form method="GET" action="{{ url_for('main.kpi_dashboard_qualitaet') }}" id="kpiFilterForm" class="kpi-toolbar">
         <input type="hidden" name="mode" id="kpiMode" value="{{ mode }}">
 
         <div class="form-row align-items-end">

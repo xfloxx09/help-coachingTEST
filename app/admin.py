@@ -5,7 +5,14 @@ from sqlalchemy import desc, or_, false, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from app import db
-from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer, ProjectKpiSource, ProjectKpiSetting, KpiQuestionMapping, TeamViewCardSettings
+from app.models import (
+    User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission,
+    AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem,
+    CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer,
+    ProjectKpiSource, ProjectKpiSetting, KpiQuestionMapping, TeamViewCardSettings, KpiCategory,
+    ProductivityImportBatch, ProductivityInterval, ProjectProductivitySetting,
+)
+from app import productivity as productivity_logic
 from app import kpi as kpi_logic
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
@@ -4159,16 +4166,258 @@ def _kpi_recompute_flags(project_id=None):
     return updated
 
 
+def _prod_detect_encoding(temp_path):
+    for enc in ('utf-8-sig', 'utf-8', 'cp1252', 'latin-1'):
+        try:
+            with open(temp_path, 'r', encoding=enc) as fh:
+                fh.read(65536)
+            return enc
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return 'latin-1'
+
+
+def _prod_read_csv_rows(temp_path):
+    encoding = _prod_detect_encoding(temp_path)
+    with open(temp_path, 'r', encoding=encoding) as f:
+        sample = f.read(4096)
+        f.seek(0)
+        delimiter = ';' if ';' in sample else ','
+        reader = csv.DictReader(f, delimiter=delimiter)
+        headers = reader.fieldnames or []
+        rows = list(reader)
+    return headers, rows
+
+
+def _prod_cleanup_session_temp():
+    temp_path = session.get('prod_csv_temp_file')
+    if temp_path and os.path.exists(temp_path):
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+    session.pop('prod_csv_temp_file', None)
+    session.pop('prod_csv_filename', None)
+    session.pop('prod_csv_headers', None)
+
+
+def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
+    """Group rows by agent+slot, compute metrics, resolve links."""
+    groups = {}
+    for row in rows:
+        slot_str = productivity_logic.combine_datum_zeit(row)
+        dag = (row.get('DAG_ID') or '').strip()
+        agent = (row.get('DAG_VN_NN') or '').strip()
+        key = (dag or agent or '?', slot_str)
+        groups.setdefault(key, []).append(row)
+
+    intervals = []
+    matched = unmatched = 0
+    for _key, grp in groups.items():
+        slot = productivity_logic.merge_rows_to_slot(grp, settings)
+        if not slot.get('slot_at'):
+            continue
+        tid, pid, mid = productivity_logic.resolve_member(
+            slot.get('be4'), slot.get('dag_id'), slot.get('agent_name'),
+            team_map, dag_map, name_map,
+        )
+        if mid:
+            matched += 1
+        else:
+            unmatched += 1
+        intervals.append({**slot, 'team_id': tid, 'project_id': pid, 'team_member_id': mid})
+    return intervals, matched, unmatched
+
+
+def _prod_commit_intervals(filename, intervals, overwrite=False):
+    dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
+    date_from = min(dates) if dates else None
+    date_to = max(dates) if dates else None
+
+    deleted = 0
+    if overwrite and date_from and date_to:
+        q = ProductivityInterval.query.filter(
+            ProductivityInterval.slot_at >= datetime.combine(date_from, time.min),
+            ProductivityInterval.slot_at <= datetime.combine(date_to, time.max),
+        )
+        deleted = q.delete(synchronize_session=False)
+
+    batch = ProductivityImportBatch(
+        filename=filename,
+        imported_by_id=current_user.id,
+        date_from=date_from,
+        date_to=date_to,
+        rows_total=len(intervals),
+        intervals_stored=0,
+        matched_member=sum(1 for iv in intervals if iv.get('team_member_id')),
+        unmatched_member=sum(1 for iv in intervals if not iv.get('team_member_id')),
+    )
+    db.session.add(batch)
+    db.session.flush()
+
+    chunk = 500
+    stored = 0
+    for i in range(0, len(intervals), chunk):
+        part = intervals[i:i + chunk]
+        objs = []
+        for iv in part:
+            objs.append(ProductivityInterval(
+                batch_id=batch.id,
+                team_member_id=iv.get('team_member_id'),
+                team_id=iv.get('team_id'),
+                project_id=iv.get('project_id'),
+                slot_at=iv['slot_at'],
+                interval_sec=int(iv.get('interval_sec') or productivity_logic.INTERVAL_DEFAULT),
+                sign_on_sec=iv.get('sign_on_sec') or 0,
+                prod_sec=iv.get('prod_sec') or 0,
+                nach_sec=iv.get('nach_sec') or 0,
+                idle_sec=iv.get('idle_sec') or 0,
+                pause_sec=iv.get('pause_sec') or 0,
+                calls=iv.get('calls') or 0,
+                works_beendet=iv.get('works_beendet') or 0,
+                sign_on_pct=iv.get('sign_on_pct'),
+                prod_pct=iv.get('prod_pct'),
+                nach_pct=iv.get('nach_pct'),
+                idle_pct=iv.get('idle_pct'),
+                nach_per_call=iv.get('nach_per_call'),
+                kpi_denom=iv.get('kpi_denom'),
+            ))
+        db.session.bulk_save_objects(objs)
+        stored += len(objs)
+    batch.intervals_stored = stored
+    db.session.commit()
+    return batch, deleted
+
+
+@bp.route('/import_productivity_csv', methods=['GET', 'POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv():
+    if request.method == 'POST' and 'prod_csv_file' in request.files:
+        file = request.files['prod_csv_file']
+        if not file or not file.filename.lower().endswith('.csv'):
+            flash('Bitte eine CSV-Datei hochladen.', 'danger')
+            return redirect(url_for('admin.import_productivity_csv'))
+
+        _prod_cleanup_session_temp()
+        fd, temp_path = tempfile.mkstemp(suffix='.csv')
+        os.close(fd)
+        file.save(temp_path)
+        session['prod_csv_temp_file'] = temp_path
+        session['prod_csv_filename'] = file.filename
+
+        try:
+            headers, rows = _prod_read_csv_rows(temp_path)
+            session['prod_csv_headers'] = headers
+            settings = productivity_logic.settings_dict(None)
+            team_map, dag_map, name_map = productivity_logic.build_link_maps(
+                Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
+            )
+            intervals, matched, unmatched = _prod_build_intervals(
+                rows, settings, team_map, dag_map, name_map,
+            )
+        except Exception as e:
+            flash(f'CSV konnte nicht gelesen werden: {e}', 'danger')
+            _prod_cleanup_session_temp()
+            return redirect(url_for('admin.import_productivity_csv'))
+
+        if not rows:
+            flash('Keine Zeilen in der CSV gefunden.', 'warning')
+            _prod_cleanup_session_temp()
+            return redirect(url_for('admin.import_productivity_csv'))
+
+        dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
+        preview = {
+            'rows_total': len(rows),
+            'intervals': len(intervals),
+            'matched_member': matched,
+            'unmatched_member': unmatched,
+            'date_from': min(dates).strftime('%d.%m.%Y') if dates else '-',
+            'date_to': max(dates).strftime('%d.%m.%Y') if dates else '-',
+            'headers_count': len(headers),
+            'sample_headers': headers[:12],
+        }
+        return render_template(
+            'admin/import_productivity_preview.html',
+            preview=preview,
+            filename=file.filename,
+            config=current_app.config,
+        )
+
+    if request.method == 'POST' and request.form.get('action') == 'confirm':
+        temp_path = session.get('prod_csv_temp_file')
+        filename = session.get('prod_csv_filename', 'import.csv')
+        if not temp_path or not os.path.exists(temp_path):
+            flash('Keine CSV-Daten gefunden. Bitte erneut hochladen.', 'danger')
+            return redirect(url_for('admin.import_productivity_csv'))
+        try:
+            headers, rows = _prod_read_csv_rows(temp_path)
+            settings = productivity_logic.settings_dict(None)
+            team_map, dag_map, name_map = productivity_logic.build_link_maps(
+                Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
+            )
+            intervals, _, _ = _prod_build_intervals(rows, settings, team_map, dag_map, name_map)
+            overwrite = request.form.get('confirm_overwrite') == '1'
+            batch, deleted = _prod_commit_intervals(filename, intervals, overwrite=overwrite)
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Import fehlgeschlagen: {e}', 'danger')
+            return redirect(url_for('admin.import_productivity_csv'))
+        _prod_cleanup_session_temp()
+        msg = f'{batch.intervals_stored} Intervalle importiert'
+        if deleted:
+            msg += f', {deleted} im Zeitraum ersetzt'
+        msg += f'. {batch.matched_member} mit Agent, {batch.unmatched_member} ohne Zuordnung.'
+        flash(msg, 'success')
+        session['prod_csv_headers'] = headers
+        return redirect(url_for('admin.import_productivity_csv'))
+
+    recent_batches = ProductivityImportBatch.query.order_by(desc(ProductivityImportBatch.imported_at)).limit(10).all()
+    known_headers = session.get('prod_csv_headers') or []
+    return render_template(
+        'admin/import_productivity_csv.html',
+        recent_batches=recent_batches,
+        known_headers=known_headers,
+        config=current_app.config,
+    )
+
+
+@bp.route('/import_productivity_csv/revert/<int:batch_id>', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_revert(batch_id):
+    batch = ProductivityImportBatch.query.get_or_404(batch_id)
+    ProductivityInterval.query.filter_by(batch_id=batch.id).delete(synchronize_session=False)
+    db.session.delete(batch)
+    db.session.commit()
+    flash(f'Produktivitäts-Import #{batch_id} zurückgesetzt.', 'success')
+    return redirect(url_for('admin.import_productivity_csv'))
+
+
 @bp.route('/kpi-verwaltung', methods=['GET', 'POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
 def kpi_verwaltung():
     """Per-project mapping of which question code defines NPS / Lösung-Info."""
-    proj_rows = (
-        db.session.query(Project.id, Project.name)
-        .join(KpiSurvey, KpiSurvey.project_id == Project.id)
-        .distinct().order_by(Project.name).all()
-    )
+    qual_pids = {
+        r[0] for r in db.session.query(KpiSurvey.project_id).filter(
+            KpiSurvey.project_id.isnot(None),
+        ).distinct().all()
+    }
+    prod_pids = {
+        r[0] for r in db.session.query(ProductivityInterval.project_id).filter(
+            ProductivityInterval.project_id.isnot(None),
+        ).distinct().all()
+    }
+    all_pids = qual_pids | prod_pids
+    if all_pids:
+        proj_rows = (
+            db.session.query(Project.id, Project.name)
+            .filter(Project.id.in_(all_pids))
+            .order_by(Project.name).all()
+        )
+    else:
+        proj_rows = []
     projects = [{'id': pid, 'name': pname} for pid, pname in proj_rows]
 
     def _form_int(name):
@@ -4201,6 +4450,20 @@ def kpi_verwaltung():
             updated = _kpi_recompute_flags(None)
             flash(f'KPIs für alle Projekte neu berechnet: {updated} Befragungen.', 'success')
             return redirect(url_for('admin.kpi_verwaltung'))
+        if action == 'save_categories':
+            for cat in KpiCategory.query.order_by(KpiCategory.sort_order).all():
+                label = (request.form.get(f'cat_label_{cat.id}') or '').strip()
+                try:
+                    sort_order = int(request.form.get(f'cat_sort_{cat.id}', cat.sort_order))
+                except (TypeError, ValueError):
+                    sort_order = cat.sort_order
+                if label:
+                    cat.label = label[:100]
+                cat.sort_order = sort_order
+            db.session.commit()
+            flash('KPI-Kategorien gespeichert.', 'success')
+            return redirect(url_for('admin.kpi_verwaltung', project_id=sel_project) if sel_project
+                            else url_for('admin.kpi_verwaltung'))
         if action == 'save' and sel_project:
             st_list = request.form.getlist('survey_type')
             nps_list = request.form.getlist('nps')
@@ -4251,6 +4514,40 @@ def kpi_verwaltung():
             setting.dashboard_show_nps = bool(request.form.get('dashboard_show_nps'))
             setting.dashboard_show_fachkompetenz = bool(request.form.get('dashboard_show_fachkompetenz'))
             setting.dashboard_show_vertrieb = bool(request.form.get('dashboard_show_vertrieb'))
+
+            pset = ProjectProductivitySetting.query.get(sel_project)
+            if pset is None:
+                pset = ProjectProductivitySetting(project_id=sel_project)
+                db.session.add(pset)
+            try:
+                pset.interval_sec = max(60, int(request.form.get('prod_interval_sec', 1800)))
+            except (TypeError, ValueError):
+                pset.interval_sec = 1800
+            pset.pause_col = (request.form.get('prod_pause_col') or 'IDLE_RC12_Bearbeitung').strip()[:80]
+            pset.calls_col = (request.form.get('prod_calls_col') or 'Mex1').strip()[:80]
+
+            def _cols_from_form(prefix):
+                return [c.strip() for c in request.form.getlist(prefix) if c.strip()]
+
+            pset.sign_on_cols = json.dumps(_cols_from_form('prod_sign_on_cols'))
+            pset.prod_cols = json.dumps(_cols_from_form('prod_prod_cols'))
+            pset.nach_cols = json.dumps(_cols_from_form('prod_nach_cols'))
+            pset.idle_cols = json.dumps(_cols_from_form('prod_idle_cols'))
+            pset.excluded_cols = json.dumps(_cols_from_form('prod_excluded_cols'))
+            pset.dashboard_show_sign_on = bool(request.form.get('dashboard_show_sign_on'))
+            pset.dashboard_show_prod = bool(request.form.get('dashboard_show_prod'))
+            pset.dashboard_show_nach = bool(request.form.get('dashboard_show_nach'))
+            pset.dashboard_show_idle = bool(request.form.get('dashboard_show_idle'))
+            pset.dashboard_show_calls = bool(request.form.get('dashboard_show_calls'))
+            pset.impact_show_sign_on = bool(request.form.get('impact_show_sign_on'))
+            pset.impact_show_prod = bool(request.form.get('impact_show_prod'))
+            pset.impact_show_nach = bool(request.form.get('impact_show_nach'))
+            pset.impact_show_idle = bool(request.form.get('impact_show_idle'))
+            pset.impact_show_calls = bool(request.form.get('impact_show_calls'))
+            pset.target_sign_on = _float_form('target_sign_on', 95.0)
+            pset.target_prod = _float_form('target_prod', 85.0)
+            pset.target_nach_per_call = _float_form('target_nach_per_call', 30.0)
+            pset.target_idle_max = _float_form('target_idle_max', 10.0)
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
@@ -4320,6 +4617,19 @@ def kpi_verwaltung():
                 'vertrieb': setting.dashboard_show_vertrieb,
             }
 
+    categories = KpiCategory.query.order_by(KpiCategory.sort_order, KpiCategory.id).all()
+    if not categories:
+        for key, label, order in (('qualitaet', 'Qualität', 1), ('produktivitaet', 'Produktivität', 2)):
+            db.session.add(KpiCategory(key=key, label=label, sort_order=order, is_system=True))
+        db.session.commit()
+        categories = KpiCategory.query.order_by(KpiCategory.sort_order).all()
+
+    prod_setting = ProjectProductivitySetting.query.get(sel_project) if sel_project else None
+    prod_settings = productivity_logic.settings_dict(prod_setting)
+    prod_dashboard_visibility = productivity_logic.dashboard_visibility_dict(prod_setting)
+    prod_impact_visibility = productivity_logic.impact_visibility_dict(prod_setting)
+    known_headers = session.get('prod_csv_headers') or []
+
     from app.kpi import kpi_features_enabled
     return render_template(
         'admin/kpi_verwaltung.html',
@@ -4329,6 +4639,11 @@ def kpi_verwaltung():
         survey_types=survey_types,
         visibility=visibility,
         dashboard_visibility=dashboard_visibility,
+        categories=categories,
+        prod_settings=prod_settings,
+        prod_dashboard_visibility=prod_dashboard_visibility,
+        prod_impact_visibility=prod_impact_visibility,
+        known_headers=known_headers,
         kpi_features_enabled=kpi_features_enabled(),
         config=current_app.config,
     )

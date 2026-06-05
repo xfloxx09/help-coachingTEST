@@ -604,3 +604,89 @@ class PlatformSettings(db.Model):
     __tablename__ = 'platform_settings'
     id = db.Column(db.Integer, primary_key=True)
     kpi_features_enabled = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class KpiCategory(db.Model):
+    """Editable KPI category (Qualität, Produktivität, …)."""
+    __tablename__ = 'kpi_categories'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(40), unique=True, nullable=False)
+    label = db.Column(db.String(100), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    is_system = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class ProductivityImportBatch(db.Model):
+    """One ODVS/productivity CSV import run."""
+    __tablename__ = 'productivity_import_batches'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255))
+    imported_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    imported_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    date_from = db.Column(db.Date, nullable=True)
+    date_to = db.Column(db.Date, nullable=True)
+    rows_total = db.Column(db.Integer, nullable=False, default=0)
+    intervals_stored = db.Column(db.Integer, nullable=False, default=0)
+    matched_member = db.Column(db.Integer, nullable=False, default=0)
+    unmatched_member = db.Column(db.Integer, nullable=False, default=0)
+
+    imported_by = db.relationship('User', foreign_keys=[imported_by_id])
+
+
+class ProductivityInterval(db.Model):
+    """One merged agent slot (e.g. 30 min) with precomputed productivity KPIs."""
+    __tablename__ = 'productivity_intervals'
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey('productivity_import_batches.id'), nullable=True, index=True)
+    team_member_id = db.Column(db.Integer, db.ForeignKey('team_members.id'), nullable=True, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True, index=True)
+    slot_at = db.Column(db.DateTime, nullable=False, index=True)
+    interval_sec = db.Column(db.Integer, nullable=False, default=1800)
+    sign_on_sec = db.Column(db.Float, nullable=False, default=0)
+    prod_sec = db.Column(db.Float, nullable=False, default=0)
+    nach_sec = db.Column(db.Float, nullable=False, default=0)
+    idle_sec = db.Column(db.Float, nullable=False, default=0)
+    pause_sec = db.Column(db.Float, nullable=False, default=0)
+    calls = db.Column(db.Float, nullable=False, default=0)
+    works_beendet = db.Column(db.Float, nullable=False, default=0)
+    sign_on_pct = db.Column(db.Float, nullable=True)
+    prod_pct = db.Column(db.Float, nullable=True)
+    nach_pct = db.Column(db.Float, nullable=True)
+    idle_pct = db.Column(db.Float, nullable=True)
+    nach_per_call = db.Column(db.Float, nullable=True)
+    kpi_denom = db.Column(db.Float, nullable=True)
+    raw_json = db.Column(db.Text, nullable=True)
+
+    team_member = db.relationship('TeamMember', foreign_keys=[team_member_id])
+    team = db.relationship('Team', foreign_keys=[team_id])
+    project = db.relationship('Project', foreign_keys=[project_id])
+    batch = db.relationship('ProductivityImportBatch', backref=db.backref('intervals', lazy='dynamic'))
+
+
+class ProjectProductivitySetting(db.Model):
+    """Per-project productivity KPI config, visibility, and Ziele."""
+    __tablename__ = 'project_productivity_settings'
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), primary_key=True)
+    interval_sec = db.Column(db.Integer, nullable=False, default=1800)
+    pause_col = db.Column(db.String(80), nullable=False, default='IDLE_RC12_Bearbeitung')
+    calls_col = db.Column(db.String(80), nullable=False, default='Mex1')
+    sign_on_cols = db.Column(db.Text, nullable=True)
+    prod_cols = db.Column(db.Text, nullable=True)
+    nach_cols = db.Column(db.Text, nullable=True)
+    idle_cols = db.Column(db.Text, nullable=True)
+    excluded_cols = db.Column(db.Text, nullable=True)
+    dashboard_show_sign_on = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_prod = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_nach = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_idle = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_calls = db.Column(db.Boolean, nullable=False, default=True)
+    impact_show_sign_on = db.Column(db.Boolean, nullable=False, default=True)
+    impact_show_prod = db.Column(db.Boolean, nullable=False, default=True)
+    impact_show_nach = db.Column(db.Boolean, nullable=False, default=True)
+    impact_show_idle = db.Column(db.Boolean, nullable=False, default=True)
+    impact_show_calls = db.Column(db.Boolean, nullable=False, default=False)
+    target_sign_on = db.Column(db.Float, nullable=False, default=95.0)
+    target_prod = db.Column(db.Float, nullable=False, default=85.0)
+    target_nach_per_call = db.Column(db.Float, nullable=False, default=30.0)
+    target_idle_max = db.Column(db.Float, nullable=False, default=10.0)

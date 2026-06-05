@@ -1,0 +1,21 @@
+{% set labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
+<div class="mb-3">
+    <div class="btn-group btn-group-sm flex-wrap" role="group">
+        {% if has_perm('view_kpi_dashboard') %}
+        <a href="{{ url_for('main.kpi_dashboard_qualitaet') }}"
+           class="btn btn-outline-light {% if active_kpi_nav == 'qualitaet' %}active{% endif %}">
+            KPIs {{ labels.qualitaet }}
+        </a>
+        <a href="{{ url_for('main.kpi_dashboard_produktivitaet') }}"
+           class="btn btn-outline-light {% if active_kpi_nav == 'produktivitaet' %}active{% endif %}">
+            KPIs {{ labels.produktivitaet }}
+        </a>
+        {% endif %}
+        {% if has_perm('view_coaching_impact') %}
+        <a href="{{ url_for('main.coaching_impact') }}"
+           class="btn btn-outline-light {% if active_kpi_nav == 'coaching_impact' %}active{% endif %}">
+            Coaching VS KPI
+        </a>
+        {% endif %}
+    </div>
+</div>

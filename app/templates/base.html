@@ -259,11 +259,21 @@
                     {% if has_perm('view_pl_qm_dashboard') %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.pl_qm_dashboard') }}">Teams</a></li>
                     {% endif %}
-                    {% if has_perm('view_kpi_dashboard') and kpi_features_enabled %}
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.kpi_dashboard') }}">KPIs <span class="badge badge-info">Demo</span></a></li>
-                    {% endif %}
-                    {% if has_perm('view_coaching_impact') and kpi_features_enabled %}
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a></li>
+                    {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="kpiDropdown" role="button" data-toggle="dropdown">
+                                KPIs <span class="badge badge-info">Demo</span>
+                            </a>
+                            <div class="dropdown-menu" aria-labelledby="kpiDropdown">
+                                {% if has_perm('view_kpi_dashboard') %}
+                                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_qualitaet') }}">KPIs Qualität</a>
+                                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_produktivitaet') }}">KPIs Produktivität</a>
+                                {% endif %}
+                                {% if has_perm('view_coaching_impact') %}
+                                <a class="dropdown-item" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a>
+                                {% endif %}
+                            </div>
+                        </li>
                     {% endif %}
                     {% if current_user.role_name in ['Admin', 'Betriebsleiter'] %}
                         <li class="nav-item dropdown">
@@ -284,6 +294,7 @@
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="{{ url_for('admin.sync_from_csv') }}">CSV-Synchronisation</a>
                                 <a class="dropdown-item" href="{{ url_for('admin.import_kpi_csv') }}">KPI-Import (Demo)</a>
+                                <a class="dropdown-item" href="{{ url_for('admin.import_productivity_csv') }}">Produktivitäts-Import (Demo)</a>
                                 <a class="dropdown-item" href="{{ url_for('admin.kpi_verwaltung') }}">KPI Verwaltung</a>
                                 <a class="dropdown-item" href="{{ url_for('admin.team_view_kpis') }}">Team-View KPIs</a>
                             </div>
