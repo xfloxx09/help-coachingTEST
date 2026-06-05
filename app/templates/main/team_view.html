@@ -231,7 +231,7 @@
                     </div>
                     <div class="col-md-4">
                         <div class="team-kpi-card">
-                            <span class="team-kpi-label">Durchschnittlicher Performance-Score</span>
+                            <span class="team-kpi-label">Ø Bewertung vom Coach</span>
                             <span class="team-kpi-value">{{ team_avg_score_percent }}%</span>
                         </div>
                     </div>
@@ -250,7 +250,7 @@
                             
                             {% if card_settings.show_performance %}
                             <div class="stat-group text-center">
-                                <div class="stat-label">Durchschnittlicher Score</div>
+                                <div class="stat-label">Bewertung vom Coach</div>
                                 <div class="progress mx-auto" style="max-width: 180px;">
                                     <div class="progress-bar {% if member_stat.avg_score == 0 and member_stat.total_coachings == 0 %}bg-secondary{% else %}{{ member_stat.avg_score|kpi_bar_class(card_settings.target_performance, card_settings.warn_performance) }}{% endif %}" 
                                          role="progressbar" 
@@ -381,7 +381,7 @@
         <div class="form-row mb-2" id="trendToggleRow">
             <div class="col-auto form-check form-check-inline">
                 <input class="form-check-input trend-metric-toggle" type="checkbox" id="togglePerf" value="perf" checked>
-                <label class="form-check-label text-light small" for="togglePerf">Coaching-Score</label>
+                <label class="form-check-label text-light small" for="togglePerf">Bewertung vom Coach</label>
             </div>
             <div class="col-auto form-check form-check-inline">
                 <input class="form-check-input trend-metric-toggle" type="checkbox" id="toggleNps" value="nps" checked>
@@ -517,7 +517,7 @@ $(document).ready(function() {
         const datasets = [];
         if (showPerf) {
             datasets.push({
-                label: 'Coaching-Score (%)',
+                label: 'Bewertung vom Coach (%)',
                 data: allDates.map(function(d) { return coachByDate[d] != null ? coachByDate[d] : null; }),
                 borderColor: '#e20074',
                 backgroundColor: 'rgba(226, 0, 116, 0.15)',
