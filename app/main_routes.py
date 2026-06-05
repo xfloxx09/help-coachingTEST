@@ -6328,6 +6328,7 @@ def coaching_impact():
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
+        has_productivity_data=bool(prod_pids),
         kpi_category_labels=_kpi_category_labels(),
         active_kpi_nav='coaching_impact',
     )

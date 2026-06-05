@@ -73,15 +73,36 @@
         height: min(52vh, 480px);
         min-height: 360px;
     }
-    .ci-col-qual, .ci-col-prod { }
+    .ci-view-panel {
+        border: 1px solid #34343c;
+        border-radius: 12px;
+        padding: 1.15rem 1.25rem 0.25rem;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
+    }
+    .ci-view-panel-title {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+        padding-bottom: 0.55rem;
+        border-bottom: 1px solid #34343c;
+    }
+    body.ci-view-prod .ci-view-panel-qual { display: none !important; }
+    body.ci-view-qual .ci-view-panel-prod { display: none !important; }
     body.ci-view-qual .ci-col-prod { display: none !important; }
     body.ci-view-prod .ci-col-qual { display: none !important; }
+    .ci-ba-chart-wrap {
+        position: relative;
+        height: 280px;
+        min-height: 220px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
-<div class="container-fluid mt-4">
+{% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
+<div class="container-fluid mt-4" id="ciPageRoot">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-bolt text-warning"></i> Coaching VS KPI <span class="badge badge-info align-middle">Demo</span></h2>
     </div>
@@ -138,6 +159,16 @@
                     {% endfor %}
                 </select>
             </div>
+
+            {% if has_productivity_data %}
+            <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
+                <div class="ci-mini-label mb-1">kpi-kategorie</div>
+                <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
+                    <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
+                    <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <hr style="border-color:#34343c;">
@@ -204,13 +235,13 @@
         </div>
     </div>
 
-    <!-- Before/After impact cards — Qualität -->
-    <h5 class="mb-2">Wirkung: {{ kpi_category_labels.qualitaet if kpi_category_labels else 'Qualität' }} vor vs. nach Coaching</h5>
+    <div class="ci-view-panel ci-view-panel-qual">
+    <div class="ci-view-panel-title">Wirkung: {{ cat_labels.qualitaet }} vor vs. nach Coaching</div>
     <p class="text-muted small mb-3">
         Durchschnittlicher KPI-Wert {{ window }} Tage <em>vor</em> einem Coaching im Vergleich zu {{ window }} Tagen <em>danach</em>,
         gemittelt über alle Coachings mit Befragungsdaten auf beiden Seiten.
     </p>
-    <div class="row mb-4">
+    <div class="row mb-2">
         {% set parts = [] %}
         {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
         {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
@@ -273,42 +304,33 @@
         </div>
         {% endfor %}
     </div>
+    </div>
     {% endif %}
 
     {% if overlay %}
-    {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
-    <div class="card mb-4">
-        <div class="card-header ci-chart-card-header">
-            <div>
-                <strong>Zeitverlauf</strong>
-                <span class="text-muted small d-block d-md-inline ml-md-2">(Balken = Coachings/Tag · Klick auf einen Tag zeigt die Rohdaten)</span>
-            </div>
-            {% if visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle %}
-            <div class="ci-view-toggle btn-group btn-group-sm" role="group" aria-label="Chart-Ansicht">
-                <button type="button" class="btn active" id="ciViewQual" data-ci-view="qualitaet">{{ cat_labels.qualitaet }} + Coachings</button>
-                <button type="button" class="btn" id="ciViewProd" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }} + Coachings</button>
-            </div>
-            {% endif %}
-        </div>
-        <div class="card-body">
-            <div class="ci-chart-wrap">
-                <canvas id="ciOverlayChart"></canvas>
-            </div>
-        </div>
+    <div class="ci-view-panel ci-view-panel-charts">
+    <div class="ci-view-panel-title">
+        Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span> &amp; Coachings
+        <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Balken = Coachings/Tag · Klick auf einen Tag zeigt die Rohdaten)</span>
+    </div>
+    <div class="ci-chart-wrap mb-4">
+        <canvas id="ciOverlayChart"></canvas>
     </div>
 
-    <div class="row mb-4">
+    <div class="row mb-2">
         <div class="col-12 col-lg-6 mb-3">
-            <div class="card h-100">
-                <div class="card-header"><strong>Vorher / Nachher</strong></div>
+            <div class="card h-100" style="background:#22222a;border-color:#34343c;">
+                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Vorher / Nachher</strong></div>
                 <div class="card-body">
-                    <canvas id="ciBaChart" height="160"></canvas>
+                    <div class="ci-ba-chart-wrap">
+                        <canvas id="ciBaChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-12 col-lg-6 mb-3">
-            <div class="card h-100">
-                <div class="card-header"><strong>Tagesübersicht</strong></div>
+            <div class="card h-100" style="background:#22222a;border-color:#34343c;">
+                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Tagesübersicht</strong></div>
                 <div class="card-body p-0">
                     <div class="table-responsive" style="max-height: 360px;">
                         <table class="table table-sm table-hover mb-0">
@@ -349,6 +371,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
     {% else %}
     <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
@@ -426,11 +449,13 @@
     var visible = {{ visible|tojson }};
     var visibleProd = {{ visible_prod|tojson }};
     var prodLabels = {{ prod_labels|tojson }};
+    var catLabels = {{ cat_labels|tojson }};
+    var hasProductivityData = {{ (has_productivity_data or false)|tojson }};
 
-    // Overlay chart — Qualität or Produktivität (not both)
     var oc = document.getElementById('ciOverlayChart');
     var ciOverlayChartInstance = null;
-    var ciViewMode = localStorage.getItem('coachingImpactChartView') || 'qualitaet';
+    var ciBaChartInstance = null;
+    var ciViewMode = localStorage.getItem('coachingImpactView') || 'qualitaet';
 
     function ciCoachDataset() {
         return {
@@ -562,44 +587,28 @@
         });
     }
 
-    function applyCiViewMode(mode) {
-        ciViewMode = mode;
-        localStorage.setItem('coachingImpactChartView', mode);
-        document.body.classList.remove('ci-view-qual', 'ci-view-prod');
-        document.body.classList.add(mode === 'produktivitaet' ? 'ci-view-prod' : 'ci-view-qual');
-        document.querySelectorAll('.ci-view-toggle .btn').forEach(function (btn) {
-            btn.classList.toggle('active', btn.getAttribute('data-ci-view') === mode);
-        });
-        buildCiOverlayChart(mode);
-    }
-
-    if (oc && overlay && overlay.length) {
-        var hasProdLines = visibleProd.sign_on || visibleProd.prod || visibleProd.nach || visibleProd.idle;
-        if (ciViewMode === 'produktivitaet' && !hasProdLines) ciViewMode = 'qualitaet';
-        applyCiViewMode(ciViewMode);
-        document.querySelectorAll('.ci-view-toggle .btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                applyCiViewMode(btn.getAttribute('data-ci-view'));
-            });
-        });
-    }
-
-    // Before/After grouped bar
-    var bc = document.getElementById('ciBaChart');
-    if (bc && ba && window.Chart) {
+    function buildCiBaChart(mode) {
+        var bc = document.getElementById('ciBaChart');
+        if (!bc || !window.Chart) return;
+        if (ciBaChartInstance) {
+            ciBaChartInstance.destroy();
+            ciBaChartInstance = null;
+        }
         var baLabels = [], baBefore = [], baAfter = [];
-        if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.before); baAfter.push(ba.info.after); }
-        if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.before); baAfter.push(ba.loes.after); }
-        if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
-        if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
-        if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
-        if (baProd) {
+        if (mode === 'produktivitaet' && baProd) {
             if (visibleProd.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
             if (visibleProd.prod) { baLabels.push(prodLabels.prod); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
             if (visibleProd.nach) { baLabels.push(prodLabels.nach); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
             if (visibleProd.idle) { baLabels.push(prodLabels.idle); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
+        } else if (ba) {
+            if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.before); baAfter.push(ba.info.after); }
+            if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.before); baAfter.push(ba.loes.after); }
+            if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
+            if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
+            if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
         }
-        new Chart(bc.getContext('2d'), {
+        if (!baLabels.length) return;
+        ciBaChartInstance = new Chart(bc.getContext('2d'), {
             type: 'bar',
             data: {
                 labels: baLabels,
@@ -611,9 +620,43 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
                 scales: { y: { beginAtZero: true } },
             },
         });
+    }
+
+    function applyCiViewMode(mode) {
+        ciViewMode = mode;
+        localStorage.setItem('coachingImpactView', mode);
+        document.body.classList.remove('ci-view-qual', 'ci-view-prod');
+        document.body.classList.add(mode === 'produktivitaet' ? 'ci-view-prod' : 'ci-view-qual');
+        document.querySelectorAll('#ciViewToggle .btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-ci-view') === mode);
+        });
+        var modeLabel = document.getElementById('ciChartsModeLabel');
+        if (modeLabel) {
+            modeLabel.textContent = mode === 'produktivitaet' ? catLabels.produktivitaet : catLabels.qualitaet;
+        }
+        buildCiOverlayChart(mode);
+        buildCiBaChart(mode);
+    }
+
+    if (hasProductivityData) {
+        var hasProdLines = visibleProd.sign_on || visibleProd.prod || visibleProd.nach || visibleProd.idle;
+        if (ciViewMode === 'produktivitaet' && !hasProdLines) ciViewMode = 'qualitaet';
+        applyCiViewMode(ciViewMode);
+        document.querySelectorAll('#ciViewToggle .btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                applyCiViewMode(btn.getAttribute('data-ci-view'));
+            });
+        });
+    } else {
+        document.body.classList.add('ci-view-qual');
+        if (oc && overlay && overlay.length) {
+            buildCiOverlayChart('qualitaet');
+            buildCiBaChart('qualitaet');
+        }
     }
 
     // Day modal
