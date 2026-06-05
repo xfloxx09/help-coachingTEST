@@ -118,6 +118,47 @@ def compute_nps(values):
     }
 
 
+def is_nps_question(text):
+    """Heuristic: a question is an NPS question if its text mentions 'NPS'."""
+    return 'NPS' in (text or '').upper()
+
+
+def is_loesung_question(text):
+    """Heuristic: the 'Konnten wir Ihr Anliegen lösen?' question (Info/Lösung)."""
+    return 'konnten wir ihr anliegen' in _norm_cmp(text)
+
+
+def compute_survey_flags(answers, nps_code=None, loesung_code=None):
+    """Derive (nps_value, loesung_answer, info_positive, loesung_positive) from a
+    survey's answers.
+
+    answers: iterable of dicts with keys 'code', 'text', 'antwort'.
+    nps_code / loesung_code: explicit question codes (per-project mapping). When a
+    code is None, the question is auto-detected from its text.
+    """
+    nps_value = None
+    loesung_answer = None
+    info_positive = None
+    loesung_positive = None
+    for a in answers:
+        code = (a.get('code') or '').strip()
+        text = a.get('text') or ''
+        antwort = a.get('antwort') or ''
+        is_nps = (code == nps_code) if nps_code else (nps_code is None and is_nps_question(text))
+        is_loes = (code == loesung_code) if loesung_code else (loesung_code is None and is_loesung_question(text))
+        if is_nps and nps_value is None:
+            v = parse_nps(antwort)
+            if v is not None:
+                nps_value = v
+        if is_loes and loesung_answer is None:
+            norm = normalize_text(antwort)
+            if norm:
+                loesung_answer = norm[:255]
+                info_positive = classify_info(antwort)
+                loesung_positive = classify_loesung(antwort)
+    return nps_value, loesung_answer, info_positive, loesung_positive
+
+
 def quote_percent(positive, total):
     """Share in percent with 2 decimals, or None if no answers."""
     if not total:

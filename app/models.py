@@ -505,3 +505,40 @@ class KpiAnswer(db.Model):
     antwort = db.Column(db.Text)
 
     survey = db.relationship('KpiSurvey', back_populates='answers')
+
+
+class ProjectKpiSource(db.Model):
+    """A survey type (studie) that feeds a project's KPIs. No rows = all types."""
+    __tablename__ = 'project_kpi_sources'
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
+    survey_type = db.Column(db.String(150), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'survey_type', name='uq_project_kpi_source'),
+    )
+
+
+class ProjectKpiSetting(db.Model):
+    """Per-project toggle of which of the three KPIs are visible."""
+    __tablename__ = 'project_kpi_settings'
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), primary_key=True)
+    show_info = db.Column(db.Boolean, nullable=False, default=True)
+    show_loesung = db.Column(db.Boolean, nullable=False, default=True)
+    show_nps = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class KpiQuestionMapping(db.Model):
+    """Per-project, per-survey-type question code that defines a KPI.
+
+    kpi_kind is 'nps' or 'loesung' ('loesung' drives both Informations- and
+    Lösungsquote). No mapping row = auto-detect the question by its text.
+    """
+    __tablename__ = 'kpi_question_mappings'
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
+    survey_type = db.Column(db.String(150), nullable=False)
+    kpi_kind = db.Column(db.String(20), nullable=False)
+    frage_code = db.Column(db.String(40), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'survey_type', 'kpi_kind', name='uq_kpi_question_mapping'),
+    )

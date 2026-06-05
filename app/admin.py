@@ -5,7 +5,7 @@ from sqlalchemy import desc, or_, false, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from app import db
-from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer
+from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer, ProjectKpiSource, ProjectKpiSetting, KpiQuestionMapping
 from app import kpi as kpi_logic
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
@@ -483,10 +483,48 @@ def edit_project(project_id):
         project.name = form.name.data
         project.description = form.description.data
         project.abteilung_id = _abteilung_pk_from_form(form)
+
+        # KPI sources (which survey types feed this project; none selected = all)
+        selected_sources = {s.strip() for s in request.form.getlist('kpi_source') if s.strip()}
+        ProjectKpiSource.query.filter_by(project_id=project.id).delete()
+        for st in selected_sources:
+            db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st))
+
+        # KPI visibility toggles
+        setting = ProjectKpiSetting.query.get(project.id)
+        if setting is None:
+            setting = ProjectKpiSetting(project_id=project.id)
+            db.session.add(setting)
+        setting.show_info = bool(request.form.get('show_info'))
+        setting.show_loesung = bool(request.form.get('show_loesung'))
+        setting.show_nps = bool(request.form.get('show_nps'))
+
         db.session.commit()
         flash('Projekt aktualisiert.', 'success')
         return redirect(url_for('admin.manage_projects'))
-    return render_template('admin/edit_project.html', form=form, project=project)
+
+    # Available survey types (distinct studie across all imported KPI data)
+    all_survey_types = sorted(
+        (s or '').strip() for (s,) in db.session.query(KpiSurvey.studie).distinct().all()
+        if (s or '').strip()
+    )
+    selected_sources = {
+        r[0] for r in db.session.query(ProjectKpiSource.survey_type).filter_by(project_id=project.id).all()
+    }
+    setting = ProjectKpiSetting.query.get(project.id)
+    visibility = {
+        'info': setting.show_info if setting else True,
+        'loesung': setting.show_loesung if setting else True,
+        'nps': setting.show_nps if setting else True,
+    }
+    return render_template(
+        'admin/edit_project.html',
+        form=form,
+        project=project,
+        all_survey_types=all_survey_types,
+        selected_sources=selected_sources,
+        visibility=visibility,
+    )
 
 
 @bp.route('/projects/delete/<int:project_id>', methods=['POST'])
@@ -3366,15 +3404,42 @@ def _kpi_read_surveys(temp_path):
                 'text': kpi_logic.question_text(frage),
                 'antwort': kpi_logic.normalize_text(antwort),
             })
-            if code == kpi_logic.NPS_CODE:
-                v = kpi_logic.parse_nps(antwort)
-                if v is not None:
-                    s['nps_value'] = v
-            elif code == kpi_logic.INFO_LOESUNG_CODE:
-                s['loesung_answer'] = kpi_logic.normalize_text(antwort)[:255]
-                s['info_positive'] = kpi_logic.classify_info(antwort)
-                s['loesung_positive'] = kpi_logic.classify_loesung(antwort)
-    return [surveys[d] for d in order]
+    # Default flags via auto-detection (no per-project mapping yet).
+    result = [surveys[d] for d in order]
+    for s in result:
+        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(s['answers'])
+        s['nps_value'] = nps_v
+        s['loesung_answer'] = loes_a
+        s['info_positive'] = info_p
+        s['loesung_positive'] = loes_p
+    return result
+
+
+def _kpi_apply_mappings(surveys):
+    """Override default KPI flags using each survey's per-project question mapping.
+
+    Surveys whose project has no mapping for their survey type keep the
+    auto-detected defaults.
+    """
+    mappings = {}
+    for m in KpiQuestionMapping.query.all():
+        bucket = mappings.setdefault((m.project_id, m.survey_type), {})
+        bucket[m.kpi_kind] = m.frage_code
+    if not mappings:
+        return
+    for s in surveys:
+        cfg = mappings.get((s.get('project_id'), s.get('studie')))
+        if not cfg:
+            continue
+        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(
+            s['answers'],
+            nps_code=cfg.get('nps'),
+            loesung_code=cfg.get('loesung'),
+        )
+        s['nps_value'] = nps_v
+        s['loesung_answer'] = loes_a
+        s['info_positive'] = info_p
+        s['loesung_positive'] = loes_p
 
 
 def _kpi_resolve_links(surveys):
@@ -3562,6 +3627,7 @@ def import_kpi_csv():
         try:
             surveys = _kpi_read_surveys(temp_path)
             stats = _kpi_resolve_links(surveys)
+            _kpi_apply_mappings(surveys)
         except Exception as e:
             flash(f'CSV konnte nicht gelesen werden: {e}', 'danger')
             _kpi_cleanup_session_temp()
@@ -3605,6 +3671,7 @@ def import_kpi_csv():
         try:
             surveys = _kpi_read_surveys(temp_path)
             stats = _kpi_resolve_links(surveys)
+            _kpi_apply_mappings(surveys)
             batch, date_from, date_to = _kpi_commit(filename, surveys, stats)
         except Exception as e:
             db.session.rollback()
@@ -3650,3 +3717,137 @@ def revert_kpi_import(batch_id):
         return redirect(url_for('admin.import_kpi_csv'))
     flash(f'Import rückgängig gemacht: {deleted} Befragungen gelöscht.', 'success')
     return redirect(url_for('admin.import_kpi_csv'))
+
+
+def _kpi_recompute_flags(project_id=None):
+    """Recompute precomputed KPI flags for stored surveys from raw answers + mappings.
+
+    project_id None -> all surveys. Returns the number of surveys updated.
+    """
+    mappings = {}
+    for m in KpiQuestionMapping.query.all():
+        mappings.setdefault((m.project_id, m.survey_type), {})[m.kpi_kind] = m.frage_code
+
+    # Batch-load answers grouped by survey (avoids per-survey N+1 queries).
+    ans_q = db.session.query(
+        KpiAnswer.survey_id, KpiAnswer.frage_code, KpiAnswer.frage_text, KpiAnswer.antwort,
+    )
+    if project_id:
+        ans_q = ans_q.join(KpiSurvey, KpiSurvey.id == KpiAnswer.survey_id).filter(
+            KpiSurvey.project_id == project_id
+        )
+    answers_by_survey = {}
+    for sid, code, ftext, antwort in ans_q.yield_per(2000):
+        answers_by_survey.setdefault(sid, []).append(
+            {'code': code, 'text': ftext, 'antwort': antwort}
+        )
+
+    sv_q = KpiSurvey.query
+    if project_id:
+        sv_q = sv_q.filter(KpiSurvey.project_id == project_id)
+    updated = 0
+    for sv in sv_q.all():
+        cfg = mappings.get((sv.project_id, sv.studie)) or {}
+        nps_v, loes_a, info_p, loes_p = kpi_logic.compute_survey_flags(
+            answers_by_survey.get(sv.id, []),
+            nps_code=cfg.get('nps'), loesung_code=cfg.get('loesung'),
+        )
+        sv.nps_value = nps_v
+        sv.loesung_answer = loes_a
+        sv.info_positive = info_p
+        sv.loesung_positive = loes_p
+        updated += 1
+    db.session.commit()
+    return updated
+
+
+@bp.route('/kpi-verwaltung', methods=['GET', 'POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def kpi_verwaltung():
+    """Per-project mapping of which question code defines NPS / Lösung-Info."""
+    proj_rows = (
+        db.session.query(Project.id, Project.name)
+        .join(KpiSurvey, KpiSurvey.project_id == Project.id)
+        .distinct().order_by(Project.name).all()
+    )
+    projects = [{'id': pid, 'name': pname} for pid, pname in proj_rows]
+
+    def _form_int(name):
+        try:
+            return int(request.form.get(name))
+        except (TypeError, ValueError):
+            return None
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        sel_project = _form_int('project_id')
+        if action == 'recompute':
+            updated = _kpi_recompute_flags(sel_project)
+            flash(f'KPIs neu berechnet: {updated} Befragungen aktualisiert.', 'success')
+            return redirect(url_for('admin.kpi_verwaltung', project_id=sel_project) if sel_project
+                            else url_for('admin.kpi_verwaltung'))
+        if action == 'recompute_all':
+            updated = _kpi_recompute_flags(None)
+            flash(f'KPIs für alle Projekte neu berechnet: {updated} Befragungen.', 'success')
+            return redirect(url_for('admin.kpi_verwaltung'))
+        if action == 'save' and sel_project:
+            st_list = request.form.getlist('survey_type')
+            nps_list = request.form.getlist('nps')
+            loes_list = request.form.getlist('loesung')
+            KpiQuestionMapping.query.filter_by(project_id=sel_project).delete()
+            for st, npsc, loesc in zip(st_list, nps_list, loes_list):
+                st = (st or '').strip()
+                if not st:
+                    continue
+                if npsc:
+                    db.session.add(KpiQuestionMapping(
+                        project_id=sel_project, survey_type=st, kpi_kind='nps', frage_code=npsc.strip()))
+                if loesc:
+                    db.session.add(KpiQuestionMapping(
+                        project_id=sel_project, survey_type=st, kpi_kind='loesung', frage_code=loesc.strip()))
+            db.session.commit()
+            flash('KPI-Zuordnung gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
+            return redirect(url_for('admin.kpi_verwaltung', project_id=sel_project))
+
+    sel_project = request.args.get('project_id', type=int)
+    if sel_project and sel_project not in {p['id'] for p in projects}:
+        sel_project = None
+
+    survey_types = []
+    project_name = None
+    if sel_project:
+        project_name = next((p['name'] for p in projects if p['id'] == sel_project), None)
+        rows = (
+            db.session.query(KpiSurvey.studie, KpiAnswer.frage_code, KpiAnswer.frage_text)
+            .join(KpiAnswer, KpiAnswer.survey_id == KpiSurvey.id)
+            .filter(KpiSurvey.project_id == sel_project)
+            .distinct().all()
+        )
+        types = {}
+        for studie, code, ftext in rows:
+            studie = (studie or '').strip() or '(ohne Studie)'
+            if not code:
+                continue
+            types.setdefault(studie, {}).setdefault(code, ftext or code)
+        existing = {
+            (m.survey_type, m.kpi_kind): m.frage_code
+            for m in KpiQuestionMapping.query.filter_by(project_id=sel_project).all()
+        }
+        for studie in sorted(types):
+            qs = [{'code': c, 'text': types[studie][c]} for c in sorted(types[studie])]
+            survey_types.append({
+                'name': studie,
+                'questions': qs,
+                'nps_code': existing.get((studie, 'nps'), ''),
+                'loesung_code': existing.get((studie, 'loesung'), ''),
+            })
+
+    return render_template(
+        'admin/kpi_verwaltung.html',
+        projects=projects,
+        sel_project=sel_project,
+        project_name=project_name,
+        survey_types=survey_types,
+        config=current_app.config,
+    )

@@ -609,6 +609,56 @@ def create_app(config_class=Config):
                 conn.rollback()
                 print(f"ℹ️ kpi_answers: {e}")
 
+        # 17. KPI configuration tables (per-project sources, visibility, question mapping)
+        if 'project_kpi_sources' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE project_kpi_sources ('
+                    'id SERIAL PRIMARY KEY, '
+                    'project_id INTEGER NOT NULL REFERENCES projects(id), '
+                    'survey_type VARCHAR(150) NOT NULL, '
+                    'CONSTRAINT uq_project_kpi_source UNIQUE (project_id, survey_type))'
+                ))
+                conn.execute(text('CREATE INDEX ix_project_kpi_sources_project_id ON project_kpi_sources (project_id)'))
+                conn.commit()
+                print("✅ Tabelle 'project_kpi_sources' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ project_kpi_sources: {e}")
+
+        if 'project_kpi_settings' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE project_kpi_settings ('
+                    'project_id INTEGER PRIMARY KEY REFERENCES projects(id), '
+                    'show_info BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'show_loesung BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'show_nps BOOLEAN NOT NULL DEFAULT TRUE)'
+                ))
+                conn.commit()
+                print("✅ Tabelle 'project_kpi_settings' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ project_kpi_settings: {e}")
+
+        if 'kpi_question_mappings' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE kpi_question_mappings ('
+                    'id SERIAL PRIMARY KEY, '
+                    'project_id INTEGER NOT NULL REFERENCES projects(id), '
+                    'survey_type VARCHAR(150) NOT NULL, '
+                    'kpi_kind VARCHAR(20) NOT NULL, '
+                    'frage_code VARCHAR(40) NOT NULL, '
+                    'CONSTRAINT uq_kpi_question_mapping UNIQUE (project_id, survey_type, kpi_kind))'
+                ))
+                conn.execute(text('CREATE INDEX ix_kpi_question_mappings_project_id ON kpi_question_mappings (project_id)'))
+                conn.commit()
+                print("✅ Tabelle 'kpi_question_mappings' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ kpi_question_mappings: {e}")
+
         print("--- Migration abgeschlossen ---")
 
     # --- Blueprint registration ---

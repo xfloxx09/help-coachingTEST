@@ -130,6 +130,7 @@
         <h4 class="mb-0">{{ scope_label }}</h4>
     </div>
     <div class="row mb-4">
+        {% if visible.info %}
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-info">
                 <div class="kpi-label">Informationsquote</div>
@@ -137,6 +138,8 @@
                 <div class="kpi-sub">{{ kpi.info_pos }} von {{ kpi.info_total }} Befragungen positiv ("Ja" oder "Noch nicht …informiert")</div>
             </div>
         </div>
+        {% endif %}
+        {% if visible.loesung %}
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-loes">
                 <div class="kpi-label">Lösungsquote</div>
@@ -144,6 +147,8 @@
                 <div class="kpi-sub">{{ kpi.loes_pos }} von {{ kpi.loes_total }} Befragungen mit "Ja"</div>
             </div>
         </div>
+        {% endif %}
+        {% if visible.nps %}
         <div class="col-12 col-md-4 mb-3">
             <div class="kpi-card kpi-nps">
                 <div class="kpi-label">NPS</div>
@@ -151,6 +156,7 @@
                 <div class="kpi-sub">{{ kpi.nps_total }} Bewertungen · {{ kpi.nps_promoters }} Promotoren / {{ kpi.nps_neutrals }} Neutrale / {{ kpi.nps_detractors }} Detraktoren</div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     {% if daily %}
@@ -170,9 +176,9 @@
                         <tr>
                             <th>Datum</th>
                             <th class="text-right">Befragungen</th>
-                            <th class="text-right">Informationsquote</th>
-                            <th class="text-right">Lösungsquote</th>
-                            <th class="text-right">NPS</th>
+                            {% if visible.info %}<th class="text-right">Informationsquote</th>{% endif %}
+                            {% if visible.loesung %}<th class="text-right">Lösungsquote</th>{% endif %}
+                            {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
                             <th></th>
                         </tr>
                     </thead>
@@ -181,9 +187,9 @@
                         <tr class="kpi-day-row" data-date="{{ d.date }}">
                             <td>{{ d.label }}</td>
                             <td class="text-right">{{ d.count }}</td>
-                            <td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>
-                            <td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>
-                            <td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>
+                            {% if visible.info %}<td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.loesung %}<td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
                             <td class="text-right"><i class="fas fa-search text-muted"></i></td>
                         </tr>
                     {% endfor %}
@@ -267,42 +273,34 @@
 
     // Chart
     var daily = {{ daily|tojson }};
+    var visible = {{ visible|tojson }};
     var canvas = document.getElementById('kpiChart');
     if (canvas && daily && daily.length && window.Chart) {
         var ctx = canvas.getContext('2d');
+        var datasets = [];
+        if (visible.info) datasets.push({
+            label: 'Informationsquote (%)',
+            data: daily.map(function (d) { return d.info_quote; }),
+            borderColor: '#36c6a0', backgroundColor: 'rgba(54,198,160,0.15)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25,
+        });
+        if (visible.loesung) datasets.push({
+            label: 'Lösungsquote (%)',
+            data: daily.map(function (d) { return d.loes_quote; }),
+            borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.15)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25,
+        });
+        if (visible.nps) datasets.push({
+            label: 'NPS',
+            data: daily.map(function (d) { return d.nps; }),
+            borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.15)',
+            yAxisID: 'yNps', spanGaps: true, tension: 0.25,
+        });
         new Chart(ctx, {
             type: 'line',
             data: {
                 labels: daily.map(function (d) { return d.label; }),
-                datasets: [
-                    {
-                        label: 'Informationsquote (%)',
-                        data: daily.map(function (d) { return d.info_quote; }),
-                        borderColor: '#36c6a0',
-                        backgroundColor: 'rgba(54,198,160,0.15)',
-                        yAxisID: 'yQuote',
-                        spanGaps: true,
-                        tension: 0.25,
-                    },
-                    {
-                        label: 'Lösungsquote (%)',
-                        data: daily.map(function (d) { return d.loes_quote; }),
-                        borderColor: '#4aa3ff',
-                        backgroundColor: 'rgba(74,163,255,0.15)',
-                        yAxisID: 'yQuote',
-                        spanGaps: true,
-                        tension: 0.25,
-                    },
-                    {
-                        label: 'NPS',
-                        data: daily.map(function (d) { return d.nps; }),
-                        borderColor: '#ffb648',
-                        backgroundColor: 'rgba(255,182,72,0.15)',
-                        yAxisID: 'yNps',
-                        spanGaps: true,
-                        tension: 0.25,
-                    },
-                ],
+                datasets: datasets,
             },
             options: {
                 responsive: true,

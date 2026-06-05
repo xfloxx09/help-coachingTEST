@@ -22,6 +22,8 @@ from app.models import (
     KpiSurvey,
     KpiAnswer,
     KpiImportBatch,
+    ProjectKpiSource,
+    ProjectKpiSetting,
 )
 from app import kpi as kpi_logic
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
@@ -4802,6 +4804,42 @@ def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
     return filters
 
 
+def _kpi_source_filter(project_id):
+    """Restrict surveys to the project's configured survey types. No rows = all."""
+    if not project_id:
+        return []
+    types = [
+        r[0] for r in db.session.query(ProjectKpiSource.survey_type)
+        .filter_by(project_id=project_id).all()
+    ]
+    if not types:
+        return []
+    return [KpiSurvey.studie.in_(types)]
+
+
+def _kpi_visibility(project_id):
+    """Which of the three KPIs are visible for a project (default: all)."""
+    setting = ProjectKpiSetting.query.get(project_id) if project_id else None
+    if setting is None:
+        return {'info': True, 'loesung': True, 'nps': True}
+    return {'info': setting.show_info, 'loesung': setting.show_loesung, 'nps': setting.show_nps}
+
+
+def _active_project_id(mode, sel_project, sel_team, sel_member):
+    """Resolve the single project context for the current selection (for KPI config)."""
+    if mode == 'project' and sel_project:
+        return sel_project
+    if mode == 'team' and sel_team:
+        team = Team.query.get(sel_team)
+        return team.project_id if team else None
+    if mode == 'agent' and sel_member:
+        member = TeamMember.query.get(sel_member)
+        if member and member.team_id:
+            team = Team.query.get(member.team_id)
+            return team.project_id if team else None
+    return None
+
+
 def _kpi_aggregate(rows):
     """rows: iterable of (info_positive, loesung_positive, nps_value). Returns KPI dict."""
     info_pos = info_total = 0
@@ -4905,7 +4943,10 @@ def kpi_dashboard():
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     # --- Build the active query filters from scope + mode + date ---
+    active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
+    visible = _kpi_visibility(active_project_id)
     filters = list(base_filters)
+    filters.extend(_kpi_source_filter(active_project_id))
     if mode == 'agent' and sel_member:
         filters.append(KpiSurvey.team_member_id == sel_member)
     elif mode == 'team' and sel_team:
@@ -4987,6 +5028,7 @@ def kpi_dashboard():
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
+        visible=visible,
     )
 
 
@@ -5010,6 +5052,7 @@ def kpi_day_detail():
     sel_member = request.args.get('member_id', type=int)
 
     filters.append(KpiSurvey.antwort_date == day)
+    filters.extend(_kpi_source_filter(_active_project_id(mode, sel_project, sel_team, sel_member)))
     if mode == 'agent' and sel_member:
         filters.append(KpiSurvey.team_member_id == sel_member)
     elif mode == 'team' and sel_team:
@@ -5217,10 +5260,14 @@ def coaching_impact():
     kpi = None
     scope_label = ''
     has_any_data = bool(projects)
+    visible = {'info': True, 'loesung': True, 'nps': True}
 
     if selection_made:
         # KPI active filters (scope + mode + date)
+        active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
+        visible = _kpi_visibility(active_project_id)
         kpi_filters = list(kpi_base)
+        kpi_filters.extend(_kpi_source_filter(active_project_id))
         coaching_filters = list(coaching_base)
         if mode == 'agent' and sel_member:
             kpi_filters.append(KpiSurvey.team_member_id == sel_member)
@@ -5345,6 +5392,7 @@ def coaching_impact():
 
     return render_template(
         'main/coaching_impact.html',
+        visible=visible,
         mode=mode,
         projects=projects,
         teams=teams,

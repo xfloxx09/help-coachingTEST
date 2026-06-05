@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3"><i class="fas fa-sliders-h text-info"></i> KPI Verwaltung</h1>
+    <p class="text-muted">
+        Legen Sie pro Projekt fest, aus welcher Frage (je Survey-Typ) die <strong>NPS</strong>- und die
+        <strong>Lösungs-/Informationsquote</strong> berechnet werden. Die gleiche Frage
+        („Konnten wir Ihr Anliegen lösen?“) liefert sowohl die Informations- als auch die Lösungsquote –
+        nur die Antwort-Logik unterscheidet sich. Ohne explizite Zuordnung wird die Frage automatisch
+        anhand ihres Texts erkannt.
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('admin.kpi_verwaltung') }}" class="form-inline">
+                <label class="mr-2" for="project_id">Projekt:</label>
+                <select name="project_id" id="project_id" class="form-control mr-2" onchange="this.form.submit()">
+                    <option value="">– Projekt wählen –</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if sel_project == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+                <noscript><button type="submit" class="btn telekom-button">Anzeigen</button></noscript>
+            </form>
+            {% if not projects %}
+            <p class="text-muted mt-2 mb-0">Es liegen noch keine KPI-Daten vor. Importieren Sie zuerst eine KPI-CSV.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if sel_project %}
+    <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}">
+        <input type="hidden" name="project_id" value="{{ sel_project }}">
+        <div class="card mb-3">
+            <div class="card-header telekom-bg-magenta text-white d-flex justify-content-between align-items-center">
+                <h2 class="mb-0" style="font-size: 1.1rem;">Zuordnung für: {{ project_name }}</h2>
+                <div>
+                    <button type="submit" name="action" value="save" class="btn btn-light btn-sm">
+                        <i class="fas fa-save mr-1"></i>Speichern
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if survey_types %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Survey-Typ (studie)</th>
+                                <th>NPS-Frage</th>
+                                <th>Lösungs-/Informations-Frage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for st in survey_types %}
+                            <tr>
+                                <td class="text-nowrap">
+                                    <strong>{{ st.name }}</strong>
+                                    <input type="hidden" name="survey_type" value="{{ st.name }}">
+                                </td>
+                                <td>
+                                    <select name="nps" class="form-control form-control-sm">
+                                        <option value="">(automatisch erkennen)</option>
+                                        {% for q in st.questions %}
+                                        <option value="{{ q.code }}" {% if q.code == st.nps_code %}selected{% endif %}>
+                                            {{ q.code }} : {{ q.text[:60] }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="loesung" class="form-control form-control-sm">
+                                        <option value="">(automatisch erkennen)</option>
+                                        {% for q in st.questions %}
+                                        <option value="{{ q.code }}" {% if q.code == st.loesung_code %}selected{% endif %}>
+                                            {{ q.code }} : {{ q.text[:60] }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <button type="submit" name="action" value="save" class="btn telekom-button">
+                    <i class="fas fa-save mr-1"></i>Zuordnung speichern
+                </button>
+                {% else %}
+                <p class="text-muted mb-0">Für dieses Projekt liegen keine KPI-Befragungen vor.</p>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+
+    <div class="card">
+        <div class="card-body d-flex flex-wrap align-items-center">
+            <div class="mr-auto">
+                <strong>Bestehende Daten neu berechnen</strong>
+                <div class="text-muted small">
+                    Nach dem Ändern der Zuordnung die gespeicherten Befragungen aus den Rohantworten neu auswerten.
+                </div>
+            </div>
+            <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}" class="mr-2"
+                  onsubmit="return confirm('KPIs für dieses Projekt jetzt neu berechnen?');">
+                <input type="hidden" name="project_id" value="{{ sel_project }}">
+                <button type="submit" name="action" value="recompute" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-sync-alt mr-1"></i>Dieses Projekt neu berechnen
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}"
+                  onsubmit="return confirm('KPIs für ALLE Projekte neu berechnen? Das kann je nach Datenmenge etwas dauern.');">
+                <button type="submit" name="action" value="recompute_all" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-sync-alt mr-1"></i>Alle Projekte neu berechnen
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
