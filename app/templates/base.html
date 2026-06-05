@@ -259,22 +259,6 @@
                     {% if has_perm('view_pl_qm_dashboard') %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('main.pl_qm_dashboard') }}">Teams</a></li>
                     {% endif %}
-                    {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="kpiDropdown" role="button" data-toggle="dropdown">
-                                KPIs <span class="badge badge-info">Demo</span>
-                            </a>
-                            <div class="dropdown-menu" aria-labelledby="kpiDropdown">
-                                {% if has_perm('view_kpi_dashboard') %}
-                                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_qualitaet') }}">KPIs Qualität</a>
-                                <a class="dropdown-item" href="{{ url_for('main.kpi_dashboard_produktivitaet') }}">KPIs Produktivität</a>
-                                {% endif %}
-                                {% if has_perm('view_coaching_impact') %}
-                                <a class="dropdown-item" href="{{ url_for('main.coaching_impact') }}">Coaching VS KPI</a>
-                                {% endif %}
-                            </div>
-                        </li>
-                    {% endif %}
                     {% if current_user.role_name in ['Admin', 'Betriebsleiter'] %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
