@@ -189,6 +189,15 @@
     {% endif %}
 
     {% set conflicts = preview.conflicts %}
+    {% if conflicts and conflicts.excel_error_count %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        In der CSV wurden <strong>{{ conflicts.excel_error_count }}</strong> Zellen mit Excel-Fehlern gefunden
+        (z.&nbsp;B. <code>#NAME?</code>, <code>#REF!</code>). Das sind keine echten Antworten – meist entstehen sie,
+        wenn die Datei in Excel bearbeitet wurde. Solche Zellen werden beim Abgleich mit der Datenbank nicht als
+        echte Änderung gewertet, solange in der DB der korrekte Text steht.
+    </div>
+    {% endif %}
     {% if conflicts and conflicts.needs_overwrite_choice %}
     <div class="card mb-4 border-warning">
         <div class="card-header bg-warning text-dark">
@@ -287,7 +296,17 @@
                                                             {% endif %}
                                                         </td>
                                                         <td>{{ ad.before }}</td>
-                                                        <td>{{ ad.after }}</td>
+                                                        <td>
+                                                            {{ ad.after }}
+                                                            {% if ad.after_is_excel_error %}
+                                                            <div class="text-warning small mt-1">
+                                                                <i class="fas fa-exclamation-triangle"></i>
+                                                                Excel-Fehler (#NAME? usw.) in der CSV – kein echter Text.
+                                                                Tritt oft auf, wenn die Datei in Excel geöffnet/gespeichert wurde
+                                                                oder doppelte Zeilen pro Frage den Platzhalter überschreiben.
+                                                            </div>
+                                                            {% endif %}
+                                                        </td>
                                                     </tr>
                                                 {% endfor %}
                                                 </tbody>

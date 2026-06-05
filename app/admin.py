@@ -3377,6 +3377,7 @@ def _kpi_read_surveys(temp_path):
     # Default flags via auto-detection (no per-project mapping yet).
     result = [surveys[d] for d in order]
     for s in result:
+        s['answers'] = _kpi_dedupe_answers_by_code(s['answers'])
         nps_v, loes_a, info_p, loes_p, fach_s, vert_p = kpi_logic.compute_survey_flags(s['answers'])
         s['nps_value'] = nps_v
         s['loesung_answer'] = loes_a
@@ -3507,15 +3508,52 @@ def _kpi_resolve_links(surveys):
     }
 
 
+_EXCEL_CELL_ERRORS = frozenset({
+    '#NAME?', '#REF!', '#VALUE!', '#N/A', '#DIV/0!', '#NULL?', '#NUM!',
+})
+
+
+def _kpi_is_excel_error(value):
+    v = (value or '').strip().upper()
+    if v in _EXCEL_CELL_ERRORS:
+        return True
+    return bool(v.startswith('#') and v.endswith('?'))
+
+
+def _kpi_merge_answer_entry(a, b):
+    """When duplicate question codes exist, prefer real text over Excel placeholders."""
+    a_err = _kpi_is_excel_error(a.get('antwort'))
+    b_err = _kpi_is_excel_error(b.get('antwort'))
+    if a_err and not b_err:
+        return b
+    if b_err and not a_err:
+        return a
+    if not a_err and not b_err and len(b.get('antwort') or '') > len(a.get('antwort') or ''):
+        return {**b, 'text': b.get('text') or a.get('text')}
+    return {**a, 'text': a.get('text') or b.get('text')}
+
+
+def _kpi_dedupe_answers_by_code(answers):
+    by_code = {}
+    for a in answers or []:
+        code = (a.get('code') or '').strip()
+        if not code:
+            continue
+        entry = {
+            'code': code,
+            'text': (a.get('text') or '').strip(),
+            'antwort': (a.get('antwort') or '').strip(),
+        }
+        prev = by_code.get(code)
+        by_code[code] = _kpi_merge_answer_entry(prev, entry) if prev else entry
+    return list(by_code.values())
+
+
 def _kpi_answers_key_from_rows(answers):
     if not answers:
         return ()
-    if isinstance(answers[0], dict):
-        return tuple(sorted(
-            ((a.get('code') or '').strip(), (a.get('antwort') or '').strip())
-            for a in answers
-        ))
-    return tuple(answers)
+    deduped = _kpi_dedupe_answers_by_code(answers)
+    return tuple(sorted((a['code'], a['antwort']) for a in deduped))
 
 
 def _kpi_survey_snapshot_from_dict(s):
@@ -3585,6 +3623,32 @@ def _kpi_display_field_value(key, value):
     return str(value)
 
 
+def _kpi_answers_only_excel_noise(incoming_answers, db_answers):
+    """True when answer diffs are only CSV-side Excel errors (#NAME? etc.) vs real DB text."""
+    in_map = {a['code']: a['antwort'] for a in _kpi_dedupe_answers_by_code(incoming_answers)}
+    ex_map = {a['code']: a['antwort'] for a in _kpi_dedupe_answers_by_code(db_answers)}
+    has_diff = False
+    for code in set(in_map) | set(ex_map):
+        inc = in_map.get(code, '')
+        exc = ex_map.get(code, '')
+        if inc == exc:
+            continue
+        has_diff = True
+        if not (_kpi_is_excel_error(inc) and exc and not _kpi_is_excel_error(exc)):
+            return False
+    return has_diff
+
+
+def _kpi_surveys_data_equal(incoming, existing_snap, ex_rich_answers):
+    """Compare incoming survey dict with DB snapshot; ignore Excel-error-only answer noise."""
+    in_snap = _kpi_survey_snapshot_from_dict(incoming)
+    if _kpi_build_field_diff_details(in_snap, existing_snap):
+        return False
+    if in_snap.get('answers') == existing_snap.get('answers'):
+        return True
+    return _kpi_answers_only_excel_noise(incoming.get('answers'), ex_rich_answers)
+
+
 def _kpi_build_field_diff_details(incoming_snap, existing_snap):
     details = []
     for key, label in _KPI_DIFF_LABELS:
@@ -3617,22 +3681,10 @@ def _kpi_load_rich_answers_by_survey_id(survey_ids):
 
 
 def _kpi_build_answer_diff_rows(incoming_answers, db_answers):
-    in_by_code = {}
-    for a in incoming_answers or []:
-        code = (a.get('code') or '').strip()
-        if not code:
-            continue
-        in_by_code[code] = {
-            'code': code,
-            'text': (a.get('text') or '').strip(),
-            'antwort': (a.get('antwort') or '').strip(),
-        }
-    ex_by_code = {}
-    for a in db_answers or []:
-        code = (a.get('code') or '').strip()
-        if not code:
-            continue
-        ex_by_code[code] = a
+    in_deduped = _kpi_dedupe_answers_by_code(incoming_answers)
+    ex_deduped = _kpi_dedupe_answers_by_code(db_answers)
+    in_by_code = {a['code']: a for a in in_deduped}
+    ex_by_code = {a['code']: a for a in ex_deduped}
 
     rows = []
     for code in sorted(set(in_by_code) | set(ex_by_code)):
@@ -3655,6 +3707,7 @@ def _kpi_build_answer_diff_rows(incoming_answers, db_answers):
             'before': before,
             'after': after,
             'kind': kind,
+            'after_is_excel_error': bool(inc and _kpi_is_excel_error(after)),
         })
     return rows
 
@@ -3698,17 +3751,18 @@ def _kpi_analyze_import_conflicts(surveys):
             continue
         in_snap = _kpi_survey_snapshot_from_dict(incoming)
         ex_snap = _kpi_survey_snapshot_from_db(existing, answers_by_id.get(existing.id))
-        diffs = _kpi_diff_fields(in_snap, ex_snap)
-        if not diffs:
+        ex_rich = rich_answers_by_id.get(existing.id, [])
+        if _kpi_surveys_data_equal(incoming, ex_snap, ex_rich):
             unchanged_count += 1
         else:
             changed_count += 1
+            diffs = _kpi_diff_fields(in_snap, ex_snap)
             if len(changed_samples) < 15:
                 answer_diffs = []
                 if in_snap.get('answers') != ex_snap.get('answers'):
                     answer_diffs = _kpi_build_answer_diff_rows(
                         incoming.get('answers'),
-                        rich_answers_by_id.get(existing.id, []),
+                        ex_rich,
                     )
                 changed_samples.append({
                     'datensatz_id': dsid,
@@ -3742,6 +3796,9 @@ def _kpi_analyze_import_conflicts(surveys):
     needs_overwrite_choice = (
         changed_count > 0 or unchanged_count > 0 or orphan_in_range_count > 0
     )
+    excel_error_count = sum(
+        1 for s in surveys for a in (s.get('answers') or []) if _kpi_is_excel_error(a.get('antwort'))
+    )
 
     return {
         'date_from': date_from,
@@ -3757,6 +3814,7 @@ def _kpi_analyze_import_conflicts(surveys):
         'orphan_samples': orphan_samples,
         'has_existing': has_existing,
         'needs_overwrite_choice': needs_overwrite_choice,
+        'excel_error_count': excel_error_count,
     }
 
 
@@ -3854,15 +3912,16 @@ def _kpi_commit(filename, surveys, stats, overwrite=False):
             for sv in KpiSurvey.query.filter(KpiSurvey.datensatz_id.in_(incoming_dsids)).all():
                 existing_by_dsid[sv.datensatz_id] = sv
         answers_by_id = _kpi_load_answers_by_survey_id([sv.id for sv in existing_by_dsid.values()])
+        rich_by_id = _kpi_load_rich_answers_by_survey_id([sv.id for sv in existing_by_dsid.values()])
         for s in surveys:
             existing = existing_by_dsid.get(s['datensatz_id'])
             if existing:
                 in_snap = _kpi_survey_snapshot_from_dict(s)
                 ex_snap = _kpi_survey_snapshot_from_db(existing, answers_by_id.get(existing.id))
-                if _kpi_diff_fields(in_snap, ex_snap):
-                    result['skipped_changed'] += 1
-                else:
+                if _kpi_surveys_data_equal(s, ex_snap, rich_by_id.get(existing.id, [])):
                     result['skipped_unchanged'] += 1
+                else:
+                    result['skipped_changed'] += 1
                 continue
             _kpi_insert_survey(batch.id, s)
             result['inserted'] += 1
