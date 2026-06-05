@@ -96,27 +96,30 @@
         height: 280px;
         min-height: 220px;
     }
-    .ci-day-table-hint {
-        font-size: 0.78rem;
-        color: #9a9aa3;
-        padding: 0.45rem 0.75rem;
-        border-bottom: 1px solid #34343c;
-        background: rgba(255, 255, 255, 0.02);
+    .ci-day-date-cell {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.45rem;
+        min-width: 7.5rem;
     }
     .ci-day-actions {
-        white-space: nowrap;
-        vertical-align: middle !important;
-        min-width: 11.5rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-shrink: 0;
     }
     .ci-rohdaten-btn {
-        font-size: 0.72rem;
-        font-weight: 600;
-        padding: 0.2rem 0.45rem;
-        line-height: 1.35;
-        border-radius: 6px;
-        margin-left: 0.2rem;
+        width: 1.85rem;
+        height: 1.85rem;
+        padding: 0;
+        line-height: 1;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.82rem;
     }
-    .ci-rohdaten-btn:first-child { margin-left: 0; }
     .ci-rohdaten-btn:not(:disabled):hover {
         transform: translateY(-1px);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -381,7 +384,7 @@
             <div class="card h-100" style="background:#22222a;border-color:#34343c;">
                 <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Tagesübersicht</strong></div>
                 <div class="card-body p-0">
-                    <div class="ci-day-table-hint"><i class="fas fa-mouse-pointer mr-1"></i> Rechts: <strong>Bewertungen</strong> = Befragungs-Rohdaten · <strong>Coachings</strong> = Coaching-Details des Tages</div>
+                    <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
                     <div class="table-responsive" style="max-height: 360px;">
                         <table class="table table-sm table-hover mb-0">
                             <thead>
@@ -397,14 +400,31 @@
                                     {% if visible_prod.prod %}<th class="text-right ci-col-prod">{{ prod_labels.prod }}</th>{% endif %}
                                     {% if visible_prod.nach %}<th class="text-right ci-col-prod">{{ prod_labels.nach }}</th>{% endif %}
                                     {% if visible_prod.idle %}<th class="text-right ci-col-prod">{{ prod_labels.idle }}</th>{% endif %}
-                                    <th class="text-right ci-day-actions">Rohdaten</th>
                                 </tr>
                             </thead>
                             <tbody>
                             {% for d in overlay %}
                                 {% set has_survey_day = d.info_quote is not none or d.loes_quote is not none or d.nps is not none or d.fachkompetenz is not none or d.vertrieb_quote is not none %}
                                 <tr class="ci-day-row" data-date="{{ d.date }}">
-                                    <td>{{ d.label }}</td>
+                                    <td>
+                                        <div class="ci-day-date-cell">
+                                            <span>{{ d.label }}</span>
+                                            <span class="ci-day-actions">
+                                                <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-survey"
+                                                        data-date="{{ d.date }}" aria-label="Befragungs-Rohdaten"
+                                                        title="Befragungs-Rohdaten"
+                                                        {% if not has_survey_day %}disabled{% endif %}>
+                                                    <i class="fas fa-star"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-coaching"
+                                                        data-date="{{ d.date }}" aria-label="Coachings"
+                                                        title="Coachings"
+                                                        {% if not d.coachings %}disabled{% endif %}>
+                                                    <i class="fas fa-chalkboard-teacher"></i>
+                                                </button>
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td class="text-right">{% if d.coachings %}{{ d.coachings }}{% else %}–{% endif %}</td>
                                     {% if visible.info %}<td class="text-right ci-col-qual">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible.loesung %}<td class="text-right ci-col-qual">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
@@ -415,18 +435,6 @@
                                     {% if visible_prod.prod %}<td class="text-right ci-col-prod">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible_prod.nach %}<td class="text-right ci-col-prod">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible_prod.idle %}<td class="text-right ci-col-prod">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    <td class="ci-day-actions text-right">
-                                        <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-survey"
-                                                data-date="{{ d.date }}" title="Befragungs-Rohdaten an diesem Tag"
-                                                {% if not has_survey_day %}disabled{% endif %}>
-                                            <i class="fas fa-star"></i> Bewertungen
-                                        </button>
-                                        <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-coaching"
-                                                data-date="{{ d.date }}" title="Coachings an diesem Tag"
-                                                {% if not d.coachings %}disabled{% endif %}>
-                                            <i class="fas fa-chalkboard-teacher"></i> Coachings
-                                        </button>
-                                    </td>
                                 </tr>
                             {% endfor %}
                             </tbody>
