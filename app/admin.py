@@ -3493,6 +3493,11 @@ def _kpi_resolve_links(surveys):
             else:
                 info['count'] += 1
         s['team_member_id'] = mid
+        if mid is not None and pid is None:
+            m = TeamMember.query.options(joinedload(TeamMember.team)).get(mid)
+            if m and m.team:
+                s['team_id'] = m.team_id
+                s['project_id'] = m.team.project_id
 
         if tid is None:
             unassigned += 1
@@ -3927,8 +3932,38 @@ def _kpi_commit(filename, surveys, stats, overwrite=False):
             result['inserted'] += 1
 
     batch.surveys_total = result['inserted']
+    _kpi_backfill_survey_links()
     db.session.commit()
     return batch, date_from, date_to, result
+
+
+def _kpi_backfill_survey_links():
+    """Set project_id/team_id from linked team member when be4 did not resolve."""
+    rows = (
+        KpiSurvey.query.filter(
+            KpiSurvey.team_member_id.isnot(None),
+            or_(KpiSurvey.project_id.is_(None), KpiSurvey.team_id.is_(None)),
+        )
+        .options(joinedload(KpiSurvey.team_member).joinedload(TeamMember.team))
+        .all()
+    )
+    updated = 0
+    for sv in rows:
+        m = sv.team_member
+        if not m or not m.team:
+            continue
+        changed = False
+        if sv.project_id != m.team.project_id:
+            sv.project_id = m.team.project_id
+            changed = True
+        if sv.team_id != m.team_id:
+            sv.team_id = m.team_id
+            changed = True
+        if changed:
+            updated += 1
+    if updated:
+        db.session.flush()
+    return updated
 
 
 def _kpi_cleanup_session_temp():
@@ -4081,6 +4116,7 @@ def _kpi_recompute_flags(project_id=None):
 
     project_id None -> all surveys. Returns the number of surveys updated.
     """
+    _kpi_backfill_survey_links()
     mappings = {}
     for m in KpiQuestionMapping.query.all():
         mappings.setdefault((m.project_id, m.survey_type), {})[m.kpi_kind] = m.frage_code

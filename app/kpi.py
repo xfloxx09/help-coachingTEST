@@ -343,11 +343,15 @@ def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
 
     Optional date_from/date_to filter on antwort_date. Returns counts per KPI.
     """
+    from sqlalchemy import or_
     from app import db
     from app.models import KpiSurvey
     if not project_id or not member_ids:
         return {}
-    filters = [KpiSurvey.project_id == project_id, KpiSurvey.team_member_id.in_(member_ids)]
+    filters = [
+        KpiSurvey.team_member_id.in_(member_ids),
+        or_(KpiSurvey.project_id == project_id, KpiSurvey.project_id.is_(None)),
+    ]
     filters.extend(_counting_studie_filter(project_id))
     if date_from is not None:
         filters.append(KpiSurvey.antwort_date >= date_from)

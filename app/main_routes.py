@@ -1139,7 +1139,7 @@ def _build_team_members_performance(team):
     project_id = team.project_id
     members = TeamMember.query.filter_by(team_id=team.id).order_by(TeamMember.name).all()
     member_ids = [m.id for m in members]
-    kpi_map = _members_kpi_map(project_id, member_ids)
+    kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
     team_members_performance = []
     for member in members:
         m_stats = db.session.query(
@@ -4922,7 +4922,7 @@ def _member_kpi_snapshot(project_id, member_id):
     """Single-member KPI dict for assignment snapshots."""
     if not project_id or not member_id:
         return {'nps': None, 'loes_quote': None, 'info_quote': None}
-    m = _members_kpi_map(project_id, [member_id]).get(member_id)
+    m = _members_kpi_map(project_id, [member_id], kpi_period='all').get(member_id)
     if not m:
         return {'nps': None, 'loes_quote': None, 'info_quote': None}
     return {'nps': m.get('nps'), 'loes_quote': m.get('loes_quote'), 'info_quote': m.get('info_quote')}
