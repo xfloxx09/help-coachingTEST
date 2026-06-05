@@ -177,6 +177,64 @@ def idle_cols_for_sum(settings):
     return [c for c in settings['idle_cols'] if c not in settings['excluded_cols'] and c != pause]
 
 
+def active_metric_columns(settings, metric_key):
+    """CSV columns used for a metric (as configured in KPI-Verwaltung)."""
+    excluded = set(settings.get('excluded_cols') or [])
+    if metric_key == 'sign_on':
+        cols = settings.get('sign_on_cols') or []
+    elif metric_key == 'prod':
+        cols = settings.get('prod_cols') or []
+    elif metric_key == 'nach':
+        cols = settings.get('nach_cols') or []
+    elif metric_key == 'idle':
+        cols = idle_cols_for_sum(settings)
+    elif metric_key == 'calls':
+        col = settings.get('calls_col')
+        return [col] if col and col not in excluded else []
+    else:
+        return []
+    return [c for c in cols if c not in excluded]
+
+
+def prod_formula_hint(settings):
+    """Explanation text for the Produktivität KPI (dynamic column list from Verwaltung)."""
+    settings = settings or settings_dict(None)
+    labels = settings.get('labels') or labels_dict(None)
+    label = labels.get('prod') or DEFAULT_LABELS['prod']
+    cols = active_metric_columns(settings, 'prod')
+    cols_expr = ' + '.join(cols) if cols else '—'
+    interval = int(settings.get('interval_sec') or INTERVAL_DEFAULT)
+    pause_col = settings.get('pause_col') or DEFAULT_PAUSE_COL
+    excluded = set(settings.get('excluded_cols') or [])
+    if pause_col and pause_col not in excluded:
+        denominator = (
+            f'Prozentwert = Summe ÷ KPI-Nenner × 100. '
+            f'KPI-Nenner = Intervall ({interval} s) minus Pause-Spalte „{pause_col}“.'
+        )
+    else:
+        denominator = (
+            f'Prozentwert = Summe ÷ KPI-Nenner × 100. '
+            f'KPI-Nenner = Intervall ({interval} s).'
+        )
+    if cols:
+        summary = (
+            f'„{label}“ addiert pro ODVS-Intervall die Sekunden aus den in der '
+            f'KPI-Verwaltung gewählten Rohdaten-Spalten und rechnet sie in einen Prozentwert um.'
+        )
+    else:
+        summary = (
+            f'„{label}“ hat noch keine Spalten in der KPI-Verwaltung. '
+            f'Bitte unter Produktivität Spalten auswählen.'
+        )
+    return {
+        'label': label,
+        'columns': cols,
+        'columns_expr': cols_expr,
+        'summary': summary,
+        'denominator': denominator,
+    }
+
+
 def merge_rows_to_slot(rows, settings):
     """Aggregate multiple CSV rows for same agent+slot."""
     interval_sec = settings['interval_sec']

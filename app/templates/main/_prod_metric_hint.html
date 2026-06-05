@@ -1,0 +1,8 @@
+{% if hint %}
+<button type="button"
+        class="btn btn-link btn-sm p-0 align-baseline kpi-metric-hint-btn"
+        data-prod-metric-hint="1"
+        aria-label="Erklärung {{ hint.label }}">
+    <i class="fas fa-question-circle"></i>
+</button>
+{% endif %}

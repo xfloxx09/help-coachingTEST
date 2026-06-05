@@ -18,6 +18,24 @@
     .kpi-day-row { cursor: pointer; }
     .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
     .kpi-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
+    .kpi-metric-hint-btn {
+        color: #8a8a95;
+        font-size: 0.85rem;
+        line-height: 1;
+        vertical-align: middle;
+        text-decoration: none !important;
+    }
+    .kpi-metric-hint-btn:hover,
+    .kpi-metric-hint-btn:focus {
+        color: #e20074;
+        outline: none;
+        box-shadow: none;
+    }
+    .kpi-label-with-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
 </style>
 {% endblock %}
 
@@ -143,7 +161,7 @@
         <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.sign_on }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>
         {% endif %}
         {% if visible.prod %}
-        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.prod }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartProd"></canvas></div></div></div></div>
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong class="kpi-label-with-hint"><span>{{ prod_labels.prod }}</span>{% set hint = prod_formula_hint %}{% include 'main/_prod_metric_hint.html' %}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartProd"></canvas></div></div></div></div>
         {% endif %}
         {% if visible.nach %}
         <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.nach }} (s/Call)</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartNach"></canvas></div></div></div></div>
@@ -203,6 +221,23 @@
 {% block scripts %}
 <script>
 (function () {
+    var prodFormulaHint = {{ prod_formula_hint|tojson }};
+    if (window.jQuery && prodFormulaHint) {
+        function prodHintPopoverHtml(h) {
+            return ''
+                + '<p class="mb-2 small">' + h.summary + '</p>'
+                + '<p class="mb-1 small"><strong>Rohdaten:</strong><br><code>' + h.columns_expr + '</code></p>'
+                + '<p class="mb-0 small text-muted">' + h.denominator + '</p>';
+        }
+        jQuery('[data-prod-metric-hint]').popover({
+            html: true,
+            trigger: 'focus',
+            placement: 'top',
+            title: prodFormulaHint.label,
+            content: prodHintPopoverHtml(prodFormulaHint),
+        });
+    }
+
     document.querySelectorAll('[data-kpi-granularity]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var url = new URL(window.location.href);

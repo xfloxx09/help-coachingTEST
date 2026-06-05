@@ -5676,6 +5676,8 @@ def kpi_dashboard_produktivitaet():
         elif mode == 'project' and sel_project:
             scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
 
+    prod_formula_hint = productivity_logic.prod_formula_hint(targets)
+
     return render_template(
         'main/kpi_productivity_dashboard.html',
         mode=mode,
@@ -5695,6 +5697,7 @@ def kpi_dashboard_produktivitaet():
         daily=daily,
         targets=targets,
         prod_labels=prod_labels,
+        prod_formula_hint=prod_formula_hint,
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
