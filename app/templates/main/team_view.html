@@ -85,30 +85,56 @@
         padding-left: 0.25rem;
         padding-right: 0.25rem;
         margin-bottom: 0.85rem;
+        display: flex;
     }
-    .member-kpi-grid .stat-label {
+    .member-kpi-grid .stat-group {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    .member-kpi-grid .stat-group > .stat-label {
         font-size: 0.68rem;
-        line-height: 1.25;
-        min-height: 2.5em;
+        line-height: 1.2;
+        height: 2.6em;
+        min-height: 2.6em;
+        width: 100%;
+        margin-bottom: 0.35rem;
+        padding: 0 0.1rem;
+        color: #adb5bd;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        text-align: center;
         display: flex;
         align-items: flex-end;
         justify-content: center;
+        overflow: hidden;
     }
     .member-kpi-grid .kpi-stars {
         font-size: 0.92rem;
+        line-height: 1;
+        min-height: 1.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .member-kpi-grid .kpi-chip {
         font-size: 0.95rem;
         min-width: 2.75rem;
+        min-height: 1.85rem;
         padding: 0.3rem 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
-    .member-card .stat-label { 
-        font-size: 0.75rem; 
-        color: #adb5bd;   
+    .member-card .stat-label {
+        font-size: 0.75rem;
+        color: #adb5bd;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.2rem;
-        display: block; 
+        display: block;
     }
     .member-card .stat-value { 
         font-size: 1.3rem;
@@ -152,6 +178,9 @@
         border-bottom: 1px solid #555e67;
         margin: 0.5rem 0 0.75rem;
         padding: 0.65rem 0;
+    }
+    .member-coach-rating .stat-label {
+        margin-bottom: 0.35rem;
     }
     .member-card .stat-value-small { 
         font-size: 1.1rem; 
