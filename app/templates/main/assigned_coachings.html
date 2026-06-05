@@ -263,15 +263,6 @@
     .performance-table thead th.col-sticky-name {
         background: #333;
     }
-    .performance-table .col-perf-bar {
-        min-width: 130px;
-    }
-    .performance-table .col-perf-bar .progress {
-        width: 72px;
-        display: inline-block;
-        vertical-align: middle;
-        margin-bottom: 0;
-    }
     .performance-table .col-action {
         white-space: nowrap;
     }
@@ -307,7 +298,7 @@
                 <span class="info-icon tooltip-custom">
                     <i class="fas fa-info-circle"></i>
                     <span class="tooltip-text">
-                        <strong>Bewertung vom Coach</strong>: Durchschnitt der Performance-Noten aus abgeschlossenen Coachings (Skala 1–10, als Prozent angezeigt).
+                        <strong>Bewertung vom Coach</strong>: Durchschnitt der Performance-Noten aus abgeschlossenen Coachings (Skala 1–10).
                     </span>
                 </span>
             </h4>
@@ -375,7 +366,7 @@
                                                     <input type="checkbox" class="member-assign-checkbox team-select-all" title="Alle in diesem Team auswählen" aria-label="Team auswählen">
                                                 </th>
                                                 <th class="sortable-header col-sticky-name" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header col-perf-bar" data-sort="performance" title="Durchschnitt der Coach-Performance-Noten (1–10)">Bewertung vom Coach <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="sortable-header col-kpi" data-sort="performance" title="Durchschnitt der Coach-Performance-Noten (1–10)">Bewertung vom Coach <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="col-kpi" title="NPS · (Anzahl NPS-Bewertungen im gewählten Zeitraum)">NPS</th>
                                                 <th class="col-kpi" title="Lösungsquote · (Anzahl Antworten zur Lösungsfrage)">Lösung</th>
                                                 <th class="col-kpi" title="Informationsquote · (Anzahl Antworten zur Info/Lösungsfrage)">Info</th>
@@ -399,13 +390,7 @@
                                                     </span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="col-perf-bar">
-                                                    <div class="progress">
-                                                        <div class="progress-bar" role="progressbar" style="width: {{ member.avg_score }}%;" aria-valuenow="{{ member.avg_score }}" aria-valuemin="0" aria-valuemax="100">
-                                                            {{ member.avg_score|round(0) }}%
-                                                        </div>
-                                                    </div>
-                                                </td>
+                                                <td class="col-kpi">{% if member.coaching_count > 0 %}{{ (member.avg_score / 10)|de_decimal }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
                                                 <td class="col-kpi">{% if member.nps is not none %}{{ member.nps|de_decimal }} <span class="kpi-n" title="NPS-Bewertungen">({{ member.nps_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.nps_count }})</span>{% endif %}</td>
                                                 <td class="col-kpi">{% if member.loesung_quote is not none %}{{ member.loesung_quote|de_decimal }}% <span class="kpi-n" title="Lösungs-Antworten">({{ member.loesung_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.loesung_count }})</span>{% endif %}</td>
                                                 <td class="col-kpi">{% if member.info_quote is not none %}{{ member.info_quote|de_decimal }}% <span class="kpi-n" title="Informations-Antworten">({{ member.info_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.info_count }})</span>{% endif %}</td>
