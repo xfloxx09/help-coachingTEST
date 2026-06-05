@@ -55,6 +55,7 @@
                             <th class="text-right">mit Agent</th>
                             <th class="text-right">ohne Team</th>
                             <th>Von</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -72,6 +73,14 @@
                             <td class="text-right">{{ b.surveys_matched_member }}</td>
                             <td class="text-right">{{ b.surveys_unassigned }}</td>
                             <td>{{ b.imported_by.username if b.imported_by else '-' }}</td>
+                            <td class="text-right">
+                                <form method="POST" action="{{ url_for('admin.revert_kpi_import', batch_id=b.id) }}" style="display:inline;"
+                                      onsubmit="return confirm('Diesen Import rückgängig machen? Alle {{ b.surveys_total }} Befragungen aus diesem Import werden gelöscht.');">
+                                    <button type="submit" class="btn btn-xs btn-outline-danger">
+                                        <i class="fas fa-undo mr-1"></i>Rückgängig
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     {% endfor %}
                     </tbody>

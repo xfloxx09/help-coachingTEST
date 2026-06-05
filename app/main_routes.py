@@ -5079,6 +5079,22 @@ def _impact_event_quote(values):
     return sum(values) / len(values) * 100.0
 
 
+def _pearson(pairs):
+    """Pearson correlation coefficient for [(x, y), ...]; None if undefined."""
+    n = len(pairs)
+    if n < 2:
+        return None
+    sx = sum(x for x, _ in pairs)
+    sy = sum(y for _, y in pairs)
+    mx, my = sx / n, sy / n
+    cov = sum((x - mx) * (y - my) for x, y in pairs)
+    vx = sum((x - mx) ** 2 for x, _ in pairs)
+    vy = sum((y - my) ** 2 for _, y in pairs)
+    if vx == 0 or vy == 0:
+        return None
+    return round(cov / ((vx ** 0.5) * (vy ** 0.5)), 2)
+
+
 def _impact_before_after(events, surveys_by_member, window):
     """
     events: list of (member_id, coaching_date).
@@ -5215,6 +5231,8 @@ def coaching_impact():
     before_after = None
     summary = None
     kpi = None
+    agent_points = []
+    correlation = None
     scope_label = ''
     has_any_data = bool(projects)
 
@@ -5247,30 +5265,41 @@ def coaching_impact():
         if end_date:
             coaching_range_filters.append(cast(Coaching.coaching_date, Date) <= end_date)
 
-        # KPI rows in range -> daily series + overall cards
+        # KPI rows in range -> daily series + overall cards + per-agent
         kpi_rows = (
             db.session.query(
                 KpiSurvey.info_positive,
                 KpiSurvey.loesung_positive,
                 KpiSurvey.nps_value,
                 KpiSurvey.antwort_date,
+                KpiSurvey.team_member_id,
             ).filter(*kpi_range_filters).all()
         )
         kpi = _kpi_aggregate([(r[0], r[1], r[2]) for r in kpi_rows])
 
         kpi_by_day = {}
-        for info_p, loes_p, nps_v, d in kpi_rows:
-            if d is None:
-                continue
-            bucket = kpi_by_day.setdefault(d, {'info': [], 'loes': [], 'nps': []})
-            if info_p is not None:
-                bucket['info'].append(1 if info_p else 0)
-            if loes_p is not None:
-                bucket['loes'].append(1 if loes_p else 0)
-            if nps_v is not None:
-                bucket['nps'].append(nps_v)
+        per_agent = {}  # member_id -> aggregation buckets
+        for info_p, loes_p, nps_v, d, mid in kpi_rows:
+            if d is not None:
+                bucket = kpi_by_day.setdefault(d, {'info': [], 'loes': [], 'nps': []})
+                if info_p is not None:
+                    bucket['info'].append(1 if info_p else 0)
+                if loes_p is not None:
+                    bucket['loes'].append(1 if loes_p else 0)
+                if nps_v is not None:
+                    bucket['nps'].append(nps_v)
+            if mid is not None:
+                pa = per_agent.setdefault(mid, {
+                    'info': [], 'loes': [], 'nps': [], 'coachings': 0, 'minutes': 0, 'perf': []
+                })
+                if info_p is not None:
+                    pa['info'].append(1 if info_p else 0)
+                if loes_p is not None:
+                    pa['loes'].append(1 if loes_p else 0)
+                if nps_v is not None:
+                    pa['nps'].append(nps_v)
 
-        # Coaching rows in range -> events + daily coaching activity
+        # Coaching rows in range -> events + daily coaching activity + per-agent
         coaching_rows = (
             db.session.query(
                 Coaching.team_member_id,
@@ -5288,6 +5317,15 @@ def coaching_impact():
                 total_time += time_spent
             if perf is not None:
                 perf_values.append(perf)
+            if member_id is not None:
+                pa = per_agent.setdefault(member_id, {
+                    'info': [], 'loes': [], 'nps': [], 'coachings': 0, 'minutes': 0, 'perf': []
+                })
+                pa['coachings'] += 1
+                if time_spent:
+                    pa['minutes'] += time_spent
+                if perf is not None:
+                    pa['perf'].append(perf)
             if d is None:
                 continue
             cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': []})
@@ -5343,8 +5381,45 @@ def coaching_impact():
             'avg_perf': (round(sum(perf_values) / len(perf_values) * 10, 1) if perf_values else None),
         }
 
+        # Per-agent correlation (project/team mode only; needs several agents)
+        if mode in ('project', 'team') and per_agent:
+            name_map = dict(
+                db.session.query(TeamMember.id, TeamMember.name)
+                .filter(TeamMember.id.in_(list(per_agent.keys()))).all()
+            )
+            for mid, pa in per_agent.items():
+                pa['name'] = name_map.get(mid, f'#{mid}')
+                pa['info_quote'] = (round(sum(pa['info']) / len(pa['info']) * 100, 2) if pa['info'] else None)
+                pa['loes_quote'] = (round(sum(pa['loes']) / len(pa['loes']) * 100, 2) if pa['loes'] else None)
+                pa['nps'] = kpi_logic.compute_nps(pa['nps'])['nps'] if pa['nps'] else None
+                pa['avg_perf'] = (round(sum(pa['perf']) / len(pa['perf']) * 10, 1) if pa['perf'] else None)
+            agent_points = [
+                {
+                    'name': pa['name'],
+                    'coachings': pa['coachings'],
+                    'minutes': pa['minutes'],
+                    'avg_perf': pa['avg_perf'],
+                    'info_quote': pa['info_quote'],
+                    'loes_quote': pa['loes_quote'],
+                    'nps': pa['nps'],
+                }
+                for pa in per_agent.values()
+            ]
+            agent_points.sort(key=lambda a: (-a['coachings'], a['name']))
+            correlation = {
+                'agents': len(agent_points),
+                'coachings_info': _pearson([(a['coachings'], a['info_quote']) for a in agent_points if a['info_quote'] is not None]),
+                'coachings_loes': _pearson([(a['coachings'], a['loes_quote']) for a in agent_points if a['loes_quote'] is not None]),
+                'coachings_nps': _pearson([(a['coachings'], a['nps']) for a in agent_points if a['nps'] is not None]),
+                'minutes_info': _pearson([(a['minutes'], a['info_quote']) for a in agent_points if a['info_quote'] is not None]),
+                'minutes_loes': _pearson([(a['minutes'], a['loes_quote']) for a in agent_points if a['loes_quote'] is not None]),
+                'minutes_nps': _pearson([(a['minutes'], a['nps']) for a in agent_points if a['nps'] is not None]),
+            }
+
     return render_template(
         'main/coaching_impact.html',
+        agent_points=agent_points,
+        correlation=correlation,
         mode=mode,
         projects=projects,
         teams=teams,
@@ -5365,3 +5440,54 @@ def coaching_impact():
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
     )
+
+
+@bp.route('/coaching-impact/day')
+@login_required
+@permission_required('view_coaching_impact')
+def coaching_impact_day():
+    """Coachings on a single day within the current scope (modal for the yellow badge)."""
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    filters = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
+
+    day_str = (request.args.get('date') or '').strip()
+    try:
+        day = datetime.strptime(day_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Ungültiges Datum.'}), 400
+
+    mode = (request.args.get('mode') or 'project').strip()
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    filters.append(cast(Coaching.coaching_date, Date) == day)
+    if mode == 'agent' and sel_member:
+        filters.append(Coaching.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        filters.append(Coaching.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        filters.append(Coaching.project_id == sel_project)
+
+    coachings = (
+        Coaching.query.options(
+            joinedload(Coaching.team_member),
+            selectinload(Coaching.coach).selectinload(User.team_members),
+        )
+        .filter(*filters)
+        .order_by(Coaching.team_member_id)
+        .limit(500)
+        .all()
+    )
+
+    out = []
+    for c in coachings:
+        out.append({
+            'agent': c.team_member.name if c.team_member else '-',
+            'coach': c.coach.username if c.coach else '-',
+            'subject': c.coaching_subject or '-',
+            'style': c.coaching_style or '-',
+            'performance': (c.performance_mark * 10) if c.performance_mark is not None else None,
+            'time_spent': c.time_spent or 0,
+        })
+    return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'coachings': out})

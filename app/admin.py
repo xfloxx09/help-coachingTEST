@@ -3628,3 +3628,25 @@ def import_kpi_csv():
         recent_batches=recent_batches,
         config=current_app.config,
     )
+
+
+@bp.route('/import_kpi_csv/revert/<int:batch_id>', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def revert_kpi_import(batch_id):
+    """Delete all surveys (and their answers) imported in a given batch, then the batch."""
+    batch = KpiImportBatch.query.get_or_404(batch_id)
+    try:
+        survey_ids = [r[0] for r in db.session.query(KpiSurvey.id).filter(KpiSurvey.batch_id == batch.id).all()]
+        deleted = len(survey_ids)
+        if survey_ids:
+            KpiAnswer.query.filter(KpiAnswer.survey_id.in_(survey_ids)).delete(synchronize_session=False)
+            KpiSurvey.query.filter(KpiSurvey.id.in_(survey_ids)).delete(synchronize_session=False)
+        db.session.delete(batch)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Import konnte nicht rückgängig gemacht werden: {e}', 'danger')
+        return redirect(url_for('admin.import_kpi_csv'))
+    flash(f'Import rückgängig gemacht: {deleted} Befragungen gelöscht.', 'success')
+    return redirect(url_for('admin.import_kpi_csv'))
