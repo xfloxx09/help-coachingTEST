@@ -54,16 +54,33 @@
                     <div class="form-group">
                         <label class="form-control-label d-block mb-1"><strong>KPI-Quellen (Survey-Typen)</strong></label>
                         {% if all_survey_types %}
-                            {% for st in all_survey_types %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="src_{{ loop.index }}"
-                                       name="kpi_source" value="{{ st }}"
-                                       {% if st in selected_sources %}checked{% endif %}>
-                                <label class="form-check-label" for="src_{{ loop.index }}">{{ st }}</label>
-                            </div>
-                            {% endfor %}
+                            <table class="table table-sm mb-1">
+                                <thead>
+                                    <tr>
+                                        <th>Survey-Typ</th>
+                                        <th style="width: 240px;">Verwendung</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for st in all_survey_types %}
+                                    <tr>
+                                        <td class="align-middle">{{ st }}</td>
+                                        <td>
+                                            <input type="hidden" name="kpi_source_type" value="{{ st }}">
+                                            <select name="kpi_source_mode" class="form-control form-control-sm">
+                                                <option value="count" {% if source_modes[st] == 'count' %}selected{% endif %}>Zählt in KPIs</option>
+                                                <option value="show" {% if source_modes[st] == 'show' %}selected{% endif %}>Nur Rohdaten anzeigen</option>
+                                                <option value="off" {% if source_modes[st] == 'off' %}selected{% endif %}>Nicht berücksichtigen</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
                             <small class="form-text text-muted">
-                                Keine Auswahl = alle Survey-Typen fließen in dieses Projekt ein.
+                                <strong>Zählt in KPIs</strong>: fließt in NPS/Informations-/Lösungsquote ein und ist in den Rohdaten sichtbar.
+                                <strong>Nur Rohdaten anzeigen</strong>: erscheint im Befragungs-Popup (als „zählt nicht“ markiert), wird aber nicht gewertet.
+                                <strong>Nicht berücksichtigen</strong>: taucht gar nicht auf.
                                 Die genaue Frage-Zuordnung je Typ erfolgt in der
                                 <a href="{{ url_for('admin.kpi_verwaltung', project_id=project.id) }}">KPI Verwaltung</a>.
                             </small>

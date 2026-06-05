@@ -431,9 +431,11 @@
                 if (!data.surveys.length) { body.innerHTML = '<div class="text-muted">Keine Befragungen an diesem Tag.</div>'; return; }
                 var html = '';
                 data.surveys.forEach(function (s) {
-                    html += '<div class="card mb-3"><div class="card-header py-2">'
+                    html += '<div class="card mb-3"' + (s.counts === false ? ' style="opacity:0.7;"' : '') + '><div class="card-header py-2">'
                         + '<strong>' + escapeHtml(s.agent) + '</strong> · ' + escapeHtml(s.team)
                         + ' <span class="text-muted small">(ID ' + escapeHtml(s.datensatz_id) + ')</span>'
+                        + ' <span class="badge badge-light">' + escapeHtml(s.studie || '-') + '</span>'
+                        + (s.counts === false ? ' <span class="badge badge-secondary">zählt nicht</span>' : '')
                         + (s.nps !== null ? ' <span class="badge badge-warning">NPS ' + s.nps + '</span>' : '')
                         + '</div><div class="card-body p-2"><table class="table table-sm mb-0"><tbody>';
                     s.answers.forEach(function (a) {

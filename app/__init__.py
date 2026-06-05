@@ -617,6 +617,7 @@ def create_app(config_class=Config):
                     'id SERIAL PRIMARY KEY, '
                     'project_id INTEGER NOT NULL REFERENCES projects(id), '
                     'survey_type VARCHAR(150) NOT NULL, '
+                    'counts BOOLEAN NOT NULL DEFAULT TRUE, '
                     'CONSTRAINT uq_project_kpi_source UNIQUE (project_id, survey_type))'
                 ))
                 conn.execute(text('CREATE INDEX ix_project_kpi_sources_project_id ON project_kpi_sources (project_id)'))
@@ -625,6 +626,16 @@ def create_app(config_class=Config):
             except Exception as e:
                 conn.rollback()
                 print(f"ℹ️ project_kpi_sources: {e}")
+        else:
+            try:
+                src_cols = [c['name'] for c in inspect(db.engine).get_columns('project_kpi_sources')]
+                if 'counts' not in src_cols:
+                    conn.execute(text('ALTER TABLE project_kpi_sources ADD COLUMN counts BOOLEAN NOT NULL DEFAULT TRUE'))
+                    conn.commit()
+                    print("✅ Spalte 'counts' zu 'project_kpi_sources' hinzugefügt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ project_kpi_sources.counts: {e}")
 
         if 'project_kpi_settings' not in inspector.get_table_names():
             try:

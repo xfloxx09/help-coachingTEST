@@ -4804,17 +4804,38 @@ def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
     return filters
 
 
-def _kpi_source_filter(project_id):
-    """Restrict surveys to the project's configured survey types. No rows = all."""
+def _kpi_source_filter(project_id, counting_only=True):
+    """Restrict surveys to the project's configured survey types. No config = all.
+
+    counting_only=True  -> only types that feed the KPIs (counts=True).
+    counting_only=False -> all relevant types (for the raw-data popup).
+    """
     if not project_id:
         return []
-    types = [
-        r[0] for r in db.session.query(ProjectKpiSource.survey_type)
-        .filter_by(project_id=project_id).all()
-    ]
-    if not types:
+    rows = db.session.query(
+        ProjectKpiSource.survey_type, ProjectKpiSource.counts
+    ).filter_by(project_id=project_id).all()
+    if not rows:
         return []
+    if counting_only:
+        types = [st for st, counts in rows if counts]
+        if not types:
+            return [false()]  # configured, but nothing counts -> no KPI data
+    else:
+        types = [st for st, _ in rows]
     return [KpiSurvey.studie.in_(types)]
+
+
+def _kpi_counting_types(project_id):
+    """Set of counting survey types, or None if no source config (everything counts)."""
+    if not project_id:
+        return None
+    rows = db.session.query(
+        ProjectKpiSource.survey_type, ProjectKpiSource.counts
+    ).filter_by(project_id=project_id).all()
+    if not rows:
+        return None
+    return {st for st, counts in rows if counts}
 
 
 def _kpi_visibility(project_id):
@@ -5051,8 +5072,11 @@ def kpi_day_detail():
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
 
+    active_pid = _active_project_id(mode, sel_project, sel_team, sel_member)
+    counting_types = _kpi_counting_types(active_pid)
     filters.append(KpiSurvey.antwort_date == day)
-    filters.extend(_kpi_source_filter(_active_project_id(mode, sel_project, sel_team, sel_member)))
+    # Raw popup shows all relevant types (counting + show-only), not just counting ones.
+    filters.extend(_kpi_source_filter(active_pid, counting_only=False))
     if mode == 'agent' and sel_member:
         filters.append(KpiSurvey.team_member_id == sel_member)
     elif mode == 'team' and sel_team:
@@ -5074,12 +5098,15 @@ def kpi_day_detail():
 
     out = []
     for s in surveys:
+        counts = True if counting_types is None else (s.studie in counting_types)
         out.append({
             'datensatz_id': s.datensatz_id,
             'agent': s.team_member.name if s.team_member else (
                 (s.vorname + ' ' + s.nachname).strip() or s.ma_kenner or '-'
             ),
             'team': s.team.name if s.team else (s.be4 or '-'),
+            'studie': s.studie or '-',
+            'counts': counts,
             'nps': s.nps_value,
             'loesung_answer': s.loesung_answer,
             'answers': [

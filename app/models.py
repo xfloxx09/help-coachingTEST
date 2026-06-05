@@ -508,11 +508,17 @@ class KpiAnswer(db.Model):
 
 
 class ProjectKpiSource(db.Model):
-    """A survey type (studie) that feeds a project's KPIs. No rows = all types."""
+    """A survey type (studie) that is relevant for a project. No rows = all types.
+
+    counts=True: feeds the project's KPIs (NPS/Info/Lösung) and is shown in raw data.
+    counts=False: shown in the raw-data popup (marked as not counted) but excluded
+    from KPI calculation.
+    """
     __tablename__ = 'project_kpi_sources'
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
     survey_type = db.Column(db.String(150), nullable=False)
+    counts = db.Column(db.Boolean, nullable=False, default=True)
     __table_args__ = (
         db.UniqueConstraint('project_id', 'survey_type', name='uq_project_kpi_source'),
     )

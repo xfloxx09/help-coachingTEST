@@ -484,11 +484,19 @@ def edit_project(project_id):
         project.description = form.description.data
         project.abteilung_id = _abteilung_pk_from_form(form)
 
-        # KPI sources (which survey types feed this project; none selected = all)
-        selected_sources = {s.strip() for s in request.form.getlist('kpi_source') if s.strip()}
+        # KPI sources: per survey type -> 'count' | 'show' | 'off' (none configured = all count)
+        type_list = request.form.getlist('kpi_source_type')
+        mode_list = request.form.getlist('kpi_source_mode')
         ProjectKpiSource.query.filter_by(project_id=project.id).delete()
-        for st in selected_sources:
-            db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st))
+        for st, mode in zip(type_list, mode_list):
+            st = (st or '').strip()
+            if not st:
+                continue
+            if mode == 'count':
+                db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st, counts=True))
+            elif mode == 'show':
+                db.session.add(ProjectKpiSource(project_id=project.id, survey_type=st, counts=False))
+            # 'off' -> no row (survey type not relevant for this project)
 
         # KPI visibility toggles
         setting = ProjectKpiSetting.query.get(project.id)
@@ -508,9 +516,19 @@ def edit_project(project_id):
         (s or '').strip() for (s,) in db.session.query(KpiSurvey.studie).distinct().all()
         if (s or '').strip()
     )
-    selected_sources = {
-        r[0] for r in db.session.query(ProjectKpiSource.survey_type).filter_by(project_id=project.id).all()
-    }
+    source_rows = ProjectKpiSource.query.filter_by(project_id=project.id).all()
+    has_source_config = bool(source_rows)
+    row_by_type = {r.survey_type: r for r in source_rows}
+    source_modes = {}
+    for st in all_survey_types:
+        row = row_by_type.get(st)
+        if not has_source_config:
+            source_modes[st] = 'count'  # no config = all count (backward compatible)
+        elif row is None:
+            source_modes[st] = 'off'
+        else:
+            source_modes[st] = 'count' if row.counts else 'show'
+
     setting = ProjectKpiSetting.query.get(project.id)
     visibility = {
         'info': setting.show_info if setting else True,
@@ -522,7 +540,7 @@ def edit_project(project_id):
         form=form,
         project=project,
         all_survey_types=all_survey_types,
-        selected_sources=selected_sources,
+        source_modes=source_modes,
         visibility=visibility,
     )
 
