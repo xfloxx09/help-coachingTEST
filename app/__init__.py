@@ -751,6 +751,38 @@ def create_app(config_class=Config):
                     except Exception as e:
                         conn.rollback()
                         print(f"ℹ️ project_kpi_settings.{col}: {e}")
+            pks_cols = [c['name'] for c in inspect(db.engine).get_columns('project_kpi_settings')]
+            dash_cols = (
+                'dashboard_show_info', 'dashboard_show_loesung', 'dashboard_show_nps',
+                'dashboard_show_fachkompetenz', 'dashboard_show_vertrieb',
+            )
+            added_dash = False
+            for col in dash_cols:
+                if col not in pks_cols:
+                    try:
+                        conn.execute(text(
+                            f'ALTER TABLE project_kpi_settings ADD COLUMN {col} BOOLEAN NOT NULL DEFAULT TRUE'
+                        ))
+                        conn.commit()
+                        added_dash = True
+                        print(f"✅ Spalte '{col}' zu 'project_kpi_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ project_kpi_settings.{col}: {e}")
+            if added_dash:
+                try:
+                    conn.execute(text(
+                        'UPDATE project_kpi_settings SET '
+                        'dashboard_show_info = show_info, '
+                        'dashboard_show_loesung = show_loesung, '
+                        'dashboard_show_nps = show_nps, '
+                        'dashboard_show_fachkompetenz = COALESCE(show_fachkompetenz, TRUE), '
+                        'dashboard_show_vertrieb = COALESCE(show_vertrieb, TRUE)'
+                    ))
+                    conn.commit()
+                except Exception as e:
+                    conn.rollback()
+                    print(f"ℹ️ project_kpi_settings dashboard copy: {e}")
 
         if 'team_view_card_settings' in inspector.get_table_names():
             tv_cols = [c['name'] for c in inspect(db.engine).get_columns('team_view_card_settings')]

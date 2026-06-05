@@ -548,6 +548,12 @@ class ProjectKpiSetting(db.Model):
     show_nps = db.Column(db.Boolean, nullable=False, default=True)
     show_fachkompetenz = db.Column(db.Boolean, nullable=False, default=True)
     show_vertrieb = db.Column(db.Boolean, nullable=False, default=True)
+    # KPI-Dashboard (/kpis): cards, trend graph, daily table
+    dashboard_show_info = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_loesung = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_nps = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_fachkompetenz = db.Column(db.Boolean, nullable=False, default=True)
+    dashboard_show_vertrieb = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class KpiQuestionMapping(db.Model):

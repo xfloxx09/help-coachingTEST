@@ -5089,7 +5089,7 @@ def _kpi_counting_types(project_id):
 
 
 def _kpi_visibility(project_id):
-    """Which KPIs are visible for a project (default: all)."""
+    """Which KPIs are visible on Coaching VS KPI (default: all)."""
     setting = ProjectKpiSetting.query.get(project_id) if project_id else None
     if setting is None:
         return {
@@ -5102,6 +5102,23 @@ def _kpi_visibility(project_id):
         'nps': setting.show_nps,
         'fachkompetenz': setting.show_fachkompetenz,
         'vertrieb': setting.show_vertrieb,
+    }
+
+
+def _kpi_dashboard_visibility(project_id):
+    """Which KPIs appear on /kpis (cards, graph, daily table)."""
+    setting = ProjectKpiSetting.query.get(project_id) if project_id else None
+    if setting is None:
+        return {
+            'info': True, 'loesung': True, 'nps': True,
+            'fachkompetenz': True, 'vertrieb': True,
+        }
+    return {
+        'info': setting.dashboard_show_info,
+        'loesung': setting.dashboard_show_loesung,
+        'nps': setting.dashboard_show_nps,
+        'fachkompetenz': setting.dashboard_show_fachkompetenz,
+        'vertrieb': setting.dashboard_show_vertrieb,
     }
 
 
@@ -5368,7 +5385,7 @@ def kpi_dashboard():
 
     # --- Build the active query filters from scope + mode + date ---
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
-    visible = _kpi_visibility(active_project_id)
+    visible = _kpi_dashboard_visibility(active_project_id)
     filters = list(base_filters)
     filters.extend(_kpi_source_filter(active_project_id))
     if mode == 'agent' and sel_member:

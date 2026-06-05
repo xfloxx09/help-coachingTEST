@@ -4246,6 +4246,11 @@ def kpi_verwaltung():
             setting.show_nps = bool(request.form.get('show_nps'))
             setting.show_fachkompetenz = bool(request.form.get('show_fachkompetenz'))
             setting.show_vertrieb = bool(request.form.get('show_vertrieb'))
+            setting.dashboard_show_info = bool(request.form.get('dashboard_show_info'))
+            setting.dashboard_show_loesung = bool(request.form.get('dashboard_show_loesung'))
+            setting.dashboard_show_nps = bool(request.form.get('dashboard_show_nps'))
+            setting.dashboard_show_fachkompetenz = bool(request.form.get('dashboard_show_fachkompetenz'))
+            setting.dashboard_show_vertrieb = bool(request.form.get('dashboard_show_vertrieb'))
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
@@ -4258,6 +4263,7 @@ def kpi_verwaltung():
     survey_types = []
     project_name = None
     visibility = {'info': True, 'loesung': True, 'nps': True, 'fachkompetenz': True, 'vertrieb': True}
+    dashboard_visibility = dict(visibility)
     if sel_project:
         project_name = next((p['name'] for p in projects if p['id'] == sel_project), None)
         rows = (
@@ -4306,6 +4312,13 @@ def kpi_verwaltung():
                 'fachkompetenz': setting.show_fachkompetenz,
                 'vertrieb': setting.show_vertrieb,
             }
+            dashboard_visibility = {
+                'info': setting.dashboard_show_info,
+                'loesung': setting.dashboard_show_loesung,
+                'nps': setting.dashboard_show_nps,
+                'fachkompetenz': setting.dashboard_show_fachkompetenz,
+                'vertrieb': setting.dashboard_show_vertrieb,
+            }
 
     from app.kpi import kpi_features_enabled
     return render_template(
@@ -4315,6 +4328,7 @@ def kpi_verwaltung():
         project_name=project_name,
         survey_types=survey_types,
         visibility=visibility,
+        dashboard_visibility=dashboard_visibility,
         kpi_features_enabled=kpi_features_enabled(),
         config=current_app.config,
     )
