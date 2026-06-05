@@ -160,51 +160,6 @@
         </div>
     </div>
 
-    {% if visible.info or visible.loesung or visible.nps or visible.fachkompetenz or visible.vertrieb %}
-    <div class="row mb-4">
-        {% if visible.info %}
-        <div class="col-6 col-md-4 col-lg mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if kpi and kpi.info_quote is not none %}{{ kpi.info_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">Informationsquote</div>
-            </div>
-        </div>
-        {% endif %}
-        {% if visible.loesung %}
-        <div class="col-6 col-md-4 col-lg mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if kpi and kpi.loes_quote is not none %}{{ kpi.loes_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">Lösungsquote</div>
-            </div>
-        </div>
-        {% endif %}
-        {% if visible.nps %}
-        <div class="col-6 col-md-4 col-lg mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if kpi and kpi.nps is not none %}{{ kpi.nps|de_decimal }}{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">NPS</div>
-            </div>
-        </div>
-        {% endif %}
-        {% if visible.fachkompetenz %}
-        <div class="col-6 col-md-4 col-lg mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if kpi and kpi.fachkompetenz is not none %}{{ kpi.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">Fachkompetenz (Ø Sterne)</div>
-            </div>
-        </div>
-        {% endif %}
-        {% if visible.vertrieb %}
-        <div class="col-6 col-md-4 col-lg mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if kpi and kpi.vertrieb_quote is not none %}{{ kpi.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">Vertriebliche Ansprache</div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    {% endif %}
-
     <!-- Before/After impact cards -->
     <h5 class="mb-2">Wirkung: KPI vor vs. nach Coaching</h5>
     <p class="text-muted small mb-3">
