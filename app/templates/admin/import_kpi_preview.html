@@ -1,5 +1,69 @@
 {% extends "base.html" %}
 
+{% block head_extra %}
+<style>
+    .kpi-diff-detail {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        background: #f8f9fa;
+    }
+    .kpi-diff-detail summary {
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #c82333;
+        list-style: none;
+    }
+    .kpi-diff-detail summary::-webkit-details-marker {
+        display: none;
+    }
+    .kpi-diff-detail summary::before {
+        content: '▸ ';
+        display: inline-block;
+        transition: transform 0.15s ease;
+    }
+    .kpi-diff-detail[open] summary::before {
+        transform: rotate(90deg);
+    }
+    .kpi-diff-body {
+        padding: 0.45rem 0.55rem 0.55rem;
+        border-top: 1px solid #dee2e6;
+        font-size: 0.82rem;
+    }
+    .kpi-diff-vorher-nachher {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+    .kpi-diff-vorher-nachher .vn-box {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        padding: 0.35rem 0.45rem;
+        word-break: break-word;
+    }
+    .kpi-diff-vorher-nachher .vn-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #6c757d;
+        margin-bottom: 0.15rem;
+    }
+    .kpi-diff-answers-table {
+        font-size: 0.78rem;
+        margin-bottom: 0;
+    }
+    .kpi-diff-answers-table td,
+    .kpi-diff-answers-table th {
+        vertical-align: top;
+        padding: 0.3rem 0.4rem;
+    }
+    .kpi-diff-kind-new { color: #28a745; }
+    .kpi-diff-kind-removed { color: #dc3545; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-3"><i class="fas fa-chart-line text-info"></i> KPI-Import – Vorschau</h1>
@@ -158,6 +222,7 @@
 
             {% if conflicts.changed_samples %}
             <h6 class="mt-2">Geänderte Befragungen (Auszug)</h6>
+            <p class="small text-muted mb-2">Klicken Sie auf eine Abweichung, um Vorher (DB) und Nachher (CSV) anzuzeigen.</p>
             <div class="table-responsive mb-3">
                 <table class="table table-sm table-bordered">
                     <thead class="thead-light">
@@ -176,7 +241,65 @@
                             <td>{{ row.antwort_date.strftime('%d.%m.%Y') if row.antwort_date else '–' }}</td>
                             <td>{{ row.existing_date.strftime('%d.%m.%Y') if row.existing_date else '–' }}</td>
                             <td>{{ row.be4 or '–' }}</td>
-                            <td>{{ row.diffs|join(', ') }}</td>
+                            <td class="kpi-diff-cell">
+                                {% for d in row.diff_details %}
+                                <details class="kpi-diff-detail mb-1">
+                                    <summary>{{ d.label }}</summary>
+                                    <div class="kpi-diff-body">
+                                        <div class="kpi-diff-vorher-nachher">
+                                            <div class="vn-box">
+                                                <div class="vn-label">Vorher (DB)</div>
+                                                {{ d.before }}
+                                            </div>
+                                            <div class="vn-box">
+                                                <div class="vn-label">Nachher (CSV)</div>
+                                                {{ d.after }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+                                {% endfor %}
+                                {% if row.answer_diffs %}
+                                <details class="kpi-diff-detail mb-1">
+                                    <summary>Antworten ({{ row.answer_diffs|length }})</summary>
+                                    <div class="kpi-diff-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered kpi-diff-answers-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Frage</th>
+                                                        <th>Vorher (DB)</th>
+                                                        <th>Nachher (CSV)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                {% for ad in row.answer_diffs %}
+                                                    <tr>
+                                                        <td>
+                                                            <code>{{ ad.code }}</code>
+                                                            {% if ad.text and ad.text != ad.code %}
+                                                            <div class="text-muted">{{ ad.text }}</div>
+                                                            {% endif %}
+                                                            {% if ad.kind == 'new' %}
+                                                            <span class="kpi-diff-kind-new small">neu in CSV</span>
+                                                            {% elif ad.kind == 'removed' %}
+                                                            <span class="kpi-diff-kind-removed small">nur in DB</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ ad.before }}</td>
+                                                        <td>{{ ad.after }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </details>
+                                {% endif %}
+                                {% if not row.diff_details and not row.answer_diffs %}
+                                {{ row.diffs|join(', ') }}
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                     </tbody>

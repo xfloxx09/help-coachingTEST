@@ -3573,6 +3573,92 @@ def _kpi_diff_fields(incoming_snap, existing_snap):
     return diffs
 
 
+def _kpi_display_field_value(key, value):
+    if key == 'antwort_date':
+        return value.strftime('%d.%m.%Y') if value else '–'
+    if key in ('info_positive', 'loesung_positive', 'vertrieb_positive'):
+        if value is None:
+            return '–'
+        return 'Ja' if value else 'Nein'
+    if value is None or value == '':
+        return '–'
+    return str(value)
+
+
+def _kpi_build_field_diff_details(incoming_snap, existing_snap):
+    details = []
+    for key, label in _KPI_DIFF_LABELS:
+        if key == 'answers':
+            continue
+        if incoming_snap.get(key) != existing_snap.get(key):
+            details.append({
+                'key': key,
+                'label': label,
+                'before': _kpi_display_field_value(key, existing_snap.get(key)),
+                'after': _kpi_display_field_value(key, incoming_snap.get(key)),
+            })
+    return details
+
+
+def _kpi_load_rich_answers_by_survey_id(survey_ids):
+    if not survey_ids:
+        return {}
+    buckets = {}
+    rows = db.session.query(
+        KpiAnswer.survey_id, KpiAnswer.frage_code, KpiAnswer.frage_text, KpiAnswer.antwort,
+    ).filter(KpiAnswer.survey_id.in_(survey_ids)).all()
+    for sid, code, ftext, antwort in rows:
+        buckets.setdefault(sid, []).append({
+            'code': (code or '').strip(),
+            'text': (ftext or '').strip(),
+            'antwort': (antwort or '').strip(),
+        })
+    return buckets
+
+
+def _kpi_build_answer_diff_rows(incoming_answers, db_answers):
+    in_by_code = {}
+    for a in incoming_answers or []:
+        code = (a.get('code') or '').strip()
+        if not code:
+            continue
+        in_by_code[code] = {
+            'code': code,
+            'text': (a.get('text') or '').strip(),
+            'antwort': (a.get('antwort') or '').strip(),
+        }
+    ex_by_code = {}
+    for a in db_answers or []:
+        code = (a.get('code') or '').strip()
+        if not code:
+            continue
+        ex_by_code[code] = a
+
+    rows = []
+    for code in sorted(set(in_by_code) | set(ex_by_code)):
+        inc = in_by_code.get(code)
+        ex = ex_by_code.get(code)
+        before = (ex or {}).get('antwort') or '–'
+        after = (inc or {}).get('antwort') or '–'
+        if inc and ex and before == after:
+            continue
+        label = (inc or ex or {}).get('text') or code
+        if inc and ex:
+            kind = 'changed'
+        elif inc:
+            kind = 'new'
+        else:
+            kind = 'removed'
+        rows.append({
+            'code': code,
+            'text': label[:100],
+            'before': before,
+            'after': after,
+            'kind': kind,
+        })
+    return rows
+
+
 def _kpi_load_answers_by_survey_id(survey_ids):
     if not survey_ids:
         return {}
@@ -3599,7 +3685,9 @@ def _kpi_analyze_import_conflicts(surveys):
             KpiSurvey.datensatz_id.in_(incoming_dsids),
         ).all()
     existing_by_dsid = {sv.datensatz_id: sv for sv in existing_rows}
-    answers_by_id = _kpi_load_answers_by_survey_id([sv.id for sv in existing_rows])
+    survey_ids = [sv.id for sv in existing_rows]
+    answers_by_id = _kpi_load_answers_by_survey_id(survey_ids)
+    rich_answers_by_id = _kpi_load_rich_answers_by_survey_id(survey_ids)
 
     new_count = unchanged_count = changed_count = 0
     changed_samples = []
@@ -3616,12 +3704,20 @@ def _kpi_analyze_import_conflicts(surveys):
         else:
             changed_count += 1
             if len(changed_samples) < 15:
+                answer_diffs = []
+                if in_snap.get('answers') != ex_snap.get('answers'):
+                    answer_diffs = _kpi_build_answer_diff_rows(
+                        incoming.get('answers'),
+                        rich_answers_by_id.get(existing.id, []),
+                    )
                 changed_samples.append({
                     'datensatz_id': dsid,
                     'antwort_date': incoming.get('antwort_date'),
                     'existing_date': existing.antwort_date,
                     'be4': (incoming.get('be4') or '')[:40],
                     'diffs': diffs,
+                    'diff_details': _kpi_build_field_diff_details(in_snap, ex_snap),
+                    'answer_diffs': answer_diffs,
                 })
 
     range_rows = []
