@@ -22,6 +22,7 @@
 {% endblock %}
 
 {% block content %}
+{% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-tachometer-alt text-info"></i> KPIs {{ kpi_category_labels.produktivitaet if kpi_category_labels else 'Produktivität' }} <span class="badge badge-info align-middle">Demo</span></h2>
@@ -103,7 +104,7 @@
         {% if visible.sign_on %}
         <div class="col-12 col-md-4 col-lg mb-3">
             <div class="kpi-card kpi-sign">
-                <div class="kpi-label">Sign-On</div>
+                <div class="kpi-label">{{ prod_labels.sign_on }}</div>
                 <div class="kpi-value">{% if summary.sign_on_pct is not none %}{{ summary.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</div>
                 <div class="kpi-sub">{{ summary.intervals }} Intervalle</div>
             </div>
@@ -112,7 +113,7 @@
         {% if visible.prod %}
         <div class="col-12 col-md-4 col-lg mb-3">
             <div class="kpi-card kpi-prod">
-                <div class="kpi-label">Produktivität</div>
+                <div class="kpi-label">{{ prod_labels.prod }}</div>
                 <div class="kpi-value">{% if summary.prod_pct is not none %}{{ summary.prod_pct|de_decimal }}%{% else %}–{% endif %}</div>
                 <div class="kpi-sub">gewichtet über KPI-Basis</div>
             </div>
@@ -121,7 +122,7 @@
         {% if visible.nach %}
         <div class="col-12 col-md-4 col-lg mb-3">
             <div class="kpi-card kpi-nach">
-                <div class="kpi-label">Nacharbeit</div>
+                <div class="kpi-label">{{ prod_labels.nach }}</div>
                 <div class="kpi-value">{% if summary.nach_per_call is not none %}{{ summary.nach_per_call|de_decimal(1) }}s{% else %}–{% endif %}</div>
                 <div class="kpi-sub">Ø pro Call</div>
             </div>
@@ -130,7 +131,7 @@
         {% if visible.idle %}
         <div class="col-12 col-md-4 col-lg mb-3">
             <div class="kpi-card kpi-idle">
-                <div class="kpi-label">Idle</div>
+                <div class="kpi-label">{{ prod_labels.idle }}</div>
                 <div class="kpi-value">{% if summary.idle_pct is not none %}{{ summary.idle_pct|de_decimal }}%{% else %}–{% endif %}</div>
                 <div class="kpi-sub">netto (ohne Pause)</div>
             </div>
@@ -139,7 +140,7 @@
         {% if visible.calls %}
         <div class="col-12 col-md-4 col-lg mb-3">
             <div class="kpi-card kpi-calls">
-                <div class="kpi-label">Calls</div>
+                <div class="kpi-label">{{ prod_labels.calls }}</div>
                 <div class="kpi-value">{% if summary.calls is not none %}{{ summary.calls|de_decimal(0) }}{% else %}–{% endif %}</div>
                 <div class="kpi-sub">Summe im Zeitraum</div>
             </div>
@@ -151,16 +152,16 @@
     <div class="mb-2"><h5 class="mb-1">Verlauf</h5><p class="text-muted small mb-3">Kumulativ · gestrichelte Linie = Ziel</p></div>
     <div class="row mb-4">
         {% if visible.sign_on %}
-        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Sign-On</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.sign_on }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>
         {% endif %}
         {% if visible.prod %}
-        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Produktivität</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartProd"></canvas></div></div></div></div>
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.prod }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartProd"></canvas></div></div></div></div>
         {% endif %}
         {% if visible.nach %}
-        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Nacharbeit (s/Call)</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartNach"></canvas></div></div></div></div>
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.nach }} (s/Call)</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartNach"></canvas></div></div></div></div>
         {% endif %}
         {% if visible.idle %}
-        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>Idle</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartIdle"></canvas></div></div></div></div>
+        <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.idle }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartIdle"></canvas></div></div></div></div>
         {% endif %}
     </div>
 
@@ -171,11 +172,11 @@
                 <table class="table table-sm table-hover mb-0">
                     <thead><tr>
                         <th>Datum</th><th class="text-right">Intervalle</th>
-                        {% if visible.sign_on %}<th class="text-right">Sign-On</th>{% endif %}
-                        {% if visible.prod %}<th class="text-right">Prod.</th>{% endif %}
-                        {% if visible.nach %}<th class="text-right">Nach. s/Call</th>{% endif %}
-                        {% if visible.idle %}<th class="text-right">Idle</th>{% endif %}
-                        {% if visible.calls %}<th class="text-right">Calls</th>{% endif %}
+                        {% if visible.sign_on %}<th class="text-right">{{ prod_labels.sign_on }}</th>{% endif %}
+                        {% if visible.prod %}<th class="text-right">{{ prod_labels.prod }}</th>{% endif %}
+                        {% if visible.nach %}<th class="text-right">{{ prod_labels.nach }}</th>{% endif %}
+                        {% if visible.idle %}<th class="text-right">{{ prod_labels.idle }}</th>{% endif %}
+                        {% if visible.calls %}<th class="text-right">{{ prod_labels.calls }}</th>{% endif %}
                         <th></th>
                     </tr></thead>
                     <tbody>
@@ -241,6 +242,7 @@
     var chartDaily = {{ chart_daily|tojson }};
     var visible = {{ visible|tojson }};
     var targets = {{ targets|tojson }};
+    var prodLabels = {{ prod_labels|tojson }};
     if (chartDaily && chartDaily.length && window.Chart) {
         function buildChart(id, label, key, color, target, yScale, invertTarget) {
             var canvas = document.getElementById(id);
@@ -256,10 +258,10 @@
                     onClick: function (e, el) { if (el && el.length && chartDaily[el[0].index]) openProdDay(chartDaily[el[0].index].date); },
                     scales: { x: { ticks: { maxTicksLimit: 10 } }, y: yScale } } });
         }
-        if (visible.sign_on) buildChart('prodChartSignOn', 'Sign-On (%)', 'sign_on_pct', '#4aa3ff', targets.target_sign_on, { min: 0, max: 100 });
-        if (visible.prod) buildChart('prodChartProd', 'Produktivität (%)', 'prod_pct', '#36c6a0', targets.target_prod, { min: 0, max: 100 });
-        if (visible.nach) buildChart('prodChartNach', 'Nacharbeit (s/Call)', 'nach_per_call', '#ffb648', targets.target_nach_per_call, { min: 0 });
-        if (visible.idle) buildChart('prodChartIdle', 'Idle (%)', 'idle_pct', '#b388ff', targets.target_idle_max, { min: 0, max: 100 });
+        if (visible.sign_on) buildChart('prodChartSignOn', prodLabels.sign_on + ' (%)', 'sign_on_pct', '#4aa3ff', targets.target_sign_on, { min: 0, max: 100 });
+        if (visible.prod) buildChart('prodChartProd', prodLabels.prod + ' (%)', 'prod_pct', '#36c6a0', targets.target_prod, { min: 0, max: 100 });
+        if (visible.nach) buildChart('prodChartNach', prodLabels.nach + ' (s/Call)', 'nach_per_call', '#ffb648', targets.target_nach_per_call, { min: 0 });
+        if (visible.idle) buildChart('prodChartIdle', prodLabels.idle + ' (%)', 'idle_pct', '#b388ff', targets.target_idle_max, { min: 0, max: 100 });
     }
 
     var modalParams = { mode: {{ mode|tojson }}, project_id: {{ (sel_project or '')|tojson }}, team_id: {{ (sel_team or '')|tojson }}, member_id: {{ (sel_member or '')|tojson }} };
@@ -274,7 +276,7 @@
         fetch('{{ url_for("main.productivity_day_detail") }}?' + q.toString()).then(function (r) { return r.json(); }).then(function (data) {
             document.getElementById('prodDayModalDate').textContent = '— ' + data.date;
             if (!data.intervals.length) { body.innerHTML = '<div class="text-muted">Keine Intervalle.</div>'; return; }
-            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">Sign-On</th><th class="text-right">Prod.</th><th class="text-right">Nach.</th><th class="text-right">Idle</th><th class="text-right">Calls</th></tr></thead><tbody>';
+            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">'+prodLabels.sign_on+'</th><th class="text-right">'+prodLabels.prod+'</th><th class="text-right">'+prodLabels.nach+'</th><th class="text-right">'+prodLabels.idle+'</th><th class="text-right">'+prodLabels.calls+'</th></tr></thead><tbody>';
             data.intervals.forEach(function (iv) {
                 html += '<tr><td>'+iv.time+'</td><td>'+iv.agent+'</td><td>'+iv.team+'</td>';
                 html += '<td class="text-right">'+(iv.sign_on_pct!=null?iv.sign_on_pct+'%':'–')+'</td>';

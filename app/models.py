@@ -690,3 +690,8 @@ class ProjectProductivitySetting(db.Model):
     target_prod = db.Column(db.Float, nullable=False, default=85.0)
     target_nach_per_call = db.Column(db.Float, nullable=False, default=30.0)
     target_idle_max = db.Column(db.Float, nullable=False, default=10.0)
+    label_sign_on = db.Column(db.String(80), nullable=False, default='Sign-On')
+    label_prod = db.Column(db.String(80), nullable=False, default='Produktivität')
+    label_nach = db.Column(db.String(80), nullable=False, default='Nacharbeit')
+    label_idle = db.Column(db.String(80), nullable=False, default='Idle')
+    label_calls = db.Column(db.String(80), nullable=False, default='Calls')

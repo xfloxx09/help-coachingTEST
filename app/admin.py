@@ -4548,6 +4548,11 @@ def kpi_verwaltung():
             pset.target_prod = _float_form('target_prod', 85.0)
             pset.target_nach_per_call = _float_form('target_nach_per_call', 30.0)
             pset.target_idle_max = _float_form('target_idle_max', 10.0)
+            pset.label_sign_on = _label_form('label_sign_on', productivity_logic.DEFAULT_LABELS['sign_on'])
+            pset.label_prod = _label_form('label_prod', productivity_logic.DEFAULT_LABELS['prod'])
+            pset.label_nach = _label_form('label_nach', productivity_logic.DEFAULT_LABELS['nach'])
+            pset.label_idle = _label_form('label_idle', productivity_logic.DEFAULT_LABELS['idle'])
+            pset.label_calls = _label_form('label_calls', productivity_logic.DEFAULT_LABELS['calls'])
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
@@ -4654,6 +4659,11 @@ def _float_form(name, default):
         return float(request.form.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+def _label_form(name, default):
+    val = (request.form.get(name) or '').strip()
+    return val[:80] if val else default
 
 
 @bp.route('/team-view-kpis', methods=['GET', 'POST'])

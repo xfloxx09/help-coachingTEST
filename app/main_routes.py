@@ -5134,6 +5134,11 @@ def _prod_settings(project_id):
     return productivity_logic.settings_dict(row)
 
 
+def _prod_labels(project_id):
+    row = ProjectProductivitySetting.query.get(project_id) if project_id else None
+    return productivity_logic.labels_dict(row)
+
+
 def _kpi_category_labels():
     cats = KpiCategory.query.order_by(KpiCategory.sort_order, KpiCategory.id).all()
     if not cats:
@@ -5569,6 +5574,7 @@ def kpi_dashboard_produktivitaet():
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
     visible = _prod_dashboard_visibility(active_project_id)
     targets = _prod_settings(active_project_id)
+    prod_labels = _prod_labels(active_project_id)
 
     filters = list(base_filters)
     if mode == 'agent' and sel_member:
@@ -5622,6 +5628,7 @@ def kpi_dashboard_produktivitaet():
         chart_daily=chart_daily,
         daily=daily,
         targets=targets,
+        prod_labels=prod_labels,
         scope_label=scope_label,
         selection_made=bool(selection_made),
         has_any_data=has_any_data,
@@ -6060,12 +6067,14 @@ def coaching_impact():
         'fachkompetenz': True, 'vertrieb': True,
     }
     visible_prod = productivity_logic.impact_visibility_dict(None)
+    prod_labels = productivity_logic.labels_dict(None)
 
     if selection_made:
         # KPI active filters (scope + mode + date)
         active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
         visible = _kpi_visibility(active_project_id)
         visible_prod = _prod_impact_visibility(active_project_id)
+        prod_labels = _prod_labels(active_project_id)
         kpi_filters = list(kpi_base)
         kpi_filters.extend(_kpi_source_filter(active_project_id))
         coaching_filters = list(coaching_base)
@@ -6256,6 +6265,7 @@ def coaching_impact():
         'main/coaching_impact.html',
         visible=visible,
         visible_prod=visible_prod,
+        prod_labels=prod_labels,
         mode=mode,
         projects=projects,
         teams=teams,

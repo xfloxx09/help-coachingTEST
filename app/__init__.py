@@ -833,7 +833,29 @@ def create_app(config_class=Config):
                 conn.rollback()
                 print(f"ℹ️ platform_settings: {e}")
 
-        # 21. KPI categories seed
+        # 21. Productivity metric display labels
+        if 'project_productivity_settings' in inspector.get_table_names():
+            pps_cols = [c['name'] for c in inspect(db.engine).get_columns('project_productivity_settings')]
+            for col, default in (
+                ('label_sign_on', 'Sign-On'),
+                ('label_prod', 'Produktivität'),
+                ('label_nach', 'Nacharbeit'),
+                ('label_idle', 'Idle'),
+                ('label_calls', 'Calls'),
+            ):
+                if col not in pps_cols:
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE project_productivity_settings ADD COLUMN {col} "
+                            f"VARCHAR(80) NOT NULL DEFAULT '{default}'"
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'project_productivity_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ project_productivity_settings.{col}: {e}")
+
+        # 22. KPI categories seed
         if 'kpi_categories' in inspector.get_table_names():
             try:
                 cnt = conn.execute(text('SELECT COUNT(*) FROM kpi_categories')).scalar()

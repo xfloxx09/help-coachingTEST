@@ -14,6 +14,14 @@ DEFAULT_PAUSE_COL = 'IDLE_RC12_Bearbeitung'
 DEFAULT_CALLS_COL = 'Mex1'
 DEFAULT_WORKS_BEENDET_COL = 'Works_Beendet'
 
+DEFAULT_LABELS = {
+    'sign_on': 'Sign-On',
+    'prod': 'Produktivität',
+    'nach': 'Nacharbeit',
+    'idle': 'Idle',
+    'calls': 'Calls',
+}
+
 META_COLS = frozenset({
     'Dienstleister', 'BE4', 'BE3', 'BE2', 'BE1',
     'DAG_ID', 'DAG_VN_NN', 'Datum', 'Zeit', 'ZM_FCG',
@@ -32,6 +40,19 @@ def _json_list(val, default=None):
         return list(default)
 
 
+def labels_dict(row):
+    """Editable display names for productivity metrics (per project)."""
+    if row is None:
+        return dict(DEFAULT_LABELS)
+    return {
+        'sign_on': (row.label_sign_on or DEFAULT_LABELS['sign_on']).strip(),
+        'prod': (row.label_prod or DEFAULT_LABELS['prod']).strip(),
+        'nach': (row.label_nach or DEFAULT_LABELS['nach']).strip(),
+        'idle': (row.label_idle or DEFAULT_LABELS['idle']).strip(),
+        'calls': (row.label_calls or DEFAULT_LABELS['calls']).strip(),
+    }
+
+
 def settings_dict(row):
     """Merge DB ProjectProductivitySetting row with defaults."""
     return {
@@ -47,6 +68,7 @@ def settings_dict(row):
         'target_prod': row.target_prod if row else 85.0,
         'target_nach_per_call': row.target_nach_per_call if row else 30.0,
         'target_idle_max': row.target_idle_max if row else 10.0,
+        'labels': labels_dict(row),
     }
 
 

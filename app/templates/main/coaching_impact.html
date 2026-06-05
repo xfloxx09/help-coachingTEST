@@ -43,6 +43,7 @@
 {% endblock %}
 
 {% block content %}
+{% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-bolt text-warning"></i> Coaching VS KPI <span class="badge badge-info align-middle">Demo</span></h2>
@@ -208,10 +209,10 @@
     <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
     <div class="row mb-4">
         {% set prod_parts = [] %}
-        {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', 'Sign-On', 'ci-sign', '%')) %}{% endif %}
-        {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', 'Produktivität', 'ci-prod', '%')) %}{% endif %}
-        {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', 'Nacharbeit', 'ci-nachp', 's')) %}{% endif %}
-        {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', 'Idle', 'ci-idle', '%')) %}{% endif %}
+        {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
+        {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
+        {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's')) %}{% endif %}
+        {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
         {% for key, label, cls, unit in prod_parts %}
         {% set ba = before_after_prod[key] %}
         <div class="col-12 col-md-4 mb-3">
@@ -269,10 +270,10 @@
                                     {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
                                     {% if visible.fachkompetenz %}<th class="text-right">Fachk.</th>{% endif %}
                                     {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
-                                    {% if visible_prod.sign_on %}<th class="text-right">Sign-On</th>{% endif %}
-                                    {% if visible_prod.prod %}<th class="text-right">Prod.</th>{% endif %}
-                                    {% if visible_prod.nach %}<th class="text-right">Nach.</th>{% endif %}
-                                    {% if visible_prod.idle %}<th class="text-right">Idle</th>{% endif %}
+                                    {% if visible_prod.sign_on %}<th class="text-right">{{ prod_labels.sign_on }}</th>{% endif %}
+                                    {% if visible_prod.prod %}<th class="text-right">{{ prod_labels.prod }}</th>{% endif %}
+                                    {% if visible_prod.nach %}<th class="text-right">{{ prod_labels.nach }}</th>{% endif %}
+                                    {% if visible_prod.idle %}<th class="text-right">{{ prod_labels.idle }}</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -373,6 +374,7 @@
     var baProd = {{ before_after_prod|tojson if before_after_prod else 'null' }};
     var visible = {{ visible|tojson }};
     var visibleProd = {{ visible_prod|tojson }};
+    var prodLabels = {{ prod_labels|tojson }};
 
     // Overlay mixed chart
     var oc = document.getElementById('ciOverlayChart');
@@ -417,7 +419,7 @@
             yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
         });
         if (visibleProd.sign_on) ocDatasets.push({
-            type: 'line', label: 'Sign-On (%)',
+            type: 'line', label: prodLabels.sign_on + ' (%)',
             data: overlay.map(function (d) { return d.sign_on_pct; }),
             borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,0.12)',
             yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
@@ -429,13 +431,13 @@
             yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
         });
         if (visibleProd.nach) ocDatasets.push({
-            type: 'line', label: 'Nacharbeit (s/Call)',
+            type: 'line', label: prodLabels.nach + ' (s/Call)',
             data: overlay.map(function (d) { return d.nach_per_call; }),
             borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
             yAxisID: 'yNach', spanGaps: true, tension: 0.25, order: 1,
         });
         if (visibleProd.idle) ocDatasets.push({
-            type: 'line', label: 'Idle (%)',
+            type: 'line', label: prodLabels.idle + ' (%)',
             data: overlay.map(function (d) { return d.idle_pct; }),
             borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
             yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
@@ -476,10 +478,10 @@
         if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
         if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
         if (baProd) {
-            if (visibleProd.sign_on) { baLabels.push('Sign-On'); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
-            if (visibleProd.prod) { baLabels.push('Produktivität'); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
-            if (visibleProd.nach) { baLabels.push('Nacharbeit'); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
-            if (visibleProd.idle) { baLabels.push('Idle'); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
+            if (visibleProd.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
+            if (visibleProd.prod) { baLabels.push(prodLabels.prod); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
+            if (visibleProd.nach) { baLabels.push(prodLabels.nach); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
+            if (visibleProd.idle) { baLabels.push(prodLabels.idle); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
         }
         new Chart(bc.getContext('2d'), {
             type: 'bar',
