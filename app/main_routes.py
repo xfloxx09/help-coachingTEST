@@ -5405,7 +5405,7 @@ def kpi_dashboard():
                 KpiSurvey.antwort_date,
             ).filter(*filters).all()
         )
-        kpi = _kpi_aggregate_full(rows)
+        kpi = _kpi_aggregate_full(r[:5] for r in rows)
         chart_daily, daily = _kpi_dashboard_daily_series(rows, start_date, end_date)
         targets = _team_view_card_settings(active_project_id)
 
