@@ -244,7 +244,10 @@
         <hr style="border-color:#34343c;">
 
         <div class="form-row align-items-end">
-            {% include 'main/_kpi_period_filter.html' with context, period_select_id='ciPeriod', vonbis_field_class='ci-vonbis-field', mini_label_class='ci-mini-label' %}
+            {% set period_select_id = 'ciPeriod' %}
+            {% set vonbis_field_class = 'ci-vonbis-field' %}
+            {% set mini_label_class = 'ci-mini-label' %}
+            {% include 'main/_kpi_period_filter.html' %}
             <div class="col-6 col-md-2 mb-2">
                 <div class="ci-mini-label mb-1">wirkungsfenster</div>
                 <select name="window" class="form-control form-control-sm">
