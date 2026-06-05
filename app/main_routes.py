@@ -5552,10 +5552,16 @@ def _impact_event_quote(values):
     return sum(values) / len(values) * 100.0
 
 
+def _impact_avg(values):
+    if not values:
+        return None
+    return round(sum(values) / len(values), 2)
+
+
 def _impact_before_after(events, surveys_by_member, window):
     """
     events: list of (member_id, coaching_date).
-    surveys_by_member: {member_id: [(date, info_positive, loesung_positive, nps_value), ...]}.
+    surveys_by_member: {member_id: [(date, info, loes, nps, fach, vert), ...]}.
     Compares each member's KPI in [D-window, D-1] vs [D+1, D+window]; averages the
     per-event before/after values over events that have data on both sides.
     """
@@ -5563,6 +5569,8 @@ def _impact_before_after(events, surveys_by_member, window):
         'info': {'before': [], 'after': [], 'pairs': 0},
         'loes': {'before': [], 'after': [], 'pairs': 0},
         'nps': {'before': [], 'after': [], 'pairs': 0},
+        'fach': {'before': [], 'after': [], 'pairs': 0},
+        'vert': {'before': [], 'after': [], 'pairs': 0},
     }
     for member_id, d in events:
         rows = surveys_by_member.get(member_id)
@@ -5570,8 +5578,12 @@ def _impact_before_after(events, surveys_by_member, window):
             continue
         before_lo, before_hi = d - timedelta(days=window), d - timedelta(days=1)
         after_lo, after_hi = d + timedelta(days=1), d + timedelta(days=window)
-        b_info, a_info, b_loes, a_loes, b_nps, a_nps = [], [], [], [], [], []
-        for sd, info_p, loes_p, nps_v in rows:
+        b_info, a_info = [], []
+        b_loes, a_loes = [], []
+        b_nps, a_nps = [], []
+        b_fach, a_fach = [], []
+        b_vert, a_vert = [], []
+        for sd, info_p, loes_p, nps_v, fach_s, vert_p in rows:
             if sd is None:
                 continue
             if before_lo <= sd <= before_hi:
@@ -5581,6 +5593,10 @@ def _impact_before_after(events, surveys_by_member, window):
                     b_loes.append(1 if loes_p else 0)
                 if nps_v is not None:
                     b_nps.append(nps_v)
+                if fach_s is not None:
+                    b_fach.append(fach_s)
+                if vert_p is not None:
+                    b_vert.append(1 if vert_p else 0)
             elif after_lo <= sd <= after_hi:
                 if info_p is not None:
                     a_info.append(1 if info_p else 0)
@@ -5588,6 +5604,10 @@ def _impact_before_after(events, surveys_by_member, window):
                     a_loes.append(1 if loes_p else 0)
                 if nps_v is not None:
                     a_nps.append(nps_v)
+                if fach_s is not None:
+                    a_fach.append(fach_s)
+                if vert_p is not None:
+                    a_vert.append(1 if vert_p else 0)
         if b_info and a_info:
             acc['info']['before'].append(_impact_event_quote(b_info))
             acc['info']['after'].append(_impact_event_quote(a_info))
@@ -5600,6 +5620,14 @@ def _impact_before_after(events, surveys_by_member, window):
             acc['nps']['before'].append(kpi_logic.compute_nps(b_nps)['nps'])
             acc['nps']['after'].append(kpi_logic.compute_nps(a_nps)['nps'])
             acc['nps']['pairs'] += 1
+        if b_fach and a_fach:
+            acc['fach']['before'].append(_impact_avg(b_fach))
+            acc['fach']['after'].append(_impact_avg(a_fach))
+            acc['fach']['pairs'] += 1
+        if b_vert and a_vert:
+            acc['vert']['before'].append(_impact_event_quote(b_vert))
+            acc['vert']['after'].append(_impact_event_quote(a_vert))
+            acc['vert']['pairs'] += 1
 
     out = {}
     for key, bucket in acc.items():
@@ -5693,7 +5721,10 @@ def coaching_impact():
     kpi = None
     scope_label = ''
     has_any_data = bool(projects)
-    visible = {'info': True, 'loesung': True, 'nps': True}
+    visible = {
+        'info': True, 'loesung': True, 'nps': True,
+        'fachkompetenz': True, 'vertrieb': True,
+    }
 
     if selection_made:
         # KPI active filters (scope + mode + date)
@@ -5733,22 +5764,28 @@ def coaching_impact():
                 KpiSurvey.info_positive,
                 KpiSurvey.loesung_positive,
                 KpiSurvey.nps_value,
+                KpiSurvey.fachkompetenz_stars,
+                KpiSurvey.vertrieb_positive,
                 KpiSurvey.antwort_date,
             ).filter(*kpi_range_filters).all()
         )
-        kpi = _kpi_aggregate([(r[0], r[1], r[2]) for r in kpi_rows])
+        kpi = _kpi_aggregate_full(r[:5] for r in kpi_rows)
 
         kpi_by_day = {}
-        for info_p, loes_p, nps_v, d in kpi_rows:
+        for info_p, loes_p, nps_v, fach_s, vert_p, d in kpi_rows:
             if d is None:
                 continue
-            bucket = kpi_by_day.setdefault(d, {'info': [], 'loes': [], 'nps': []})
+            bucket = kpi_by_day.setdefault(d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []})
             if info_p is not None:
                 bucket['info'].append(1 if info_p else 0)
             if loes_p is not None:
                 bucket['loes'].append(1 if loes_p else 0)
             if nps_v is not None:
                 bucket['nps'].append(nps_v)
+            if fach_s is not None:
+                bucket['fach'].append(fach_s)
+            if vert_p is not None:
+                bucket['vert'].append(1 if vert_p else 0)
 
         # Coaching rows in range -> events + daily coaching activity
         coaching_rows = (
@@ -5778,7 +5815,7 @@ def coaching_impact():
         # Merge KPI + coaching onto one date axis
         all_days = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()))
         for d in all_days:
-            kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': []})
+            kb = kpi_by_day.get(d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []})
             cb = coaching_by_day.get(d, {'count': 0, 'perf': []})
             nps_day = kpi_logic.compute_nps(kb['nps'])
             overlay.append({
@@ -5786,7 +5823,9 @@ def coaching_impact():
                 'label': d.strftime('%d.%m.'),
                 'info_quote': (round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None),
                 'loes_quote': (round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None),
-                'nps': nps_day['nps'],
+                'nps': nps_day['nps'] if nps_day['total'] else None,
+                'fachkompetenz': (_impact_avg(kb['fach']) if kb['fach'] else None),
+                'vertrieb_quote': (round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None),
                 'coachings': cb['count'],
                 'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
             })
@@ -5809,10 +5848,14 @@ def coaching_impact():
                     KpiSurvey.info_positive,
                     KpiSurvey.loesung_positive,
                     KpiSurvey.nps_value,
+                    KpiSurvey.fachkompetenz_stars,
+                    KpiSurvey.vertrieb_positive,
                 ).filter(*surv_filters).all()
             )
-            for member_id, sd, info_p, loes_p, nps_v in surv_rows:
-                surveys_by_member.setdefault(member_id, []).append((sd, info_p, loes_p, nps_v))
+            for member_id, sd, info_p, loes_p, nps_v, fach_s, vert_p in surv_rows:
+                surveys_by_member.setdefault(member_id, []).append(
+                    (sd, info_p, loes_p, nps_v, fach_s, vert_p)
+                )
         before_after = _impact_before_after(events, surveys_by_member, window)
 
         summary = {

@@ -30,6 +30,8 @@
     .ci-info .ci-label { color: #36c6a0; }
     .ci-loes .ci-label { color: #4aa3ff; }
     .ci-nps .ci-label { color: #ffb648; }
+    .ci-fach .ci-label { color: #ffc107; }
+    .ci-vert .ci-label { color: #b388ff; }
     .ci-stat { border: 1px solid #34343c; border-radius: 10px; padding: 0.85rem 1rem; background: #22222a; height: 100%; }
     .ci-stat .ci-stat-val { font-size: 1.6rem; font-weight: 700; }
     .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
@@ -156,15 +158,52 @@
                 <div class="ci-stat-lbl">Ø Coaching-Performance</div>
             </div>
         </div>
+    </div>
+
+    {% if visible.info or visible.loesung or visible.nps or visible.fachkompetenz or visible.vertrieb %}
+    <div class="row mb-4">
+        {% if visible.info %}
+        <div class="col-6 col-md-4 col-lg mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if kpi and kpi.info_quote is not none %}{{ kpi.info_quote|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">Informationsquote</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.loesung %}
+        <div class="col-6 col-md-4 col-lg mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if kpi and kpi.loes_quote is not none %}{{ kpi.loes_quote|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">Lösungsquote</div>
+            </div>
+        </div>
+        {% endif %}
         {% if visible.nps %}
-        <div class="col-6 col-md-3 mb-3">
+        <div class="col-6 col-md-4 col-lg mb-3">
             <div class="ci-stat">
                 <div class="ci-stat-val">{% if kpi and kpi.nps is not none %}{{ kpi.nps|de_decimal }}{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">NPS im Zeitraum</div>
+                <div class="ci-stat-lbl">NPS</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.fachkompetenz %}
+        <div class="col-6 col-md-4 col-lg mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if kpi and kpi.fachkompetenz is not none %}{{ kpi.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">Fachkompetenz (Ø Sterne)</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if visible.vertrieb %}
+        <div class="col-6 col-md-4 col-lg mb-3">
+            <div class="ci-stat">
+                <div class="ci-stat-val">{% if kpi and kpi.vertrieb_quote is not none %}{{ kpi.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</div>
+                <div class="ci-stat-lbl">Vertriebliche Ansprache</div>
             </div>
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
     <!-- Before/After impact cards -->
     <h5 class="mb-2">Wirkung: KPI vor vs. nach Coaching</h5>
@@ -177,6 +216,8 @@
         {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
         {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
         {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '')) %}{% endif %}
+        {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '')) %}{% endif %}
+        {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
         {% for key, label, cls, unit in parts %}
         {% set ba = before_after[key] %}
         <div class="col-12 col-md-4 mb-3">
@@ -231,6 +272,8 @@
                                     {% if visible.info %}<th class="text-right">Info</th>{% endif %}
                                     {% if visible.loesung %}<th class="text-right">Lösung</th>{% endif %}
                                     {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
+                                    {% if visible.fachkompetenz %}<th class="text-right">Fachk.</th>{% endif %}
+                                    {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -241,6 +284,8 @@
                                     {% if visible.info %}<td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible.loesung %}<td class="text-right">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                     {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.fachkompetenz %}<td class="text-right">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                                    {% if visible.vertrieb %}<td class="text-right">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                                 </tr>
                             {% endfor %}
                             </tbody>
@@ -354,6 +399,18 @@
             borderColor: '#ffb648', backgroundColor: 'rgba(255,182,72,0.12)',
             yAxisID: 'yNps', spanGaps: true, tension: 0.25, order: 2,
         });
+        if (visible.vertrieb) ocDatasets.push({
+            type: 'line', label: 'Vertriebliche Ansprache (%)',
+            data: overlay.map(function (d) { return d.vertrieb_quote; }),
+            borderColor: '#b388ff', backgroundColor: 'rgba(179,136,255,0.12)',
+            yAxisID: 'yQuote', spanGaps: true, tension: 0.25, order: 1,
+        });
+        if (visible.fachkompetenz) ocDatasets.push({
+            type: 'line', label: 'Fachkompetenz (Ø Sterne)',
+            data: overlay.map(function (d) { return d.fachkompetenz; }),
+            borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.12)',
+            yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
+        });
         new Chart(oc.getContext('2d'), {
             data: {
                 labels: overlay.map(function (d) { return d.label; }),
@@ -373,6 +430,7 @@
                     yQuote: { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } },
                     yNps: { type: 'linear', position: 'right', min: -100, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'NPS' } },
                     yCoach: { type: 'linear', position: 'right', min: 0, grid: { drawOnChartArea: false }, title: { display: true, text: 'Coachings' }, ticks: { precision: 0 } },
+                    yStars: { type: 'linear', position: 'right', min: 0, max: 5, grid: { drawOnChartArea: false }, title: { display: true, text: 'Sterne' }, ticks: { stepSize: 1 } },
                 },
             },
         });
@@ -385,6 +443,8 @@
         if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.before); baAfter.push(ba.info.after); }
         if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.before); baAfter.push(ba.loes.after); }
         if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
+        if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
+        if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
         new Chart(bc.getContext('2d'), {
             type: 'bar',
             data: {
