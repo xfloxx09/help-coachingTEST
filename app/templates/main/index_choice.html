@@ -287,7 +287,7 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row {% if index_tile_count == 1 %}justify-content-center{% endif %}">
-        {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
+        {% if kpi_features_enabled and (can_view_kpi_qualitaet or can_view_kpi_produktivitaet or has_perm('view_coaching_impact')) %}
         <div class="col-md-4 mb-3">
             <div class="index-kpi-tile-wrap">
                 <button type="button" id="indexKpiTileBtn"
@@ -388,7 +388,7 @@
         <button id="indexHelpClose" class="index-help-close" type="button" aria-label="Schließen">×</button>
     </div>
     <ul class="index-help-list">
-        {% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
+        {% if kpi_features_enabled and (can_view_kpi_qualitaet or can_view_kpi_produktivitaet or has_perm('view_coaching_impact')) %}
         <li class="index-help-item"><strong>KPIs (Demo)</strong> Kachel öffnet die Auswahl: Qualitäts-KPIs, Produktivitäts-KPIs oder Coaching VS KPI.</li>
         {% endif %}
         {% if has_perm('view_coaching_dashboard') %}
@@ -418,7 +418,7 @@
     </ul>
 </aside>
 
-{% if kpi_features_enabled and (has_perm('view_kpi_dashboard') or has_perm('view_coaching_impact')) %}
+{% if kpi_features_enabled and (can_view_kpi_qualitaet or can_view_kpi_produktivitaet or has_perm('view_coaching_impact')) %}
 <div id="indexKpiPickerBackdrop" class="index-kpi-picker-backdrop" aria-hidden="true">
     <div id="indexKpiPicker" class="index-kpi-picker" role="dialog" aria-modal="true" aria-labelledby="indexKpiPickerTitle" tabindex="-1">
         <div class="index-kpi-picker-head">
@@ -426,13 +426,15 @@
             <button type="button" id="indexKpiPickerClose" class="index-kpi-picker-close" aria-label="Schließen">×</button>
         </div>
         <div class="index-kpi-picker-grid">
-            {% if has_perm('view_kpi_dashboard') %}
+            {% if can_view_kpi_qualitaet %}
             <a class="index-kpi-picker-option" href="{{ url_for('main.kpi_dashboard_qualitaet') }}"
                style="--option-accent:#36c6a0; --option-glow:rgba(54,198,160,0.28);">
                 <i class="fas fa-award"></i>
                 <strong>KPIs Qualität</strong>
                 <span>NPS, Lösungsquote &amp; Informationsquote</span>
             </a>
+            {% endif %}
+            {% if can_view_kpi_produktivitaet %}
             <a class="index-kpi-picker-option" href="{{ url_for('main.kpi_dashboard_produktivitaet') }}"
                style="--option-accent:#4debd4; --option-glow:rgba(77,235,212,0.24);">
                 <i class="fas fa-tachometer-alt"></i>

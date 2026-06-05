@@ -235,7 +235,9 @@
 
             <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
                 <div class="kpi-toolbar-toggles">
-                    {% if has_productivity_data %}
+                    {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
+                    {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
+                    {% if show_ci_kpi_qual and show_ci_kpi_prod %}
                     <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
                         <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
                         <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
@@ -295,6 +297,9 @@
         </div>
     </div>
 
+    {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
+    {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
+    {% if show_ci_kpi_qual %}
     <div class="ci-view-panel ci-view-panel-qual">
         <div class="ci-view-panel-title">Wirkung: {{ cat_labels.qualitaet }} vor vs. nach Coaching</div>
         <p class="text-muted small mb-3">
@@ -332,8 +337,9 @@
             {% endfor %}
         </div>
     </div>
+    {% endif %}
 
-    {% if has_productivity_data and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
+    {% if show_ci_kpi_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
     <div class="ci-view-panel ci-view-panel-prod">
         <div class="ci-view-panel-title">Wirkung: {{ cat_labels.produktivitaet }} vor vs. nach Coaching</div>
         <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
@@ -554,12 +560,15 @@
     var visibleProd = {{ visible_prod|tojson }};
     var prodLabels = {{ prod_labels|tojson }};
     var catLabels = {{ cat_labels|tojson }};
-    var hasProductivityData = {{ (has_productivity_data or false)|tojson }};
+    var canViewKpiQual = {{ (can_view_kpi_qualitaet or false)|tojson }};
+    var canViewKpiProd = {{ ((can_view_kpi_produktivitaet and has_productivity_data) or false)|tojson }};
+    var ciDefaultViewMode = canViewKpiQual ? 'qualitaet' : 'produktivitaet';
+    var ciShowViewToggle = canViewKpiQual && canViewKpiProd;
 
     var oc = document.getElementById('ciOverlayChart');
     var ciOverlayChartInstance = null;
     var ciBaChartInstance = null;
-    var ciViewMode = localStorage.getItem('coachingImpactView') || 'qualitaet';
+    var ciViewMode = localStorage.getItem('coachingImpactView') || ciDefaultViewMode;
     var ciCorrMode = localStorage.getItem('coachingImpactCorr') || 'anzahl';
 
     function ciCorrelationDataset(corrMode) {
@@ -812,21 +821,22 @@
         });
     }
 
-    if (hasProductivityData) {
+    if (canViewKpiQual || canViewKpiProd) {
         var hasProdLines = visibleProd.sign_on || visibleProd.prod || visibleProd.nach || visibleProd.idle;
-        if (ciViewMode === 'produktivitaet' && !hasProdLines) ciViewMode = 'qualitaet';
+        if (ciViewMode === 'produktivitaet' && (!canViewKpiProd || !hasProdLines)) ciViewMode = ciDefaultViewMode;
+        if (ciViewMode === 'qualitaet' && !canViewKpiQual) ciViewMode = ciDefaultViewMode;
         applyCiViewMode(ciViewMode);
-        document.querySelectorAll('#ciViewToggle .btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                applyCiViewMode(btn.getAttribute('data-ci-view'));
+        if (ciShowViewToggle) {
+            document.querySelectorAll('#ciViewToggle .btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    applyCiViewMode(btn.getAttribute('data-ci-view'));
+                });
             });
-        });
-    } else {
-        document.body.classList.add('ci-view-qual');
-        if (oc && overlay && overlay.length) {
-            buildCiOverlayChart('qualitaet', ciCorrMode);
-            buildCiBaChart('qualitaet');
         }
+    } else if (oc && overlay && overlay.length) {
+        document.body.classList.add('ci-view-qual');
+        buildCiOverlayChart('qualitaet', ciCorrMode);
+        buildCiBaChart('qualitaet');
     }
 
     // Day modal

@@ -387,16 +387,19 @@
             {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
             {% set prod_vis = prod_visibility or {'sign_on': true, 'prod': true, 'nach': true, 'idle': true, 'calls': true} %}
             {% set prod_tgt = prod_targets or {'target_sign_on': 95, 'target_prod': 85, 'target_nach_per_call': 30, 'target_idle_max': 10} %}
+            {% set show_tv_kpi_qual = kpi_features_enabled and can_view_kpi_qualitaet %}
+            {% set show_tv_kpi_prod = kpi_features_enabled and can_view_kpi_produktivitaet and has_productivity_data %}
+            {% set show_tv_kpi_toggle = show_tv_kpi_qual and show_tv_kpi_prod %}
             <div class="d-flex justify-content-between align-items-center flex-wrap mb-3 tv-kpi-toggle-wrap">
                 <h4 class="mb-0">Teammitglieder Performance</h4>
-                {% if kpi_features_enabled and has_productivity_data %}
+                {% if show_tv_kpi_toggle %}
                 <div class="tv-kpi-toggle btn-group btn-group-sm" role="group" aria-label="KPI-Kategorie">
                     <button type="button" class="btn active" data-tv-kpi-mode="qualitaet">{{ cat_labels.qualitaet }}</button>
                     <button type="button" class="btn" data-tv-kpi-mode="produktivitaet">{{ cat_labels.produktivitaet }}</button>
                 </div>
                 {% endif %}
             </div>
-            <div class="row" id="teamMemberCards">
+            <div class="row{% if show_tv_kpi_prod and not show_tv_kpi_qual %} tv-mode-prod{% endif %}" id="teamMemberCards">
                 {% for member_stat in team_members_performance %}
                 <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                     <div class="card member-card h-100 shadow-sm">
@@ -414,7 +417,7 @@
                                 <span class="member-name-line">{% if m_nachname.strip() %}{{ m_nachname }}{% else %}&nbsp;{% endif %}</span>
                             </h5>
 
-                            {% if kpi_features_enabled %}
+                            {% if show_tv_kpi_qual %}
                             <div class="member-kpi-qual">
                             <div class="row member-kpi-grid">
                             {% if card_settings.show_nps %}
@@ -515,7 +518,7 @@
                             </div>
                             {% endif %}
 
-                            {% if kpi_features_enabled and has_productivity_data %}
+                            {% if show_tv_kpi_prod %}
                             <div class="member-kpi-prod">
                             <div class="row member-kpi-grid">
                             {% if prod_vis.sign_on %}
@@ -726,15 +729,21 @@
 {{ super() }} {# Preserves scripts from base.html #}
 <script>
 $(document).ready(function() {
-    var tvKpiMode = localStorage.getItem('teamViewKpiMode') || 'qualitaet';
+    {% set show_tv_kpi_qual = kpi_features_enabled and can_view_kpi_qualitaet %}
+    {% set show_tv_kpi_prod = kpi_features_enabled and can_view_kpi_produktivitaet and has_productivity_data %}
+    var tvKpiDefaultMode = {{ ('produktivitaet' if (show_tv_kpi_prod and not show_tv_kpi_qual) else 'qualitaet')|tojson }};
+    var tvKpiMode = localStorage.getItem('teamViewKpiMode') || tvKpiDefaultMode;
     function applyTvKpiMode(mode) {
+        if (!$('.tv-kpi-toggle .btn[data-tv-kpi-mode="' + mode + '"]').length) {
+            mode = tvKpiDefaultMode;
+        }
         tvKpiMode = mode;
         localStorage.setItem('teamViewKpiMode', mode);
         $('.tv-kpi-toggle .btn').removeClass('active');
         $('.tv-kpi-toggle .btn[data-tv-kpi-mode="' + mode + '"]').addClass('active');
         $('#teamMemberCards').toggleClass('tv-mode-prod', mode === 'produktivitaet');
     }
-    if ($('.tv-kpi-toggle').length && $('#teamMemberCards').length) {
+    if ($('#teamMemberCards').length && ($('.tv-kpi-toggle').length || tvKpiDefaultMode === 'produktivitaet')) {
         applyTvKpiMode(tvKpiMode);
         $('.tv-kpi-toggle .btn').on('click', function () {
             applyTvKpiMode($(this).data('tv-kpi-mode'));

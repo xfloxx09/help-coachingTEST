@@ -147,7 +147,9 @@ def create_app(config_class=Config):
                 'Geplante Coachings/Workshops anderer Coaches im Projektbereich einsehen (nur Ansicht)',
             ),
             ('terminkalender', 'Terminkalender anzeigen (Kalender mit Terminen und Coachings im Sichtbereich)'),
-            ('view_kpi_dashboard', 'KPIs (Demo): Qualität und Produktivität im eigenen Sichtbereich ansehen'),
+            ('view_kpi_dashboard', 'KPIs (Demo): Qualität und Produktivität kombiniert (Legacy; siehe Einzelberechtigungen)'),
+            ('view_kpi_qualitaet', 'KPIs Qualität (Demo): Qualitäts-KPIs in Dashboard, Subnavigation und Teamansicht'),
+            ('view_kpi_produktivitaet', 'KPIs Produktivität (Demo): Produktivitäts-KPIs in Dashboard, Subnavigation und Teamansicht'),
             ('view_coaching_impact', 'Coaching VS KPI: Wirkung von Coachings auf die realen KPIs im eigenen Sichtbereich ansehen'),
         ]
         for name, desc in default_permissions:
@@ -158,6 +160,35 @@ def create_app(config_class=Config):
                     {"name": name, "desc": desc}
                 )
                 print(f"✅ Permission '{name}' hinzugefügt.")
+            elif name in ('view_kpi_qualitaet', 'view_kpi_produktivitaet', 'view_kpi_dashboard'):
+                conn.execute(
+                    text("UPDATE permissions SET description = :desc WHERE name = :name"),
+                    {"name": name, "desc": desc}
+                )
+        conn.commit()
+
+        # Roles with legacy view_kpi_dashboard also receive the split KPI permissions.
+        all_perms_after = conn.execute(text("SELECT id, name FROM permissions")).fetchall()
+        perm_map_seed = {p[1]: p[0] for p in all_perms_after}
+        legacy_pid = perm_map_seed.get('view_kpi_dashboard')
+        qual_pid = perm_map_seed.get('view_kpi_qualitaet')
+        prod_pid = perm_map_seed.get('view_kpi_produktivitaet')
+        if legacy_pid and qual_pid and prod_pid:
+            legacy_roles = conn.execute(
+                text("SELECT role_id FROM role_permissions WHERE permission_id = :pid"),
+                {"pid": legacy_pid},
+            ).fetchall()
+            for (role_id,) in legacy_roles:
+                for new_pid in (qual_pid, prod_pid):
+                    conn.execute(
+                        text(
+                            "INSERT INTO role_permissions (role_id, permission_id) "
+                            "VALUES (:role_id, :perm_id) ON CONFLICT DO NOTHING"
+                        ),
+                        {"role_id": role_id, "perm_id": new_pid},
+                    )
+            if legacy_roles:
+                print("✅ Split-KPI-Berechtigungen für Rollen mit view_kpi_dashboard ergänzt.")
         conn.commit()
 
         # 7. Default roles
@@ -927,11 +958,24 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_permissions():
+        from app.utils import can_view_kpi_qualitaet, can_view_kpi_produktivitaet
+
         def has_perm(permission_name):
             if current_user.is_authenticated:
                 return current_user.has_permission(permission_name)
             return False
-        return {'has_perm': has_perm}
+
+        if current_user.is_authenticated:
+            kpi_qual = can_view_kpi_qualitaet(current_user)
+            kpi_prod = can_view_kpi_produktivitaet(current_user)
+        else:
+            kpi_qual = False
+            kpi_prod = False
+        return {
+            'has_perm': has_perm,
+            'can_view_kpi_qualitaet': kpi_qual,
+            'can_view_kpi_produktivitaet': kpi_prod,
+        }
 
     @app.context_processor
     def inject_kpi_features_enabled():

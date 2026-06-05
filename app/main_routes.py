@@ -62,6 +62,8 @@ from app.utils import (
     create_planned_coaching_from_coaching_form,
     athens_calendar_day_utc_naive_bounds,
     utc_naive_or_aware_to_athens_date,
+    can_view_kpi_qualitaet,
+    can_view_kpi_produktivitaet,
 )
 from datetime import datetime, timezone, timedelta, date
 from collections import defaultdict
@@ -1149,8 +1151,10 @@ def _build_team_members_performance(team):
     kpi_map = {}
     prod_map = {}
     if kpi_logic.kpi_features_enabled():
-        kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
-        prod_map = _members_productivity_map(project_id, member_ids)
+        if can_view_kpi_qualitaet(current_user):
+            kpi_map = _members_kpi_map(project_id, member_ids, kpi_period='all')
+        if can_view_kpi_produktivitaet(current_user):
+            prod_map = _members_productivity_map(project_id, member_ids)
     team_members_performance = []
     for member in members:
         m_stats = db.session.query(
@@ -5387,17 +5391,22 @@ def _kpi_dashboard_daily_series(rows, start_date, end_date, chart_granularity='d
 
 @bp.route('/kpis')
 @login_required
-@permission_required('view_kpi_dashboard')
+@any_permission_required('view_kpi_qualitaet', 'view_kpi_produktivitaet', 'view_kpi_dashboard')
 def kpi_dashboard_redirect():
     if not kpi_logic.kpi_features_enabled():
         flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
         return redirect(url_for('main.index'))
-    return redirect(url_for('main.kpi_dashboard_qualitaet', **request.args))
+    if can_view_kpi_qualitaet(current_user):
+        return redirect(url_for('main.kpi_dashboard_qualitaet', **request.args))
+    if can_view_kpi_produktivitaet(current_user):
+        return redirect(url_for('main.kpi_dashboard_produktivitaet', **request.args))
+    flash('Keine Berechtigung für KPI-Dashboards.', 'danger')
+    return redirect(url_for('main.index'))
 
 
 @bp.route('/kpis/qualitaet')
 @login_required
-@permission_required('view_kpi_dashboard')
+@any_permission_required('view_kpi_qualitaet', 'view_kpi_dashboard')
 def kpi_dashboard_qualitaet():
     if not kpi_logic.kpi_features_enabled():
         flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
@@ -5557,7 +5566,7 @@ def kpi_dashboard_qualitaet():
 
 @bp.route('/kpis/produktivitaet')
 @login_required
-@permission_required('view_kpi_dashboard')
+@any_permission_required('view_kpi_produktivitaet', 'view_kpi_dashboard')
 def kpi_dashboard_produktivitaet():
     if not kpi_logic.kpi_features_enabled():
         flash('KPI-Funktionen sind derzeit deaktiviert.', 'info')
@@ -5697,7 +5706,7 @@ def kpi_dashboard_produktivitaet():
 
 @bp.route('/kpis/produktivitaet/day')
 @login_required
-@any_permission_required('view_kpi_dashboard', 'view_coaching_impact')
+@any_permission_required('view_kpi_produktivitaet', 'view_kpi_dashboard', 'view_coaching_impact')
 def productivity_day_detail():
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     filters = _prod_base_filters(accessible, sees_all_teams, my_team_ids)
@@ -5749,7 +5758,7 @@ def productivity_day_detail():
 
 @bp.route('/kpis/day')
 @login_required
-@any_permission_required('view_kpi_dashboard', 'view_coaching_impact')
+@any_permission_required('view_kpi_qualitaet', 'view_kpi_dashboard', 'view_coaching_impact')
 def kpi_day_detail():
     """Raw question/answer data for a single day within the current scope (modal)."""
     accessible, sees_all_teams, my_team_ids = _kpi_scope()

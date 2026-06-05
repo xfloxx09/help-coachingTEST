@@ -453,6 +453,37 @@ def has_permission(user, permission_name):
     return user.role.has_permission(permission_name)
 
 
+def can_view_kpi_qualitaet(user):
+    """KPI Qualität dashboard, subnav, and team-view Qualität panel."""
+    if not user or not getattr(user, 'is_authenticated', False) or not user.is_authenticated:
+        return False
+    return (
+        user.has_permission('view_kpi_qualitaet')
+        or user.has_permission('view_kpi_dashboard')
+    )
+
+
+def can_view_kpi_produktivitaet(user):
+    """KPI Produktivität dashboard, subnav, and team-view Produktivität panel."""
+    if not user or not getattr(user, 'is_authenticated', False) or not user.is_authenticated:
+        return False
+    return (
+        user.has_permission('view_kpi_produktivitaet')
+        or user.has_permission('view_kpi_dashboard')
+    )
+
+
+def can_view_any_kpi_nav(user):
+    """Any KPI dashboard subtab or index KPI tile destination."""
+    if not user or not getattr(user, 'is_authenticated', False) or not user.is_authenticated:
+        return False
+    return (
+        can_view_kpi_qualitaet(user)
+        or can_view_kpi_produktivitaet(user)
+        or user.has_permission('view_coaching_impact')
+    )
+
+
 def projects_in_abteilung(abteilung_id):
     """Ordered projects linked to an Abteilung (for primary project / sync)."""
     if not abteilung_id:
