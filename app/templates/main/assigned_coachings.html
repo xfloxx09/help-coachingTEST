@@ -195,6 +195,77 @@
     .assignment-actions-cell .btn {
         white-space: nowrap;
     }
+    .perf-kpi-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 8px;
+    }
+    .perf-kpi-toolbar label {
+        margin-bottom: 0;
+        font-size: 0.9rem;
+        color: #ccc;
+    }
+    .perf-kpi-toolbar select {
+        max-width: 220px;
+    }
+    .perf-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+    .performance-table {
+        min-width: 960px;
+        margin-bottom: 0;
+        font-size: 0.9rem;
+    }
+    .performance-table th,
+    .performance-table td {
+        vertical-align: middle;
+    }
+    .performance-table .col-kpi {
+        white-space: nowrap;
+        text-align: right;
+        font-size: 0.85rem;
+        min-width: 5.5rem;
+    }
+    .performance-table .kpi-n {
+        color: #9a9aa3;
+        font-size: 0.78rem;
+        font-weight: normal;
+    }
+    .performance-table th.col-sticky-name,
+    .performance-table td.col-sticky-name {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: #2b2b2b;
+        min-width: 140px;
+        box-shadow: 2px 0 4px rgba(0,0,0,0.25);
+    }
+    .performance-table thead th.col-sticky-name {
+        background: #333;
+    }
+    .performance-table .col-perf-bar {
+        min-width: 130px;
+    }
+    .performance-table .col-perf-bar .progress {
+        width: 72px;
+        display: inline-block;
+        vertical-align: middle;
+        margin-bottom: 0;
+    }
+    .performance-table .col-action {
+        white-space: nowrap;
+    }
+    .performance-table thead th[title] {
+        cursor: help;
+    }
     .btn-assignment-coaching {
         min-width: 5.5rem;
     }
@@ -234,6 +305,23 @@
             </h4>
             <p class="text-muted">Wählen Sie ein oder mehrere Teammitglieder aus und klicken Sie auf „Auswahl zuweisen“, oder nutzen Sie „Zuweisen“ für eine einzelne Person.</p>
 
+            <form method="GET" action="{{ url_for('main.assigned_coachings') }}" class="perf-kpi-toolbar" id="kpiPeriodForm">
+                {% for key, val in request.args.items(multi=True) %}
+                    {% if key != 'kpi_period' %}
+                    <input type="hidden" name="{{ key }}" value="{{ val }}">
+                    {% endif %}
+                {% endfor %}
+                <label for="kpi_period"><i class="fas fa-calendar-alt mr-1"></i>KPI-Zeitraum:</label>
+                <select name="kpi_period" id="kpi_period" class="form-control form-control-sm custom-select" onchange="this.form.submit()">
+                    <option value="this_month" {% if kpi_period == 'this_month' %}selected{% endif %}>Dieser Monat</option>
+                    <option value="30days" {% if kpi_period == '30days' %}selected{% endif %}>Letzte 30 Tage</option>
+                    <option value="90days" {% if kpi_period == '90days' %}selected{% endif %}>Letzte 90 Tage</option>
+                    <option value="this_year" {% if kpi_period == 'this_year' %}selected{% endif %}>Dieses Jahr</option>
+                    <option value="all" {% if kpi_period == 'all' %}selected{% endif %}>Gesamt</option>
+                </select>
+                <span class="text-muted small">KPIs für <strong>{{ kpi_period_label }}</strong> · Zahl in Klammern = Anzahl Befragungen</span>
+            </form>
+
             {% if member_performance %}
                 <div id="bulkAssignBar" class="bulk-assign-bar" data-create-url="{{ url_for('main.create_assigned_coaching', project=active_project_id) }}">
                     <span><strong id="bulkAssignCount">0</strong> Teammitglied(er) ausgewählt</span>
@@ -261,23 +349,23 @@
                                 </h5>
                             </div>
                             <div id="collapse{{ loop.index }}" class="collapse" aria-labelledby="heading{{ loop.index }}" data-parent="#memberAccordion">
-                                <div class="card-body p-0">
+                                <div class="card-body p-0 perf-table-wrap">
                                     <table class="table table-striped performance-table mb-0">
                                         <thead>
                                             <tr>
                                                 <th class="member-select-col">
                                                     <input type="checkbox" class="member-assign-checkbox team-select-all" title="Alle in diesem Team auswählen" aria-label="Team auswählen">
                                                 </th>
-                                                <th class="sortable-header" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="sortable-header col-sticky-name" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="score">Gesamtscore <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header" data-sort="performance">Ø Performance (%) <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th>NPS</th>
-                                                <th>Lösungsquote</th>
-                                                <th>Informationsquote</th>
-                                                <th class="sortable-header" data-sort="coachings">Coachings <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header" data-sort="time">Gesamtzeit (Min.) <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th class="sortable-header" data-sort="last">Letztes Coaching <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
-                                                <th>Aktion</th>
+                                                <th class="sortable-header col-perf-bar" data-sort="performance">Ø Performance <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="col-kpi" title="NPS · (Anzahl NPS-Bewertungen im gewählten Zeitraum)">NPS</th>
+                                                <th class="col-kpi" title="Lösungsquote · (Anzahl Antworten zur Lösungsfrage)">Lösung</th>
+                                                <th class="col-kpi" title="Informationsquote · (Anzahl Antworten zur Info/Lösungsfrage)">Info</th>
+                                                <th class="sortable-header" data-sort="coachings">Coach. <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="sortable-header" data-sort="time">Min. <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="sortable-header" data-sort="last">Letztes <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th class="col-action">Aktion</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -286,30 +374,29 @@
                                                 <td class="member-select-col">
                                                     <input type="checkbox" class="member-assign-checkbox member-row-select" value="{{ member.id }}" aria-label="{{ member.name }} auswählen">
                                                 </td>
-                                                <td>
+                                                <td class="col-sticky-name">
                                                     {{ member.name }}
                                                     {% if member.active_assignment_count > 0 %}
                                                     <span class="member-active-hint" title="Bereits zugewiesene offene Aufträge">
-                                                        Hinweis: {{ member.active_assignment_count }} aktive Zuweisung(en)
+                                                        {{ member.active_assignment_count }} aktiv
                                                     </span>
                                                     {% endif %}
                                                 </td>
                                                 <td><strong>{{ member.combined_score|round(1) }}%</strong></td>
-                                                <td>
-                                                    <div class="progress" style="width: 100px;">
+                                                <td class="col-perf-bar">
+                                                    <div class="progress">
                                                         <div class="progress-bar" role="progressbar" style="width: {{ member.avg_score }}%;" aria-valuenow="{{ member.avg_score }}" aria-valuemin="0" aria-valuemax="100">
                                                             {{ member.avg_score|round(0) }}%
                                                         </div>
                                                     </div>
-                                                    <span class="ms-2">{{ member.avg_score|round(1) }}%</span>
                                                 </td>
-                                                <td>{% if member.nps is not none %}{{ member.nps|de_decimal }}{% else %}–{% endif %}</td>
-                                                <td>{% if member.loesung_quote is not none %}{{ member.loesung_quote|de_decimal }}%{% else %}–{% endif %}</td>
-                                                <td>{% if member.info_quote is not none %}{{ member.info_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                                                <td class="col-kpi">{% if member.nps is not none %}{{ member.nps|de_decimal }} <span class="kpi-n" title="NPS-Bewertungen">({{ member.nps_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.nps_count }})</span>{% endif %}</td>
+                                                <td class="col-kpi">{% if member.loesung_quote is not none %}{{ member.loesung_quote|de_decimal }}% <span class="kpi-n" title="Lösungs-Antworten">({{ member.loesung_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.loesung_count }})</span>{% endif %}</td>
+                                                <td class="col-kpi">{% if member.info_quote is not none %}{{ member.info_quote|de_decimal }}% <span class="kpi-n" title="Informations-Antworten">({{ member.info_count }})</span>{% else %}<span class="text-muted">–</span> <span class="kpi-n">({{ member.info_count }})</span>{% endif %}</td>
                                                 <td>{{ member.coaching_count }}</td>
                                                 <td>{{ member.total_time }}</td>
-                                                <td>{{ member.last_coaching_date|athens_time('%d.%m.%Y') if member.last_coaching_date else '-' }}</td>
-                                                <td>
+                                                <td class="text-nowrap">{{ member.last_coaching_date|athens_time('%d.%m.%Y') if member.last_coaching_date else '–' }}</td>
+                                                <td class="col-action">
                                                     <a href="{{ url_for('main.create_assigned_coaching', member_id=member.id, project=active_project_id) }}" class="btn btn-sm btn-sm-assign text-white">
                                                         <i class="bi bi-plus-circle"></i> Zuweisen
                                                     </a>

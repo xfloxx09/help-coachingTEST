@@ -544,7 +544,7 @@ def _member_ids_from_assign_request():
     return deduped
 
 
-def _member_performance_for_assigned_page(project_id):
+def _member_performance_for_assigned_page(project_id, kpi_period='this_month'):
     members = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(
         Team.project_id == project_id,
         Team.name != ARCHIV_TEAM_NAME,
@@ -597,12 +597,16 @@ def _member_performance_for_assigned_page(project_id):
             'last_coaching_date': r['last_coaching_date'],
             'active_assignment_count': active_counts.get(m.id, 0),
         })
-    kpi_map = _members_kpi_map(project_id, member_ids)
+    kpi_map = _members_kpi_map(project_id, member_ids, kpi_period=kpi_period)
     for row in out:
         k = kpi_map.get(row['id'], {})
         row['nps'] = k.get('nps')
+        row['nps_count'] = k.get('nps_count', 0)
         row['loesung_quote'] = k.get('loes_quote')
+        row['loesung_count'] = k.get('loes_count', 0)
         row['info_quote'] = k.get('info_quote')
+        row['info_count'] = k.get('info_count', 0)
+        row['surveys_total'] = k.get('surveys_total', 0)
     return out
 
 
@@ -4184,7 +4188,14 @@ def assigned_coachings():
 
     assignments = q.paginate(page=page, per_page=15, error_out=False)
 
-    member_performance = _member_performance_for_assigned_page(project_id) if view_type == 'pl' else []
+    kpi_period = (request.args.get('kpi_period') or 'this_month').strip()
+    if kpi_period not in ('this_month', '30days', '90days', 'this_year', 'all'):
+        kpi_period = 'this_month'
+    _, _, kpi_period_label = _kpi_period_dates(kpi_period)
+    member_performance = (
+        _member_performance_for_assigned_page(project_id, kpi_period=kpi_period)
+        if view_type == 'pl' else []
+    )
 
     project_bar_extra_hidden = {'status': tab_active}
     if team_filter:
@@ -4199,6 +4210,8 @@ def assigned_coachings():
         project_bar_extra_hidden['sort_by'] = sort_by
     if sort_dir != 'asc':
         project_bar_extra_hidden['sort_dir'] = sort_dir
+    if kpi_period != 'this_month':
+        project_bar_extra_hidden['kpi_period'] = kpi_period
 
     return render_template(
         'main/assigned_coachings.html',
@@ -4218,6 +4231,8 @@ def assigned_coachings():
         all_coaches=all_coaches,
         all_members=all_members,
         member_performance=member_performance,
+        kpi_period=kpi_period,
+        kpi_period_label=kpi_period_label,
         can_add_coaching=current_user.has_permission('add_coaching'),
         config=current_app.config,
     )
@@ -4853,8 +4868,24 @@ def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
     return filters
 
 
-def _members_kpi_map(project_id, member_ids):
-    return kpi_logic.members_kpi_quotes(project_id, member_ids)
+def _kpi_period_dates(period):
+    """Return (date_from, date_to, label) for KPI aggregation in assigned-coachings overview."""
+    today = datetime.now(timezone.utc).date()
+    if period == '30days':
+        return today - timedelta(days=29), today, 'Letzte 30 Tage'
+    if period == '90days':
+        return today - timedelta(days=89), today, 'Letzte 90 Tage'
+    if period == 'this_year':
+        return today.replace(month=1, day=1), today, 'Dieses Jahr'
+    if period == 'all':
+        return None, None, 'Gesamt'
+    # default: this_month
+    return today.replace(day=1), today, 'Dieser Monat'
+
+
+def _members_kpi_map(project_id, member_ids, kpi_period='this_month'):
+    date_from, date_to, _ = _kpi_period_dates(kpi_period)
+    return kpi_logic.members_kpi_quotes(project_id, member_ids, date_from, date_to)
 
 
 def _member_kpi_snapshot(project_id, member_id):

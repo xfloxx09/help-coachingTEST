@@ -254,14 +254,21 @@ def _counting_studie_filter(project_id):
     return [KpiSurvey.studie.in_(types)]
 
 
-def members_kpi_quotes(project_id, member_ids):
-    """Bulk KPI quotes per team member (counting survey types only)."""
+def members_kpi_quotes(project_id, member_ids, date_from=None, date_to=None):
+    """Bulk KPI quotes per team member (counting survey types only).
+
+    Optional date_from/date_to filter on antwort_date. Returns counts per KPI.
+    """
     from app import db
     from app.models import KpiSurvey
     if not project_id or not member_ids:
         return {}
     filters = [KpiSurvey.project_id == project_id, KpiSurvey.team_member_id.in_(member_ids)]
     filters.extend(_counting_studie_filter(project_id))
+    if date_from is not None:
+        filters.append(KpiSurvey.antwort_date >= date_from)
+    if date_to is not None:
+        filters.append(KpiSurvey.antwort_date <= date_to)
     rows = db.session.query(
         KpiSurvey.team_member_id,
         KpiSurvey.info_positive,
@@ -289,8 +296,17 @@ def members_kpi_quotes(project_id, member_ids):
         nps = compute_nps(nps_values)
         return {
             'info_quote': quote_percent(info_pos, info_total),
+            'info_count': info_total,
             'loes_quote': quote_percent(loes_pos, loes_total),
+            'loes_count': loes_total,
             'nps': nps['nps'],
+            'nps_count': nps['total'],
+            'surveys_total': len(items),
         }
 
-    return {mid: _agg(buckets[mid]) for mid in member_ids if mid in buckets}
+    empty = {
+        'info_quote': None, 'info_count': 0,
+        'loes_quote': None, 'loes_count': 0,
+        'nps': None, 'nps_count': 0, 'surveys_total': 0,
+    }
+    return {mid: _agg(buckets[mid]) if mid in buckets else dict(empty) for mid in member_ids}
