@@ -236,74 +236,76 @@
     </div>
 
     <div class="ci-view-panel ci-view-panel-qual">
-    <div class="ci-view-panel-title">Wirkung: {{ cat_labels.qualitaet }} vor vs. nach Coaching</div>
-    <p class="text-muted small mb-3">
-        Durchschnittlicher KPI-Wert {{ window }} Tage <em>vor</em> einem Coaching im Vergleich zu {{ window }} Tagen <em>danach</em>,
-        gemittelt über alle Coachings mit Befragungsdaten auf beiden Seiten.
-    </p>
-    <div class="row mb-2">
-        {% set parts = [] %}
-        {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
-        {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
-        {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '')) %}{% endif %}
-        {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '')) %}{% endif %}
-        {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
-        {% for key, label, cls, unit in parts %}
-        {% set ba = before_after[key] %}
-        <div class="col-12 col-md-4 mb-3">
-            <div class="ci-card {{ cls }}">
-                <div class="ci-label">{{ label }}</div>
-                {% if ba.pairs %}
-                <div>
-                    <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
-                    <i class="fas fa-arrow-right ci-arrow"></i>
-                    <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+        <div class="ci-view-panel-title">Wirkung: {{ cat_labels.qualitaet }} vor vs. nach Coaching</div>
+        <p class="text-muted small mb-3">
+            Durchschnittlicher KPI-Wert {{ window }} Tage <em>vor</em> einem Coaching im Vergleich zu {{ window }} Tagen <em>danach</em>,
+            gemittelt über alle Coachings mit Befragungsdaten auf beiden Seiten.
+        </p>
+        <div class="row mb-2">
+            {% set parts = [] %}
+            {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
+            {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
+            {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '')) %}{% endif %}
+            {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '')) %}{% endif %}
+            {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
+            {% for key, label, cls, unit in parts %}
+            {% set ba = before_after[key] %}
+            <div class="col-12 col-md-4 mb-3">
+                <div class="ci-card {{ cls }}">
+                    <div class="ci-label">{{ label }}</div>
+                    {% if ba.pairs %}
+                    <div>
+                        <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                        <i class="fas fa-arrow-right ci-arrow"></i>
+                        <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                    </div>
+                    <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
+                    {% else %}
+                    <div class="ci-ba text-muted">–</div>
+                    <div class="ci-sub">Keine Coachings mit Befragungsdaten auf beiden Seiten im Fenster.</div>
+                    {% endif %}
                 </div>
-                <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                    {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                </div>
-                <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
-                {% else %}
-                <div class="ci-ba text-muted">–</div>
-                <div class="ci-sub">Keine Coachings mit Befragungsdaten auf beiden Seiten im Fenster.</div>
-                {% endif %}
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
 
-    {% if before_after_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
-    <h5 class="mb-2 mt-2">Wirkung: {{ kpi_category_labels.produktivitaet if kpi_category_labels else 'Produktivität' }} vor vs. nach Coaching</h5>
-    <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
-    <div class="row mb-4">
-        {% set prod_parts = [] %}
-        {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
-        {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
-        {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's')) %}{% endif %}
-        {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
-        {% for key, label, cls, unit in prod_parts %}
-        {% set ba = before_after_prod[key] %}
-        <div class="col-12 col-md-4 mb-3">
-            <div class="ci-card {{ cls }}">
-                <div class="ci-label">{{ label }}</div>
-                {% if ba.pairs %}
-                <div>
-                    <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
-                    <i class="fas fa-arrow-right ci-arrow"></i>
-                    <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+    {% if has_productivity_data and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
+    <div class="ci-view-panel ci-view-panel-prod">
+        <div class="ci-view-panel-title">Wirkung: {{ cat_labels.produktivitaet }} vor vs. nach Coaching</div>
+        <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
+        <div class="row mb-2">
+            {% set prod_parts = [] %}
+            {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
+            {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
+            {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's')) %}{% endif %}
+            {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
+            {% for key, label, cls, unit in prod_parts %}
+            {% set ba = before_after_prod[key] if before_after_prod else {'pairs': 0} %}
+            <div class="col-12 col-md-4 mb-3">
+                <div class="ci-card {{ cls }}">
+                    <div class="ci-label">{{ label }}</div>
+                    {% if ba.pairs %}
+                    <div>
+                        <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                        <i class="fas fa-arrow-right ci-arrow"></i>
+                        <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                    </div>
+                    <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
+                    {% else %}
+                    <div class="ci-ba text-muted">–</div>
+                    <div class="ci-sub">Keine Intervalle auf beiden Seiten im Fenster.</div>
+                    {% endif %}
                 </div>
-                <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                    {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                </div>
-                <div class="ci-sub">basierend auf {{ ba.pairs }} Coaching(s) mit Vorher/Nachher-Daten</div>
-                {% else %}
-                <div class="ci-ba text-muted">–</div>
-                <div class="ci-sub">Keine Intervalle auf beiden Seiten im Fenster.</div>
-                {% endif %}
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
     </div>
     {% endif %}
 
