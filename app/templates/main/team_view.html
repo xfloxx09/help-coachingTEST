@@ -62,13 +62,18 @@
         border: 1px solid #555e67; 
         color: #f8f9fa; 
     }
-    .member-card .card-title { 
-        font-size: 1.2rem;
+    .member-card .card-title {
+        font-size: 1.05rem;
         font-weight: bold;
-        color: #ffffff; 
+        color: #ffffff;
         margin-bottom: 0.75rem;
-        border-bottom: 1px solid #555e67; 
+        border-bottom: 1px solid #555e67;
         padding-bottom: 0.5rem;
+        line-height: 1.3;
+    }
+    .member-card .member-name-line {
+        display: block;
+        min-height: 1.3em;
     }
     .member-card .card-body {
         padding: 1.25rem;
@@ -89,32 +94,34 @@
     }
     .member-kpi-grid .stat-group {
         width: 100%;
+        height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
     }
     .member-kpi-grid .stat-group > .stat-label {
-        font-size: 0.68rem;
-        line-height: 1.2;
-        height: 2.6em;
-        min-height: 2.6em;
+        font-size: 0.62rem;
+        line-height: 1.15;
+        min-height: 2.75em;
         width: 100%;
         margin-bottom: 0.35rem;
-        padding: 0 0.1rem;
+        padding: 0 0.15rem;
         color: #adb5bd;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.02em;
         text-align: center;
         display: flex;
         align-items: flex-end;
         justify-content: center;
-        overflow: hidden;
+        hyphens: auto;
+        word-break: break-word;
     }
     .member-kpi-grid .kpi-stars {
         font-size: 0.92rem;
         line-height: 1;
         min-height: 1.85rem;
+        margin-top: auto;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -123,6 +130,7 @@
         font-size: 0.95rem;
         min-width: 2.75rem;
         min-height: 1.85rem;
+        margin-top: auto;
         padding: 0.3rem 0.5rem;
         display: inline-flex;
         align-items: center;
@@ -393,7 +401,18 @@
                 <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
                     <div class="card member-card h-100 shadow-sm">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-center">{{ member_stat.name }}</h5>
+                            {% set name_parts = member_stat.name.split() %}
+                            {% if name_parts|length > 1 %}
+                                {% set m_vorname = name_parts[:-1]|join(' ') %}
+                                {% set m_nachname = name_parts[-1] %}
+                            {% else %}
+                                {% set m_vorname = name_parts[0] if name_parts else '—' %}
+                                {% set m_nachname = ' ' %}
+                            {% endif %}
+                            <h5 class="card-title text-center">
+                                <span class="member-name-line">{{ m_vorname }}</span>
+                                <span class="member-name-line">{% if m_nachname.strip() %}{{ m_nachname }}{% else %}&nbsp;{% endif %}</span>
+                            </h5>
 
                             {% if kpi_features_enabled %}
                             <div class="member-kpi-qual">
