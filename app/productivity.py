@@ -594,5 +594,17 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'nach_per_call': sm['nach_per_call'],
                 'calls': sm['calls'],
             })
+        else:
+            daily.append({
+                'date': period['key'],
+                'label': period['label'],
+                'count': 0,
+                'sign_on_pct': None,
+                'prod_pct': None,
+                'nach_pct': None,
+                'idle_pct': None,
+                'nach_per_call': None,
+                'calls': None,
+            })
 
     return chart_daily, daily

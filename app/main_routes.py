@@ -5371,12 +5371,17 @@ def _kpi_dashboard_daily_series(rows, start_date, end_date, chart_granularity='d
         })
         if period_bucket['count']:
             day_m = _kpi_day_bucket_metrics(period_bucket)
-            table_daily.append({
-                'date': period['key'],
-                'label': period['label'],
-                'count': period_bucket['count'],
-                **day_m,
-            })
+        else:
+            day_m = {
+                'info_quote': None, 'loes_quote': None, 'nps': None,
+                'fachkompetenz': None, 'vertrieb_quote': None,
+            }
+        table_daily.append({
+            'date': period['key'],
+            'label': period['label'],
+            'count': period_bucket['count'],
+            **day_m,
+        })
     return chart_daily, table_daily
 
 
@@ -5461,7 +5466,7 @@ def kpi_dashboard_qualitaet():
     period_arg = (request.args.get('period') or '30days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
-    granularity_arg = (request.args.get('granularity') or 'auto').strip()
+    granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     # --- Build the active query filters from scope + mode + date ---
@@ -5608,7 +5613,7 @@ def kpi_dashboard_produktivitaet():
     period_arg = (request.args.get('period') or '30days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
-    granularity_arg = (request.args.get('granularity') or 'auto').strip()
+    granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
@@ -6137,7 +6142,7 @@ def coaching_impact():
     period_arg = (request.args.get('period') or '90days').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
-    granularity_arg = (request.args.get('granularity') or 'auto').strip()
+    granularity_arg = (request.args.get('granularity') or '').strip()
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
 
     window = request.args.get('window', type=int) or IMPACT_WINDOW_DEFAULT

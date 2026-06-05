@@ -163,9 +163,12 @@
     </div>
 
     {% if chart_daily %}
-    <div class="mb-2">
-        <h5 class="mb-1">Verlauf</h5>
-        <p class="text-muted small mb-3">Kumulativ im Zeitraum · Auflösung: {% if chart_granularity == 'day' %}Tag{% elif chart_granularity == 'week' %}Woche{% else %}Monat{% endif %} · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf einen Tag zeigt Rohdaten{% endif %}</p>
+    <div class="d-flex justify-content-between align-items-start flex-wrap mb-2" style="gap:0.75rem;">
+        <div>
+            <h5 class="mb-1">Verlauf</h5>
+            <p class="text-muted small mb-0">Kumulativ im Zeitraum · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
+        </div>
+        {% include 'main/_kpi_granularity_toggle.html' %}
     </div>
     <div class="row mb-4">
         {% if visible.info %}
@@ -221,25 +224,25 @@
     </div>
 
     <div class="card mb-4">
-        <div class="card-header"><strong>Tagesübersicht</strong></div>
+        <div class="card-header"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm table-hover mb-0">
                     <thead>
                         <tr>
-                            <th>Datum</th>
+                            <th>{% if chart_granularity == 'day' %}Datum{% else %}Zeitraum{% endif %}</th>
                             <th class="text-right">Befragungen</th>
                             {% if visible.info %}<th class="text-right">Informationsquote</th>{% endif %}
                             {% if visible.loesung %}<th class="text-right">Lösungsquote</th>{% endif %}
                             {% if visible.nps %}<th class="text-right">NPS</th>{% endif %}
                             {% if visible.fachkompetenz %}<th class="text-right">Fachkompetenz</th>{% endif %}
                             {% if visible.vertrieb %}<th class="text-right">Vertrieb</th>{% endif %}
-                            <th></th>
+                            {% if chart_granularity == 'day' %}<th></th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
                     {% for d in daily %}
-                        <tr class="kpi-day-row" data-date="{{ d.date }}">
+                        <tr class="{% if chart_granularity == 'day' %}kpi-day-row{% endif %}" {% if chart_granularity == 'day' %}data-date="{{ d.date }}"{% endif %}>
                             <td>{{ d.label }}</td>
                             <td class="text-right">{{ d.count }}</td>
                             {% if visible.info %}<td class="text-right">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
@@ -247,7 +250,7 @@
                             {% if visible.nps %}<td class="text-right">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
                             {% if visible.fachkompetenz %}<td class="text-right">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
                             {% if visible.vertrieb %}<td class="text-right">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                            <td class="text-right"><i class="fas fa-search text-muted"></i></td>
+                            {% if chart_granularity == 'day' %}<td class="text-right"><i class="fas fa-search text-muted"></i></td>{% endif %}
                         </tr>
                     {% endfor %}
                     </tbody>
@@ -286,6 +289,14 @@
 {% block scripts %}
 <script>
 (function () {
+    document.querySelectorAll('[data-kpi-granularity]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set('granularity', btn.getAttribute('data-kpi-granularity'));
+            window.location.href = url.toString();
+        });
+    });
+
     var form = document.getElementById('kpiFilterForm');
     if (!form) return;
 

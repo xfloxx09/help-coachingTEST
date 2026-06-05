@@ -1,0 +1,9 @@
+{% set _gmini = mini_label_class|default('kpi-mini-label') %}
+<div class="kpi-granularity-wrap text-right">
+    <div class="{{ _gmini }} mb-1">auflösung</div>
+    <div class="ci-view-toggle btn-group btn-group-sm kpi-granularity-toggle" role="group" aria-label="Chart-Auflösung">
+        <button type="button" class="btn {% if chart_granularity == 'day' %}active{% endif %}" data-kpi-granularity="day">Tag</button>
+        <button type="button" class="btn {% if chart_granularity == 'week' %}active{% endif %}" data-kpi-granularity="week">Woche</button>
+        <button type="button" class="btn {% if chart_granularity == 'month' %}active{% endif %}" data-kpi-granularity="month">Monat</button>
+    </div>
+</div>

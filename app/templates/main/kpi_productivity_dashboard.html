@@ -130,7 +130,13 @@
     </div>
 
     {% if chart_daily %}
-    <div class="mb-2"><h5 class="mb-1">Verlauf</h5><p class="text-muted small mb-3">Kumulativ · Auflösung: {% if chart_granularity == 'day' %}Tag{% elif chart_granularity == 'week' %}Woche{% else %}Monat{% endif %} · gestrichelte Linie = Ziel</p></div>
+    <div class="d-flex justify-content-between align-items-start flex-wrap mb-2" style="gap:0.75rem;">
+        <div>
+            <h5 class="mb-1">Verlauf</h5>
+            <p class="text-muted small mb-0">Kumulativ · gestrichelte Linie = Ziel{% if chart_granularity == 'day' %} · Klick auf eine Zeile zeigt Rohdaten{% endif %}</p>
+        </div>
+        {% include 'main/_kpi_granularity_toggle.html' %}
+    </div>
     <div class="row mb-4">
         {% if visible.sign_on %}
         <div class="col-12 col-lg-6 mb-3"><div class="card h-100"><div class="card-header py-2"><strong>{{ prod_labels.sign_on }}</strong></div><div class="card-body"><div class="kpi-chart-wrap"><canvas id="prodChartSignOn"></canvas></div></div></div></div>
@@ -147,22 +153,22 @@
     </div>
 
     <div class="card mb-4">
-        <div class="card-header"><strong>Tagesübersicht</strong></div>
+        <div class="card-header"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm table-hover mb-0">
                     <thead><tr>
-                        <th>Datum</th><th class="text-right">Intervalle</th>
+                        <th>{% if chart_granularity == 'day' %}Datum{% else %}Zeitraum{% endif %}</th><th class="text-right">Intervalle</th>
                         {% if visible.sign_on %}<th class="text-right">{{ prod_labels.sign_on }}</th>{% endif %}
                         {% if visible.prod %}<th class="text-right">{{ prod_labels.prod }}</th>{% endif %}
                         {% if visible.nach %}<th class="text-right">{{ prod_labels.nach }}</th>{% endif %}
                         {% if visible.idle %}<th class="text-right">{{ prod_labels.idle }}</th>{% endif %}
                         {% if visible.calls %}<th class="text-right">{{ prod_labels.calls }}</th>{% endif %}
-                        <th></th>
+                        {% if chart_granularity == 'day' %}<th></th>{% endif %}
                     </tr></thead>
                     <tbody>
                     {% for d in daily %}
-                    <tr class="kpi-day-row" data-date="{{ d.date }}">
+                    <tr class="{% if chart_granularity == 'day' %}kpi-day-row{% endif %}" {% if chart_granularity == 'day' %}data-date="{{ d.date }}"{% endif %}>
                         <td>{{ d.label }}</td>
                         <td class="text-right">{{ d.count }}</td>
                         {% if visible.sign_on %}<td class="text-right">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
@@ -170,7 +176,7 @@
                         {% if visible.nach %}<td class="text-right">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
                         {% if visible.idle %}<td class="text-right">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                         {% if visible.calls %}<td class="text-right">{% if d.calls is not none %}{{ d.calls|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
-                        <td class="text-right"><i class="fas fa-search text-muted"></i></td>
+                        {% if chart_granularity == 'day' %}<td class="text-right"><i class="fas fa-search text-muted"></i></td>{% endif %}
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -196,6 +202,14 @@
 {% block scripts %}
 <script>
 (function () {
+    document.querySelectorAll('[data-kpi-granularity]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set('granularity', btn.getAttribute('data-kpi-granularity'));
+            window.location.href = url.toString();
+        });
+    });
+
     var form = document.getElementById('kpiFilterForm');
     if (!form) return;
     document.querySelectorAll('.kpi-mode-group .btn').forEach(function (btn) {

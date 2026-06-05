@@ -369,14 +369,20 @@
     <div class="ci-chart-card-header mb-2">
         <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
             Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
-            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Auflösung: {% if chart_granularity == 'day' %}Tag{% elif chart_granularity == 'week' %}Woche{% else %}Monat{% endif %}{% if chart_granularity == 'day' %} · Klick öffnet Befragungs-Rohdaten{% endif %})</span>
+            {% if chart_granularity == 'day' %}
+            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
+            {% endif %}
         </div>
-        <div>
-            <div class="ci-mini-label mb-1">korrelation</div>
-            <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
-                <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
-                <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
-                <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
+        <div class="d-flex flex-wrap align-items-end" style="gap:0.75rem;">
+            {% set mini_label_class = 'ci-mini-label' %}
+            {% include 'main/_kpi_granularity_toggle.html' %}
+            <div>
+                <div class="ci-mini-label mb-1">korrelation</div>
+                <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
+                    <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
+                    <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
+                    <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
+                </div>
             </div>
         </div>
     </div>
@@ -397,7 +403,7 @@
         </div>
         <div class="col-12 col-lg-6 mb-3">
             <div class="card h-100" style="background:#22222a;border-color:#34343c;">
-                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Tagesübersicht</strong></div>
+                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
                 <div class="card-body p-0">
                     {% if chart_granularity == 'day' %}
                     <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
@@ -497,6 +503,14 @@
 {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
 <script>
 (function () {
+    document.querySelectorAll('[data-kpi-granularity]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set('granularity', btn.getAttribute('data-kpi-granularity'));
+            window.location.href = url.toString();
+        });
+    });
+
     var form = document.getElementById('ciFilterForm');
     if (!form) return;
 

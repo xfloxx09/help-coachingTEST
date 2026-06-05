@@ -24,12 +24,3 @@
     <div class="{{ _mini }} mb-1">bis</div>
     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
 </div>
-<div class="col-6 col-md-2 mb-2">
-    <div class="{{ _mini }} mb-1">auflösung</div>
-    <select name="granularity" class="form-control form-control-sm">
-        <option value="auto" {% if (granularity|default('auto')) == 'auto' %}selected{% endif %}>Auto</option>
-        <option value="day" {% if granularity == 'day' %}selected{% endif %}>Tag</option>
-        <option value="week" {% if granularity == 'week' %}selected{% endif %}>Woche</option>
-        <option value="month" {% if granularity == 'month' %}selected{% endif %}>Monat</option>
-    </select>
-</div>

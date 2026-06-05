@@ -52,15 +52,12 @@ def _month_end(d):
     return date(d.year, d.month + 1, 1) - timedelta(days=1)
 
 
-def resolve_granularity(granularity_arg, period_arg, start_date, end_date, data_dates=None):
-    g = (granularity_arg or 'auto').strip()
-    if g in ('day', 'week', 'month'):
-        return g
+def default_granularity_for_period(period_arg, start_date, end_date, data_dates=None):
     if period_arg in ('7days', '30days', 'this_month'):
         return 'day'
-    if period_arg == '90days':
+    if period_arg in ('90days', '6months'):
         return 'week'
-    if period_arg in ('6months', '12months', 'this_year', 'last_year', 'all'):
+    if period_arg in ('12months', 'this_year', 'last_year', 'all'):
         return 'month'
     if start_date and end_date:
         span = (end_date - start_date).days + 1
@@ -78,6 +75,13 @@ def resolve_granularity(granularity_arg, period_arg, start_date, end_date, data_
             return 'week'
         return 'month'
     return 'month'
+
+
+def resolve_granularity(granularity_arg, period_arg, start_date, end_date, data_dates=None):
+    g = (granularity_arg or '').strip()
+    if g in ('day', 'week', 'month'):
+        return g
+    return default_granularity_for_period(period_arg, start_date, end_date, data_dates)
 
 
 def bucket_ranges(bucket, start_date, end_date, data_dates=None):
