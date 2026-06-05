@@ -146,6 +146,26 @@
         opacity: 0.38;
         cursor: not-allowed;
     }
+    .ci-day-table-hint {
+        font-size: 0.78rem;
+        color: #9a9aa3;
+        padding: 0.45rem 0.75rem;
+        border-bottom: 1px solid #34343c;
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .ci-day-table-scroll {
+        max-height: 360px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .ci-day-table-scroll thead th {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        background: #22222a;
+        border-bottom: 1px solid #34343c;
+        box-shadow: 0 2px 0 #22222a;
+    }
 </style>
 {% endblock %}
 
@@ -385,7 +405,7 @@
                 <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Tagesübersicht</strong></div>
                 <div class="card-body p-0">
                     <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
-                    <div class="table-responsive" style="max-height: 360px;">
+                    <div class="table-responsive ci-day-table-scroll">
                         <table class="table table-sm table-hover mb-0">
                             <thead>
                                 <tr>
