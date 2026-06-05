@@ -670,6 +670,46 @@ def create_app(config_class=Config):
                 conn.rollback()
                 print(f"ℹ️ kpi_question_mappings: {e}")
 
+        # 18. Assigned coaching KPI snapshots + team view card settings
+        if 'assigned_coachings' in inspector.get_table_names():
+            ac_cols = [c['name'] for c in inspect(db.engine).get_columns('assigned_coachings')]
+            for col in (
+                'start_nps_at_assign', 'start_loesung_quote_at_assign', 'start_info_quote_at_assign',
+                'end_nps', 'end_loesung_quote', 'end_info_quote',
+            ):
+                if col not in ac_cols:
+                    try:
+                        conn.execute(text(f'ALTER TABLE assigned_coachings ADD COLUMN {col} FLOAT'))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'assigned_coachings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ assigned_coachings.{col}: {e}")
+
+        if 'team_view_card_settings' not in inspector.get_table_names():
+            try:
+                conn.execute(text(
+                    'CREATE TABLE team_view_card_settings ('
+                    'project_id INTEGER PRIMARY KEY REFERENCES projects(id), '
+                    'show_nps BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'show_loesung BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'show_info BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'show_performance BOOLEAN NOT NULL DEFAULT TRUE, '
+                    'target_nps FLOAT NOT NULL DEFAULT 50, '
+                    'target_loesung FLOAT NOT NULL DEFAULT 80, '
+                    'target_info FLOAT NOT NULL DEFAULT 80, '
+                    'target_performance FLOAT NOT NULL DEFAULT 80, '
+                    'warn_nps FLOAT NOT NULL DEFAULT 0, '
+                    'warn_loesung FLOAT NOT NULL DEFAULT 60, '
+                    'warn_info FLOAT NOT NULL DEFAULT 60, '
+                    'warn_performance FLOAT NOT NULL DEFAULT 50)'
+                ))
+                conn.commit()
+                print("✅ Tabelle 'team_view_card_settings' erstellt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ team_view_card_settings: {e}")
+
         print("--- Migration abgeschlossen ---")
 
     # --- Blueprint registration ---
@@ -757,6 +797,21 @@ def create_app(config_class=Config):
     def de_decimal(value, decimals=2):
         from app.kpi import format_de
         return format_de(value, decimals)
+
+    @app.template_filter('kpi_bar_class')
+    def kpi_bar_class(value, target_green, target_yellow):
+        from app.kpi import metric_bar_class
+        return metric_bar_class(value, target_green, target_yellow)
+
+    @app.template_filter('kpi_bar_width')
+    def kpi_bar_width(value, bar_min=0, bar_max=100):
+        from app.kpi import metric_bar_width
+        return metric_bar_width(value, bar_min, bar_max)
+
+    @app.template_filter('nps_bar_width')
+    def nps_bar_width(value):
+        from app.kpi import nps_bar_width as _nps_w
+        return _nps_w(value)
 
     @app.template_filter('athens_time')
     def format_athens_time(utc_dt, fmt='%d.%m.%Y %H:%M'):

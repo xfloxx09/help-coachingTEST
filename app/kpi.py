@@ -174,3 +174,123 @@ def format_de(value, decimals=2):
         return ('{:,.' + str(decimals) + 'f}').format(float(value)).replace(',', '_').replace('.', ',').replace('_', '.')
     except (ValueError, TypeError):
         return '–'
+
+
+def metric_bar_class(value, target_green, target_yellow):
+    """Bootstrap progress-bar class for a metric vs. configurable Ziele."""
+    if value is None:
+        return 'bg-secondary'
+    try:
+        v = float(value)
+        tg = float(target_green)
+        ty = float(target_yellow)
+    except (TypeError, ValueError):
+        return 'bg-secondary'
+    if v >= tg:
+        return 'bg-success'
+    if v >= ty:
+        return 'bg-warning'
+    return 'bg-danger'
+
+
+def metric_bar_width(value, bar_min=0.0, bar_max=100.0):
+    """Clamp a metric to 0–100 for progress-bar width."""
+    if value is None:
+        return 0
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if bar_max <= bar_min:
+        return 0
+    pct = (v - bar_min) / (bar_max - bar_min) * 100.0
+    return max(0.0, min(100.0, pct))
+
+
+def nps_bar_width(nps_value):
+    """Map NPS (-100..100) to bar width 0..100."""
+    return metric_bar_width(nps_value, bar_min=-100.0, bar_max=100.0)
+
+
+DEFAULT_TEAM_VIEW_CARD = {
+    'show_nps': True,
+    'show_loesung': True,
+    'show_info': True,
+    'show_performance': True,
+    'target_nps': 50.0,
+    'target_loesung': 80.0,
+    'target_info': 80.0,
+    'target_performance': 80.0,
+    'warn_nps': 0.0,
+    'warn_loesung': 60.0,
+    'warn_info': 60.0,
+    'warn_performance': 50.0,
+}
+
+
+def team_view_card_settings_dict(setting_row):
+    """Merge DB row with defaults into a plain dict for templates."""
+    out = dict(DEFAULT_TEAM_VIEW_CARD)
+    if setting_row is None:
+        return out
+    for key in out:
+        if hasattr(setting_row, key):
+            out[key] = getattr(setting_row, key)
+    return out
+
+
+def _counting_studie_filter(project_id):
+    """SQLAlchemy filter clause list for counting-only survey types."""
+    from sqlalchemy import false
+    from app.models import ProjectKpiSource, KpiSurvey
+    if not project_id:
+        return []
+    rows = ProjectKpiSource.query.filter_by(project_id=project_id).all()
+    if not rows:
+        return []
+    types = [r.survey_type for r in rows if r.counts]
+    if not types:
+        return [false()]
+    return [KpiSurvey.studie.in_(types)]
+
+
+def members_kpi_quotes(project_id, member_ids):
+    """Bulk KPI quotes per team member (counting survey types only)."""
+    from app import db
+    from app.models import KpiSurvey
+    if not project_id or not member_ids:
+        return {}
+    filters = [KpiSurvey.project_id == project_id, KpiSurvey.team_member_id.in_(member_ids)]
+    filters.extend(_counting_studie_filter(project_id))
+    rows = db.session.query(
+        KpiSurvey.team_member_id,
+        KpiSurvey.info_positive,
+        KpiSurvey.loesung_positive,
+        KpiSurvey.nps_value,
+    ).filter(*filters).all()
+    buckets = {}
+    for mid, info_p, loes_p, nps_v in rows:
+        buckets.setdefault(mid, []).append((info_p, loes_p, nps_v))
+
+    def _agg(items):
+        info_pos = info_total = loes_pos = loes_total = 0
+        nps_values = []
+        for info_positive, loesung_positive, nps_value in items:
+            if info_positive is not None:
+                info_total += 1
+                if info_positive:
+                    info_pos += 1
+            if loesung_positive is not None:
+                loes_total += 1
+                if loesung_positive:
+                    loes_pos += 1
+            if nps_value is not None:
+                nps_values.append(nps_value)
+        nps = compute_nps(nps_values)
+        return {
+            'info_quote': quote_percent(info_pos, info_total),
+            'loes_quote': quote_percent(loes_pos, loes_total),
+            'nps': nps['nps'],
+        }
+
+    return {mid: _agg(buckets[mid]) for mid in member_ids if mid in buckets}

@@ -185,7 +185,7 @@
             <hr class="qc-divider">
             {% endif %}
             <div class="qc-section-title"><i class="fas fa-lightbulb mr-1"></i>Vorschläge</div>
-            <p class="qc-help">Priorisiert nach wenig Coaching-Zeit und/oder niedriger Performance.</p>
+            <p class="qc-help">Priorisiert nach schlechten KPI-Werten, niedriger Performance und wenig Coaching-Zeit.</p>
             {% set qc_primary = quick_coaching_suggestions.primary or [] %}
             {% set qc_without = quick_coaching_suggestions.without_coaching or [] %}
             {% if qc_primary or qc_without %}
@@ -199,6 +199,11 @@
                         Team: {{ s.team_name }}<br>
                         Coachings: {{ s.coaching_count }} · Zeit: {{ s.total_time }} Min ·
                         Score: {% if s.avg_score is not none %}{{ s.avg_score }}%{% else %}k.A.{% endif %}
+                        {% if s.nps is not none or s.loesung_quote is not none or s.info_quote is not none %}
+                        <br>KPI: {% if s.nps is not none %}NPS {{ s.nps|de_decimal }}{% endif %}
+                        {% if s.loesung_quote is not none %} · Lös. {{ s.loesung_quote|de_decimal }}%{% endif %}
+                        {% if s.info_quote is not none %} · Info {{ s.info_quote|de_decimal }}%{% endif %}
+                        {% endif %}
                     </div>
                     <a class="btn btn-sm qc-action" href="{{ url_for('main.terminkalender_plan', project=s.project_id, suggested_member_id=s.team_member_id) }}">
                         <i class="fas fa-plus-circle mr-1"></i> Coaching planen
@@ -280,6 +285,7 @@
                                 <a class="dropdown-item" href="{{ url_for('admin.sync_from_csv') }}">CSV-Synchronisation</a>
                                 <a class="dropdown-item" href="{{ url_for('admin.import_kpi_csv') }}">KPI-Import (Demo)</a>
                                 <a class="dropdown-item" href="{{ url_for('admin.kpi_verwaltung') }}">KPI Verwaltung</a>
+                                <a class="dropdown-item" href="{{ url_for('admin.team_view_kpis') }}">Team-View KPIs</a>
                             </div>
                         </li>
                     {% endif %}

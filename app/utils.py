@@ -586,6 +586,17 @@ def quick_coaching_suggestions(limit=6, max_without_coaching=30):
     )
     agg_map = {r.tmid: r for r in agg_rows}
 
+    # KPI quotes per member (grouped by project via team)
+    from app import kpi as kpi_logic
+    kpi_by_member = {}
+    by_project = {}
+    for m in members:
+        if m.team and m.team.project_id:
+            by_project.setdefault(m.team.project_id, []).append(m.id)
+    for pid, mids in by_project.items():
+        for mid, kpi in kpi_logic.members_kpi_quotes(pid, mids).items():
+            kpi_by_member[mid] = kpi
+
     out = []
     plan_day = (today_athens_date() + timedelta(days=1)).isoformat()
     for m in members:
@@ -603,8 +614,27 @@ def quick_coaching_suggestions(limit=6, max_without_coaching=30):
         if cnt == 0:
             score_need += 22.0
 
+        kpi = kpi_by_member.get(m.id, {})
+        loes_q = kpi.get('loes_quote')
+        info_q = kpi.get('info_quote')
+        nps_v = kpi.get('nps')
+        kpi_reason = None
+        if loes_q is not None and loes_q < 70:
+            score_need += (70.0 - loes_q) * 1.2
+            kpi_reason = 'Niedrige Lösungsquote'
+        if info_q is not None and info_q < 70:
+            score_need += (70.0 - info_q) * 0.9
+            if not kpi_reason:
+                kpi_reason = 'Niedrige Informationsquote'
+        if nps_v is not None and nps_v < 30:
+            score_need += (30.0 - nps_v) * 0.7
+            if not kpi_reason:
+                kpi_reason = 'Niedriger NPS'
+
         if cnt == 0:
             reason = 'Noch kein Coaching'
+        elif kpi_reason:
+            reason = kpi_reason
         elif avg_mark is not None and avg_mark < 6:
             reason = 'Niedrige Performance'
         elif sum_time < 60:
@@ -620,6 +650,9 @@ def quick_coaching_suggestions(limit=6, max_without_coaching=30):
             'coaching_count': cnt,
             'total_time': sum_time,
             'avg_score': round((avg_mark or 0) * 10, 1) if avg_mark is not None else None,
+            'nps': nps_v,
+            'loesung_quote': loes_q,
+            'info_quote': info_q,
             'reason': reason,
             'need_score': score_need,
             'plan_day': plan_day,

@@ -410,6 +410,13 @@ class AssignedCoaching(db.Model):
     expected_coaching_count = db.Column(db.Integer, nullable=False)
     desired_performance_note = db.Column(db.Integer)
     current_performance_note_at_assign = db.Column(db.Float)
+    # KPI snapshots at assignment / completion (counting survey types only)
+    start_nps_at_assign = db.Column(db.Float, nullable=True)
+    start_loesung_quote_at_assign = db.Column(db.Float, nullable=True)
+    start_info_quote_at_assign = db.Column(db.Float, nullable=True)
+    end_nps = db.Column(db.Float, nullable=True)
+    end_loesung_quote = db.Column(db.Float, nullable=True)
+    end_info_quote = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(20), nullable=False, default='pending')
     # Von Coach bei Ablehnung (pending → rejected); sichtbar für Zuweiser / Übersichten
     rejection_reason = db.Column(db.Text)
@@ -548,3 +555,23 @@ class KpiQuestionMapping(db.Model):
     __table_args__ = (
         db.UniqueConstraint('project_id', 'survey_type', 'kpi_kind', name='uq_kpi_question_mapping'),
     )
+
+
+class TeamViewCardSettings(db.Model):
+    """Per-project: which metrics appear on /team-view member cards and color thresholds (Ziele)."""
+    __tablename__ = 'team_view_card_settings'
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), primary_key=True)
+    show_nps = db.Column(db.Boolean, nullable=False, default=True)
+    show_loesung = db.Column(db.Boolean, nullable=False, default=True)
+    show_info = db.Column(db.Boolean, nullable=False, default=True)
+    show_performance = db.Column(db.Boolean, nullable=False, default=True)
+    # Green threshold (>= target = success)
+    target_nps = db.Column(db.Float, nullable=False, default=50.0)
+    target_loesung = db.Column(db.Float, nullable=False, default=80.0)
+    target_info = db.Column(db.Float, nullable=False, default=80.0)
+    target_performance = db.Column(db.Float, nullable=False, default=80.0)
+    # Yellow threshold (>= warn = warning, below = danger)
+    warn_nps = db.Column(db.Float, nullable=False, default=0.0)
+    warn_loesung = db.Column(db.Float, nullable=False, default=60.0)
+    warn_info = db.Column(db.Float, nullable=False, default=60.0)
+    warn_performance = db.Column(db.Float, nullable=False, default=50.0)

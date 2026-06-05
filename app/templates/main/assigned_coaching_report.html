@@ -39,6 +39,32 @@
         </div>
     </div>
 
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            KPI-Entwicklung (Zählende Befragungen)
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Bei Zuweisung</h6>
+                    <strong>Start-NPS:</strong> {% if report.start_nps is not none %}{{ report.start_nps|de_decimal }}{% else %}k.A.{% endif %}<br>
+                    <strong>Start-Lösungsquote:</strong> {% if report.start_loesung is not none %}{{ report.start_loesung|de_decimal }}%{% else %}k.A.{% endif %}<br>
+                    <strong>Start-Informationsquote:</strong> {% if report.start_info is not none %}{{ report.start_info|de_decimal }}%{% else %}k.A.{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <h6>{% if report.status == 'completed' %}Nach Abschluss{% else %}Aktuell (Zwischenstand){% endif %}</h6>
+                    {% if report.status == 'completed' %}
+                    <strong>End-NPS:</strong> {% if report.end_nps is not none %}{{ report.end_nps|de_decimal }}{% else %}k.A.{% endif %}<br>
+                    <strong>End-Lösungsquote:</strong> {% if report.end_loesung is not none %}{{ report.end_loesung|de_decimal }}%{% else %}k.A.{% endif %}<br>
+                    <strong>End-Informationsquote:</strong> {% if report.end_info is not none %}{{ report.end_info|de_decimal }}%{% else %}k.A.{% endif %}
+                    {% else %}
+                    <p class="text-muted mb-0">Die End-KPIs werden gespeichert, sobald die Aufgabe erfolgreich abgeschlossen ist.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     {% if report.coachings %}
     <div class="card">
         <div class="card-header telekom-bg-magenta text-white">

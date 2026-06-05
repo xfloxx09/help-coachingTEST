@@ -271,6 +271,9 @@
                                                 <th class="sortable-header" data-sort="name">Mitglied <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="score">Gesamtscore <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="performance">Ø Performance (%) <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
+                                                <th>NPS</th>
+                                                <th>Lösungsquote</th>
+                                                <th>Informationsquote</th>
                                                 <th class="sortable-header" data-sort="coachings">Coachings <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="time">Gesamtzeit (Min.) <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
                                                 <th class="sortable-header" data-sort="last">Letztes Coaching <span class="sort-icon"><i class="fas fa-sort"></i></span></th>
@@ -300,6 +303,9 @@
                                                     </div>
                                                     <span class="ms-2">{{ member.avg_score|round(1) }}%</span>
                                                 </td>
+                                                <td>{% if member.nps is not none %}{{ member.nps|de_decimal }}{% else %}–{% endif %}</td>
+                                                <td>{% if member.loesung_quote is not none %}{{ member.loesung_quote|de_decimal }}%{% else %}–{% endif %}</td>
+                                                <td>{% if member.info_quote is not none %}{{ member.info_quote|de_decimal }}%{% else %}–{% endif %}</td>
                                                 <td>{{ member.coaching_count }}</td>
                                                 <td>{{ member.total_time }}</td>
                                                 <td>{{ member.last_coaching_date|athens_time('%d.%m.%Y') if member.last_coaching_date else '-' }}</td>

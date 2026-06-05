@@ -24,6 +24,7 @@ from app.models import (
     KpiImportBatch,
     ProjectKpiSource,
     ProjectKpiSetting,
+    TeamViewCardSettings,
 )
 from app import kpi as kpi_logic
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
@@ -473,6 +474,7 @@ def _sync_assigned_coaching_status_from_progress(assignment):
     if done >= exp:
         if st in ('pending', 'accepted', 'in_progress'):
             assignment.status = 'completed'
+            _snapshot_assignment_end_kpis(assignment)
     elif done > 0:
         if st in ('pending', 'accepted'):
             assignment.status = 'in_progress'
@@ -595,6 +597,12 @@ def _member_performance_for_assigned_page(project_id):
             'last_coaching_date': r['last_coaching_date'],
             'active_assignment_count': active_counts.get(m.id, 0),
         })
+    kpi_map = _members_kpi_map(project_id, member_ids)
+    for row in out:
+        k = kpi_map.get(row['id'], {})
+        row['nps'] = k.get('nps')
+        row['loesung_quote'] = k.get('loes_quote')
+        row['info_quote'] = k.get('info_quote')
     return out
 
 
@@ -1130,8 +1138,11 @@ def _coaching_dashboard_chart_group_arg(param_name, has_teams, has_projects):
 
 def _build_team_members_performance(team):
     project_id = team.project_id
+    members = TeamMember.query.filter_by(team_id=team.id).order_by(TeamMember.name).all()
+    member_ids = [m.id for m in members]
+    kpi_map = _members_kpi_map(project_id, member_ids)
     team_members_performance = []
-    for member in TeamMember.query.filter_by(team_id=team.id).order_by(TeamMember.name).all():
+    for member in members:
         m_stats = db.session.query(
             db.func.count(Coaching.id),
             db.func.avg(Coaching.performance_mark),
@@ -1165,7 +1176,10 @@ def _build_team_members_performance(team):
             'avg_score': avg_perf,
             'total_time': total_t,
             'formatted_total_coaching_time': formatted_time,
-            'avg_leitfaden_adherence': avg_leitfaden
+            'avg_leitfaden_adherence': avg_leitfaden,
+            'nps': kpi_map.get(member.id, {}).get('nps'),
+            'loesung_quote': kpi_map.get(member.id, {}).get('loes_quote'),
+            'info_quote': kpi_map.get(member.id, {}).get('info_quote'),
         })
     return team_members_performance
 
@@ -3302,6 +3316,7 @@ def team_view():
         team = all_teams_list[0]
 
     team_members_performance = _build_team_members_performance(team)
+    card_settings = _team_view_card_settings(team.project_id)
     member_ids = [m.id for m in TeamMember.query.filter_by(team_id=team.id).all()]
     team_total_coachings = 0
     team_avg_time_minutes = 0
@@ -3343,6 +3358,7 @@ def team_view():
         team_avg_time_minutes=team_avg_time_minutes,
         team_avg_score_percent=team_avg_score_percent,
         all_teams_list=all_teams_list,
+        card_settings=card_settings,
         config=current_app.config,
     )
 
@@ -3981,8 +3997,26 @@ def get_member_coaching_trend():
     labels = [f"Coaching #{i+1}" for i in range(len(coachings))]
     scores = [(c.performance_mark or 0) * 10 for c in coachings]
     dates = [c.coaching_date.strftime('%d.%m.%Y') if c.coaching_date else '' for c in coachings]
+    coaching_iso = []
+    for c in coachings:
+        if c.coaching_date:
+            d = c.coaching_date.date() if hasattr(c.coaching_date, 'date') else c.coaching_date
+            coaching_iso.append(d.isoformat() if hasattr(d, 'isoformat') else '')
+        else:
+            coaching_iso.append('')
 
-    return jsonify({'labels': labels, 'scores': scores, 'dates': dates})
+    project_id = tm_row.team.project_id if tm_row.team else None
+    kpi_daily = _member_kpi_daily_series(project_id, team_member_id, days=90) if project_id else []
+    card_settings = _team_view_card_settings(project_id) if project_id else kpi_logic.DEFAULT_TEAM_VIEW_CARD
+
+    return jsonify({
+        'labels': labels,
+        'scores': scores,
+        'dates': dates,
+        'coaching_dates': coaching_iso,
+        'kpi_daily': kpi_daily,
+        'card_settings': card_settings,
+    })
 
 
 # --- Project selection ---
@@ -4267,7 +4301,7 @@ def create_assigned_coaching():
                     Coaching.project_id == project_id,
                 ).scalar()
                 perf_note = round(float(avg or 0) * 10, 1) if avg is not None else None
-            db.session.add(AssignedCoaching(
+            ac = AssignedCoaching(
                 project_leader_id=current_user.id,
                 coach_id=form.coach_id.data,
                 team_member_id=mid,
@@ -4276,7 +4310,9 @@ def create_assigned_coaching():
                 desired_performance_note=form.desired_performance_note.data,
                 current_performance_note_at_assign=perf_note,
                 status='pending',
-            ))
+            )
+            _snapshot_assignment_start_kpis(ac, project_id)
+            db.session.add(ac)
             created += 1
         if created:
             db.session.commit()
@@ -4639,6 +4675,13 @@ def assigned_coaching_report(assignment_id):
     else:
         final_avg = 0.0
 
+    end_nps = assignment.end_nps
+    end_loes = assignment.end_loesung_quote
+    end_info = assignment.end_info_quote
+    if assignment.status == 'completed' and end_nps is None and end_loes is None and end_info is None:
+        live = _member_kpi_snapshot(project_id, assignment.team_member_id)
+        end_nps, end_loes, end_info = live['nps'], live['loes_quote'], live['info_quote']
+
     report = {
         'assignment': assignment,
         'coachings': done_list,
@@ -4647,6 +4690,12 @@ def assigned_coaching_report(assignment_id):
         'start_note': assignment.current_performance_note_at_assign,
         'target_note': assignment.desired_performance_note,
         'final_avg_score': final_avg,
+        'start_nps': assignment.start_nps_at_assign,
+        'start_loesung': assignment.start_loesung_quote_at_assign,
+        'start_info': assignment.start_info_quote_at_assign,
+        'end_nps': end_nps,
+        'end_loesung': end_loes,
+        'end_info': end_info,
         'status': assignment.status,
     }
     return render_template(
@@ -4802,6 +4851,86 @@ def _kpi_base_filters(accessible, sees_all_teams, my_team_ids):
         else:
             filters.append(false())
     return filters
+
+
+def _members_kpi_map(project_id, member_ids):
+    return kpi_logic.members_kpi_quotes(project_id, member_ids)
+
+
+def _member_kpi_snapshot(project_id, member_id):
+    """Single-member KPI dict for assignment snapshots."""
+    if not project_id or not member_id:
+        return {'nps': None, 'loes_quote': None, 'info_quote': None}
+    m = _members_kpi_map(project_id, [member_id]).get(member_id)
+    if not m:
+        return {'nps': None, 'loes_quote': None, 'info_quote': None}
+    return {'nps': m.get('nps'), 'loes_quote': m.get('loes_quote'), 'info_quote': m.get('info_quote')}
+
+
+def _snapshot_assignment_start_kpis(assignment, project_id):
+    snap = _member_kpi_snapshot(project_id, assignment.team_member_id)
+    assignment.start_nps_at_assign = snap['nps']
+    assignment.start_loesung_quote_at_assign = snap['loes_quote']
+    assignment.start_info_quote_at_assign = snap['info_quote']
+
+
+def _snapshot_assignment_end_kpis(assignment):
+    tm = assignment.team_member
+    if not tm or not tm.team:
+        return
+    snap = _member_kpi_snapshot(tm.team.project_id, assignment.team_member_id)
+    assignment.end_nps = snap['nps']
+    assignment.end_loesung_quote = snap['loes_quote']
+    assignment.end_info_quote = snap['info_quote']
+
+
+def _team_view_card_settings(project_id):
+    row = TeamViewCardSettings.query.get(project_id) if project_id else None
+    return kpi_logic.team_view_card_settings_dict(row)
+
+
+def _member_kpi_daily_series(project_id, member_id, days=90):
+    """Daily KPI aggregates for trend charts."""
+    if not project_id or not member_id:
+        return []
+    today = datetime.now(timezone.utc).date()
+    start = today - timedelta(days=max(1, days) - 1)
+    filters = [
+        KpiSurvey.project_id == project_id,
+        KpiSurvey.team_member_id == member_id,
+        KpiSurvey.antwort_date >= start,
+        KpiSurvey.antwort_date <= today,
+    ]
+    filters.extend(_kpi_source_filter(project_id, counting_only=True))
+    rows = db.session.query(
+        KpiSurvey.antwort_date,
+        KpiSurvey.info_positive,
+        KpiSurvey.loesung_positive,
+        KpiSurvey.nps_value,
+    ).filter(*filters).order_by(KpiSurvey.antwort_date).all()
+    by_day = {}
+    for d, info_p, loes_p, nps_v in rows:
+        if d is None:
+            continue
+        b = by_day.setdefault(d, {'info': [], 'loes': [], 'nps': []})
+        if info_p is not None:
+            b['info'].append(1 if info_p else 0)
+        if loes_p is not None:
+            b['loes'].append(1 if loes_p else 0)
+        if nps_v is not None:
+            b['nps'].append(nps_v)
+    out = []
+    for d in sorted(by_day.keys()):
+        b = by_day[d]
+        nps_day = kpi_logic.compute_nps(b['nps'])
+        out.append({
+            'date': d.isoformat(),
+            'label': d.strftime('%d.%m.'),
+            'info_quote': (round(sum(b['info']) / len(b['info']) * 100, 2) if b['info'] else None),
+            'loes_quote': (round(sum(b['loes']) / len(b['loes']) * 100, 2) if b['loes'] else None),
+            'nps': nps_day['nps'],
+        })
+    return out
 
 
 def _kpi_source_filter(project_id, counting_only=True):

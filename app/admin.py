@@ -5,7 +5,7 @@ from sqlalchemy import desc, or_, false, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from app import db
-from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer, ProjectKpiSource, ProjectKpiSetting, KpiQuestionMapping
+from app.models import User, Team, TeamMember, Coaching, Workshop, workshop_participants, Project, Role, Permission, AssignedCoaching, LeitfadenItem, CoachingLeitfadenResponse, Abteilung, CoachingThemaItem, CoachingBogenLayout, PlannedCoaching, PlannedWorkshop, KpiImportBatch, KpiSurvey, KpiAnswer, ProjectKpiSource, ProjectKpiSetting, KpiQuestionMapping, TeamViewCardSettings
 from app import kpi as kpi_logic
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
@@ -3867,5 +3867,65 @@ def kpi_verwaltung():
         sel_project=sel_project,
         project_name=project_name,
         survey_types=survey_types,
+        config=current_app.config,
+    )
+
+
+def _float_form(name, default):
+    try:
+        return float(request.form.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+@bp.route('/team-view-kpis', methods=['GET', 'POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def team_view_kpis():
+    """Configure /team-view member card metrics and color thresholds (Ziele)."""
+    projects = Project.query.order_by(Project.name).all()
+
+    def _form_int(name):
+        try:
+            return int(request.form.get(name))
+        except (TypeError, ValueError):
+            return None
+
+    if request.method == 'POST':
+        sel_project = _form_int('project_id')
+        if sel_project:
+            row = TeamViewCardSettings.query.get(sel_project)
+            if row is None:
+                row = TeamViewCardSettings(project_id=sel_project)
+                db.session.add(row)
+            row.show_nps = bool(request.form.get('show_nps'))
+            row.show_loesung = bool(request.form.get('show_loesung'))
+            row.show_info = bool(request.form.get('show_info'))
+            row.show_performance = bool(request.form.get('show_performance'))
+            row.target_nps = _float_form('target_nps', 50)
+            row.target_loesung = _float_form('target_loesung', 80)
+            row.target_info = _float_form('target_info', 80)
+            row.target_performance = _float_form('target_performance', 80)
+            row.warn_nps = _float_form('warn_nps', 0)
+            row.warn_loesung = _float_form('warn_loesung', 60)
+            row.warn_info = _float_form('warn_info', 60)
+            row.warn_performance = _float_form('warn_performance', 50)
+            db.session.commit()
+            flash('Team-View KPI-Einstellungen gespeichert.', 'success')
+            return redirect(url_for('admin.team_view_kpis', project_id=sel_project))
+
+    sel_project = request.args.get('project_id', type=int)
+    if sel_project and sel_project not in {p.id for p in projects}:
+        sel_project = None
+    settings = kpi_logic.team_view_card_settings_dict(
+        TeamViewCardSettings.query.get(sel_project) if sel_project else None
+    )
+    project_name = next((p.name for p in projects if p.id == sel_project), None) if sel_project else None
+    return render_template(
+        'admin/team_view_kpis.html',
+        projects=projects,
+        sel_project=sel_project,
+        project_name=project_name,
+        settings=settings,
         config=current_app.config,
     )
