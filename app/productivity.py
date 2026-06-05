@@ -288,11 +288,17 @@ def resolve_member(be4, dag_id, agent_name, team_map, dag_map, name_map):
     return tid, pid, mid
 
 
+def _iv_val(obj, key, default=None):
+    """Read a field from a ProductivityInterval ORM row or dict."""
+    if isinstance(obj, dict):
+        val = obj.get(key, default)
+    else:
+        val = getattr(obj, key, default)
+    return default if val is None else val
+
+
 def aggregate_summary(intervals):
     """Weighted summary from interval rows (list of dicts or ORM objects)."""
-    def g(obj, key):
-        return obj[key] if isinstance(obj, dict) else getattr(obj, key)
-
     total_interval = total_kpi_denom = 0.0
     sign_on_sum = prod_sum = nach_sum = idle_sum = calls_sum = 0.0
     count = 0
@@ -300,16 +306,16 @@ def aggregate_summary(intervals):
 
     for iv in intervals:
         count += 1
-        isec = g(iv, 'interval_sec') or INTERVAL_DEFAULT
-        kden = g(iv, 'kpi_denom') or isec
+        isec = _iv_val(iv, 'interval_sec', INTERVAL_DEFAULT) or INTERVAL_DEFAULT
+        kden = _iv_val(iv, 'kpi_denom', isec) or isec
         total_interval += isec
         total_kpi_denom += kden
-        sign_on_sum += g(iv, 'sign_on_sec') or 0
-        prod_sum += g(iv, 'prod_sec') or 0
-        nach_sum += g(iv, 'nach_sec') or 0
-        idle_sum += g(iv, 'idle_sec') or 0
-        calls_sum += g(iv, 'calls') or 0
-        npc = g(iv, 'nach_per_call')
+        sign_on_sum += _iv_val(iv, 'sign_on_sec', 0)
+        prod_sum += _iv_val(iv, 'prod_sec', 0)
+        nach_sum += _iv_val(iv, 'nach_sec', 0)
+        idle_sum += _iv_val(iv, 'idle_sec', 0)
+        calls_sum += _iv_val(iv, 'calls', 0)
+        npc = _iv_val(iv, 'nach_per_call')
         if npc is not None:
             nach_per_call_vals.append(npc)
 
@@ -441,16 +447,16 @@ def cumulative_from_intervals(intervals, start_date, end_date):
             continue
         if end_date and d > end_date:
             continue
-        isec = getattr(iv, 'interval_sec', None) or iv.get('interval_sec', INTERVAL_DEFAULT)
-        kden = getattr(iv, 'kpi_denom', None) or iv.get('kpi_denom') or isec
+        isec = _iv_val(iv, 'interval_sec', INTERVAL_DEFAULT) or INTERVAL_DEFAULT
+        kden = _iv_val(iv, 'kpi_denom', isec) or isec
         acc_isec += isec
         acc_kden += kden
-        acc_sign += getattr(iv, 'sign_on_sec', None) or iv.get('sign_on_sec', 0)
-        acc_prod += getattr(iv, 'prod_sec', None) or iv.get('prod_sec', 0)
-        acc_nach += getattr(iv, 'nach_sec', None) or iv.get('nach_sec', 0)
-        acc_idle += getattr(iv, 'idle_sec', None) or iv.get('idle_sec', 0)
-        acc_nach_sec += getattr(iv, 'nach_sec', None) or iv.get('nach_sec', 0)
-        acc_calls += getattr(iv, 'calls', None) or iv.get('calls', 0)
+        acc_sign += _iv_val(iv, 'sign_on_sec', 0)
+        acc_prod += _iv_val(iv, 'prod_sec', 0)
+        acc_nach += _iv_val(iv, 'nach_sec', 0)
+        acc_idle += _iv_val(iv, 'idle_sec', 0)
+        acc_nach_sec += _iv_val(iv, 'nach_sec', 0)
+        acc_calls += _iv_val(iv, 'calls', 0)
         by_day[d] = {
             'date': d.strftime('%Y-%m-%d'),
             'label': d.strftime('%d.%m.'),
