@@ -253,58 +253,6 @@
     <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
     {% endif %}
 
-    {% if correlation and agent_points %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <strong>Korrelation pro Agent</strong>
-            <span class="text-muted small">(jeder Punkt = ein Agent · {{ correlation.agents }} Agents im Zeitraum)</span>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-12 col-lg-7 mb-3">
-                    <div class="ci-mini-label mb-1">X = Anzahl Coachings · Y =</div>
-                    <select id="ciScatterMetric" class="form-control form-control-sm" style="max-width: 220px;">
-                        <option value="loes_quote">Lösungsquote (%)</option>
-                        <option value="info_quote">Informationsquote (%)</option>
-                        <option value="nps">NPS</option>
-                    </select>
-                    <canvas id="ciScatter" height="120" class="mt-2"></canvas>
-                </div>
-                <div class="col-12 col-lg-5 mb-3">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Korrelation (r)</th>
-                                <th class="text-right">Info</th>
-                                <th class="text-right">Lösung</th>
-                                <th class="text-right">NPS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Anzahl Coachings</td>
-                                <td class="text-right">{{ correlation.coachings_info|de_decimal }}</td>
-                                <td class="text-right">{{ correlation.coachings_loes|de_decimal }}</td>
-                                <td class="text-right">{{ correlation.coachings_nps|de_decimal }}</td>
-                            </tr>
-                            <tr>
-                                <td>Coaching-Minuten</td>
-                                <td class="text-right">{{ correlation.minutes_info|de_decimal }}</td>
-                                <td class="text-right">{{ correlation.minutes_loes|de_decimal }}</td>
-                                <td class="text-right">{{ correlation.minutes_nps|de_decimal }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <p class="text-muted small mb-0">
-                        r nahe +1: mehr Coaching geht mit höheren KPIs einher; nahe −1: gegenläufig; nahe 0: kein linearer
-                        Zusammenhang. Korrelation ist keine Kausalität, und kleine Agent-Zahlen sind mit Vorsicht zu deuten.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
     {% elif has_any_data %}
     <div class="alert alert-secondary">
         <i class="fas fa-hand-pointer mr-1"></i>
@@ -373,7 +321,6 @@
 
     var overlay = {{ overlay|tojson }};
     var ba = {{ before_after|tojson if before_after else 'null' }};
-    var agentPoints = {{ agent_points|tojson }};
 
     // Overlay mixed chart
     var oc = document.getElementById('ciOverlayChart');
@@ -460,45 +407,6 @@
             },
         });
     }
-
-    // Per-agent correlation scatter
-    var scatterMetricSel = document.getElementById('ciScatterMetric');
-    var scatterCanvas = document.getElementById('ciScatter');
-    var scatterChart = null;
-    var metricLabels = { loes_quote: 'Lösungsquote (%)', info_quote: 'Informationsquote (%)', nps: 'NPS' };
-    function renderScatter() {
-        if (!scatterCanvas || !window.Chart || !agentPoints) return;
-        var metric = scatterMetricSel ? scatterMetricSel.value : 'loes_quote';
-        var pts = agentPoints
-            .filter(function (a) { return a[metric] !== null && a[metric] !== undefined; })
-            .map(function (a) { return { x: a.coachings, y: a[metric], name: a.name }; });
-        if (scatterChart) { scatterChart.destroy(); }
-        scatterChart = new Chart(scatterCanvas.getContext('2d'), {
-            type: 'scatter',
-            data: { datasets: [{
-                label: metricLabels[metric] || metric,
-                data: pts,
-                backgroundColor: 'rgba(255,182,72,0.75)',
-                borderColor: '#e20074',
-            }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    tooltip: { callbacks: { label: function (ctx) {
-                        var p = ctx.raw;
-                        return p.name + ': ' + p.x + ' Coachings, ' + p.y;
-                    } } },
-                },
-                scales: {
-                    x: { title: { display: true, text: 'Anzahl Coachings' }, beginAtZero: true, ticks: { precision: 0 } },
-                    y: { title: { display: true, text: metricLabels[metric] || metric } },
-                },
-            },
-        });
-    }
-    if (scatterMetricSel) scatterMetricSel.addEventListener('change', renderScatter);
-    renderScatter();
 
     // Day modal
     var modalParams = {
