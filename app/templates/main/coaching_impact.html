@@ -75,6 +75,27 @@
     .kpi-mode-group .btn { border-color: #4a4a55; color: #d6d6dd; background: #2a2a31; }
     .kpi-mode-group .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
     .kpi-toolbar-toggles { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
+    .ci-toolbar-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.65rem 0.85rem;
+    }
+    .ci-toolbar-filters .ci-filter-item {
+        flex: 1 1 150px;
+        min-width: 130px;
+        max-width: 200px;
+    }
+    .ci-toolbar-filters .ci-filter-item--mode {
+        flex: 0 0 auto;
+        max-width: none;
+        min-width: 0;
+    }
+    .ci-toolbar-view-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.35rem;
+    }
     .ci-chart-wrap {
         position: relative;
         height: min(52vh, 480px);
@@ -478,8 +499,8 @@
     <form method="GET" action="{{ url_for('main.coaching_impact') }}" id="ciFilterForm" class="ci-toolbar">
         <input type="hidden" name="mode" id="ciMode" value="{{ mode }}">
 
-        <div class="form-row align-items-end">
-            <div class="col-12 col-lg-auto mb-2">
+        <div class="ci-toolbar-filters">
+            <div class="ci-filter-item ci-filter-item--mode">
                 <div class="ci-mini-label mb-1">ansicht</div>
                 <div class="btn-group btn-group-sm ci-mode-group" role="group">
                     <button type="button" class="btn {% if mode == 'project' %}active{% endif %}" data-mode="project">Projekt</button>
@@ -488,7 +509,7 @@
                 </div>
             </div>
 
-            <div class="col-12 col-md-4 col-lg-3 mb-2">
+            <div class="ci-filter-item">
                 <div class="ci-mini-label mb-1">projekt</div>
                 <select name="project_id" class="form-control form-control-sm ci-auto">
                     <option value="">-- Projekt wählen --</option>
@@ -498,7 +519,7 @@
                 </select>
             </div>
 
-            <div class="col-12 col-md-4 col-lg-3 mb-2 ci-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
+            <div class="ci-filter-item ci-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
                 <div class="ci-mini-label mb-1">team</div>
                 <select name="team_id" class="form-control form-control-sm ci-auto">
                     <option value="">-- Team wählen --</option>
@@ -508,7 +529,7 @@
                 </select>
             </div>
 
-            <div class="col-12 col-md-4 col-lg-3 mb-2 ci-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
+            <div class="ci-filter-item ci-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
                 <div class="ci-mini-label mb-1">agent</div>
                 <select name="member_id" class="form-control form-control-sm ci-auto">
                     <option value="">-- Agent wählen --</option>
@@ -517,20 +538,18 @@
                     {% endfor %}
                 </select>
             </div>
+        </div>
 
-            <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
-                <div class="kpi-toolbar-toggles">
-                    {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
-                    {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
-                    {% if show_ci_kpi_qual and show_ci_kpi_prod %}
-                    <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
-                        <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
-                        <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
-                    </div>
-                    {% endif %}
-                </div>
+        {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
+        {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
+        {% if show_ci_kpi_qual and show_ci_kpi_prod %}
+        <div class="ci-toolbar-view-row mb-2">
+            <div class="ci-view-toggle btn-group btn-group-sm" id="ciViewToggle" role="group" aria-label="KPI-Kategorie">
+                <button type="button" class="btn active" data-ci-view="qualitaet">{{ cat_labels.qualitaet }}</button>
+                <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
             </div>
         </div>
+        {% endif %}
 
         <hr style="border-color:#34343c;">
 
