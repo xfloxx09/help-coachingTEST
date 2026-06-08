@@ -15,25 +15,69 @@
     .ci-card {
         border: 1px solid #34343c;
         border-radius: 12px;
-        padding: 1.1rem 1.25rem;
-        height: 100%;
+        padding: 0.75rem 0.65rem;
+        aspect-ratio: 1;
+        width: 100%;
+        overflow: hidden;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
         background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
     }
-    .ci-card .ci-label { font-size: 0.9rem; color: #b9b9c2; margin-bottom: 0.35rem; }
+    .ci-ba-card-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .ci-ba-card-wrap {
+        width: 148px;
+        flex: 0 0 148px;
+        max-width: 100%;
+    }
+    .ci-card .ci-label {
+        font-size: 0.78rem;
+        color: #b9b9c2;
+        margin-bottom: 0.3rem;
+        line-height: 1.25;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
     .ci-card .ci-ba-values {
         display: flex;
-        align-items: baseline;
-        flex-wrap: nowrap;
-        gap: 0.35rem;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.15rem 0.25rem;
+        max-width: 100%;
+        line-height: 1.2;
+    }
+    .ci-card .ci-ba-val { font-size: 0.9rem; font-weight: 700; min-width: 0; }
+    .ci-card .ci-arrow { color: #8a8a95; font-size: 0.65rem; flex-shrink: 0; }
+    .ci-card .ci-delta {
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-top: 0.2rem;
+        line-height: 1.2;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
     }
-    .ci-card .ci-ba-val { font-size: 1.15rem; font-weight: 700; line-height: 1.2; flex-shrink: 0; }
-    .ci-card .ci-arrow { color: #8a8a95; flex-shrink: 0; font-size: 0.8rem; }
-    .ci-card .ci-delta { font-size: 0.92rem; font-weight: 700; flex-shrink: 0; margin-left: 0.15rem; }
     .ci-delta-up { color: #36c6a0; }
     .ci-delta-down { color: #ff6b81; }
     .ci-delta-flat { color: #9a9aa3; }
-    .ci-card .ci-sub { font-size: 0.78rem; color: #8a8a95; margin-top: 0.45rem; }
+    .ci-card .ci-sub {
+        font-size: 0.65rem;
+        color: #8a8a95;
+        margin-top: auto;
+        padding-top: 0.35rem;
+        line-height: 1.2;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
     .ci-info .ci-label { color: #36c6a0; }
     .ci-loes .ci-label { color: #4aa3ff; }
     .ci-nps .ci-label { color: #ffb648; }
@@ -652,7 +696,7 @@
     {% if show_ci_kpi_qual and before_after %}
     <div class="ci-view-panel ci-view-panel-qual mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.qualitaet }}</div>
-        <div class="row mb-2">
+        <div class="ci-ba-card-grid mb-2">
             {% set parts = [] %}
             {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
             {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
@@ -661,7 +705,7 @@
             {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
             {% for key, label, cls, unit in parts %}
             {% set ba = before_after[key] %}
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3">
+            <div class="ci-ba-card-wrap">
                 <div class="ci-card {{ cls }}">
                     <div class="ci-label">{{ label }}</div>
                     {% if ba.pairs %}
@@ -669,9 +713,9 @@
                         <span class="ci-ba-val">{{ ba.before|de_decimal }}{{ unit }}</span>
                         <i class="fas fa-arrow-right ci-arrow"></i>
                         <span class="ci-ba-val">{{ ba.after|de_decimal }}{{ unit }}</span>
-                        <span class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                            {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                        </span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
                     </div>
                     <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
                     {% else %}
@@ -688,7 +732,7 @@
     {% if show_ci_kpi_prod and before_after_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
     <div class="ci-view-panel ci-view-panel-prod mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.produktivitaet }}</div>
-        <div class="row mb-2">
+        <div class="ci-ba-card-grid mb-2">
             {% set prod_parts = [] %}
             {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
             {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
@@ -696,7 +740,7 @@
             {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
             {% for key, label, cls, unit in prod_parts %}
             {% set ba = before_after_prod[key] %}
-            <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-3">
+            <div class="ci-ba-card-wrap">
                 <div class="ci-card {{ cls }}">
                     <div class="ci-label">{{ label }}</div>
                     {% if ba.pairs %}
@@ -704,9 +748,9 @@
                         <span class="ci-ba-val">{{ ba.before|de_decimal }}{{ unit }}</span>
                         <i class="fas fa-arrow-right ci-arrow"></i>
                         <span class="ci-ba-val">{{ ba.after|de_decimal }}{{ unit }}</span>
-                        <span class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                            {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                        </span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
                     </div>
                     <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
                     {% else %}
