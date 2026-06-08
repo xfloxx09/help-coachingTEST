@@ -95,137 +95,100 @@
         font-size: 0.82rem;
         color: #9a9aa3;
     }
-    .ci-selection-overview {
+    .ci-page-guide {
         border: 1px solid #34343c;
         border-radius: 12px;
         padding: 1rem 1.15rem;
         background: linear-gradient(160deg, #232329 0%, #1c1c22 100%);
     }
-    .ci-selection-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-    .ci-selection-chip {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.65rem;
-        flex: 1 1 280px;
-        padding: 0.75rem 0.9rem;
-        border-radius: 10px;
-        border: 1px solid #3a3a44;
-        background: #22222a;
-    }
-    .ci-selection-chip-icon {
-        color: #e20074;
-        font-size: 1.1rem;
-        line-height: 1.4;
-    }
-    .ci-selection-chip-period .ci-selection-chip-icon { color: #4aa3ff; }
-    .ci-selection-chip-title {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: #9a9aa3;
-        margin-bottom: 0.15rem;
-    }
-    .ci-selection-chip-value {
-        font-size: 0.92rem;
-        color: #e8e8ec;
-        font-weight: 600;
-    }
-    .ci-selection-chip-sub {
-        font-size: 0.78rem;
-        color: #b9b9c2;
-        margin-top: 0.25rem;
-    }
-    .ci-cal-legend {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem 1.25rem;
-        font-size: 0.75rem;
-        color: #9a9aa3;
-    }
-    .ci-cal-legend-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-    }
-    .ci-cal-swatch {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        border-radius: 3px;
-    }
-    .ci-cal-swatch-period { background: rgba(74, 163, 255, 0.55); border: 1px solid #4aa3ff; }
-    .ci-cal-swatch-ext { background: transparent; border: 1px dashed #8a8a95; }
-    .ci-cal-swatch-coaching { background: #e20074; border-radius: 50%; width: 8px; height: 8px; }
-    .ci-cal-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.85rem;
-        overflow-x: auto;
-        padding-bottom: 0.25rem;
-    }
-    .ci-cal-month {
-        flex: 0 0 auto;
-        min-width: 168px;
-        border: 1px solid #34343c;
-        border-radius: 8px;
-        padding: 0.5rem 0.55rem 0.6rem;
-        background: #1f1f24;
-    }
-    .ci-cal-month-title {
-        font-size: 0.78rem;
+    .ci-page-guide-title {
+        font-size: 0.85rem;
         font-weight: 700;
-        text-align: center;
-        color: #d6d6dd;
-        margin-bottom: 0.35rem;
+        color: #e8e8ec;
+        margin-bottom: 0.85rem;
     }
-    .ci-cal-weekdays,
-    .ci-cal-week {
+    .ci-page-guide-grid {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 2px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
     }
-    .ci-cal-weekdays {
-        margin-bottom: 2px;
+    .ci-page-guide-step {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
     }
-    .ci-cal-weekdays span {
-        font-size: 0.58rem;
-        text-align: center;
-        color: #7a7a85;
-    }
-    .ci-cal-day {
-        position: relative;
-        aspect-ratio: 1;
+    .ci-page-guide-step-num {
+        flex: 0 0 1.6rem;
+        height: 1.6rem;
+        border-radius: 50%;
+        background: #e20074;
+        color: #fff;
+        font-size: 0.82rem;
+        font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.62rem;
-        color: #8a8a95;
-        border-radius: 4px;
     }
-    .ci-cal-day--empty { visibility: hidden; }
-    .ci-cal-day--period {
-        background: rgba(74, 163, 255, 0.22);
-        color: #d6eaff;
+    .ci-page-guide-step p {
+        margin: 0.15rem 0 0.45rem;
+        font-size: 0.82rem;
+        color: #b9b9c2;
+        line-height: 1.45;
+    }
+    .ci-page-guide-fact {
+        font-size: 0.78rem;
+        color: #d6d6dd;
+        margin-bottom: 0.35rem;
+    }
+    .ci-page-guide-link {
+        font-size: 0.78rem;
+        color: #4aa3ff;
+    }
+    .ci-impact-example {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.5rem;
+        margin: 0.45rem 0;
+        font-size: 0.75rem;
+    }
+    .ci-impact-example-part {
+        padding: 0.2rem 0.45rem;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #c8c8d0;
+    }
+    .ci-impact-example-coach {
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        background: rgba(226, 0, 116, 0.18);
+        color: #ff8fc7;
         font-weight: 600;
     }
-    .ci-cal-day--ext {
-        box-shadow: inset 0 0 0 1px rgba(154, 154, 165, 0.45);
+    .ci-impact-window-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+        margin-top: 0.65rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid #34343c;
+    }
+    .ci-impact-window-bar label {
+        margin: 0;
+        font-size: 0.78rem;
         color: #b9b9c2;
     }
-    .ci-cal-day--coaching { cursor: help; }
-    .ci-cal-coaching-dot {
-        position: absolute;
-        bottom: 2px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: #e20074;
+    .ci-impact-window-bar select {
+        max-width: 110px;
+    }
+    .ci-page-lead {
+        font-size: 0.9rem;
+        color: #9a9aa3;
+        margin: -0.35rem 0 0.85rem;
+        max-width: 52rem;
     }
     .ci-view-panel {
         border: 1px solid #34343c;
@@ -327,9 +290,10 @@
 {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls', 'works': 'Works'} %}
 {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
 <div class="container-fluid mt-4" id="ciPageRoot">
-    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-1" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-bolt text-warning"></i> Coaching VS KPI <span class="badge badge-info align-middle">Demo</span></h2>
     </div>
+    <p class="ci-page-lead">Coachings neben KPI-Verlauf ansehen — und prüfen, ob sich KPIs nach einem Coaching verbessern. Weitere KPI-Seiten findest du in den Tabs direkt darunter.</p>
     {% include 'main/_kpi_subnav.html' %}
 
     {% if not has_any_data %}
@@ -407,29 +371,22 @@
             {% set mini_label_class = 'ci-mini-label' %}
             {% include 'main/_kpi_period_filter.html' %}
             <div class="col-6 col-md-2 mb-2">
-                <div class="ci-mini-label mb-1">wirkungsfenster</div>
-                <select name="window" class="form-control form-control-sm">
-                    {% for w in windows %}
-                    <option value="{{ w }}" {% if window == w %}selected{% endif %}>{{ w }} Tage</option>
-                    {% endfor %}
-                </select>
-                <div class="text-muted" style="font-size:0.65rem;margin-top:0.2rem;">nur Vorher/Nachher</div>
-            </div>
-            <div class="col-6 col-md-2 mb-2">
                 <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
             </div>
         </div>
     </form>
     {% include 'main/_kpi_granularity_notice.html' %}
 
+    {% if has_any_data %}
+    {% include 'main/_coaching_impact_guide.html' %}
+    {% endif %}
+
     {% if selection_made %}
     <div class="d-flex align-items-baseline mb-3" style="gap:0.5rem;">
         <h4 class="mb-0">{{ scope_label }}</h4>
     </div>
 
-    {% include 'main/_coaching_impact_selection_overview.html' %}
-
-    <section class="ci-section ci-section-period">
+    <section class="ci-section ci-section-period" id="ci-section-period">
         <div class="ci-section-head">
             <h5><i class="fas fa-chart-area text-info mr-1"></i> Zeitraum-Ansicht</h5>
             <p>Coachings, Zeitverlauf und Tabelle — nur im gewählten Zeitraum.</p>
@@ -553,10 +510,19 @@
 
     </section>
 
-    <section class="ci-section ci-section-impact">
+    <section class="ci-section ci-section-impact" id="ci-section-impact">
         <div class="ci-section-head">
-            <h5><i class="fas fa-exchange-alt text-danger mr-1"></i> Wirkungsanalyse</h5>
-            <p>Pro Coaching im Zeitraum: {{ window }} Tage davor vs. {{ window }} Tage danach (Coaching-Tag ausgeschlossen).</p>
+            <h5><i class="fas fa-exchange-alt text-danger mr-1"></i> Vorher / Nachher</h5>
+            <p>Hat sich der KPI um ein Coaching herum verbessert? Für jedes Coaching im Zeitraum werden getrennte Tage davor und danach verglichen.</p>
+            <div class="ci-impact-window-bar">
+                <label for="ciImpactWindow">Vergleichsbreite:</label>
+                <select id="ciImpactWindow" name="window" form="ciFilterForm" class="form-control form-control-sm">
+                    {% for w in windows %}
+                    <option value="{{ w }}" {% if window == w %}selected{% endif %}>{{ w }} Tage vor &amp; nach</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" form="ciFilterForm" class="btn btn-sm btn-outline-secondary">Neu berechnen</button>
+            </div>
         </div>
 
     {% if show_ci_kpi_qual %}
@@ -602,7 +568,7 @@
     {% if show_ci_kpi_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
     <div class="ci-view-panel ci-view-panel-prod">
         <div class="ci-view-panel-title">Wirkung: {{ cat_labels.produktivitaet }} vor vs. nach Coaching</div>
-        <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle im Wirkungsfenster.</p>
+        <p class="text-muted small mb-3">Gleiche Logik für Produktivitäts-Intervalle — {{ window }} Tage vor und nach jedem Coaching.</p>
         <div class="row mb-2">
             {% set prod_parts = [] %}
             {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}

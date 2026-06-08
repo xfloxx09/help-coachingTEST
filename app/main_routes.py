@@ -6200,30 +6200,27 @@ def _impact_before_after_prod(events, intervals_by_member, window):
 
 
 def _coaching_impact_overview(start_date, end_date, events, window):
-    """Selection summary + mini-calendar data for Coaching VS KPI."""
+    """Plain-language guide data for Coaching VS KPI (no calendars)."""
     coaching_dates = sorted({d for _, d in events if d is not None})
-    ext_start = ext_end = None
+    example = None
     if coaching_dates:
-        ext_start = min(coaching_dates) - timedelta(days=window)
-        ext_end = max(coaching_dates) + timedelta(days=window)
-    months = kpi_time.build_impact_calendar_months(
-        start_date, end_date, ext_start, ext_end, coaching_dates, window,
-    )
-    has_extended = bool(
-        ext_start and ext_end and start_date and end_date
-        and (ext_start < start_date or ext_end > end_date)
-    )
+        ex = coaching_dates[len(coaching_dates) // 2]
+        b_lo = ex - timedelta(days=window)
+        b_hi = ex - timedelta(days=1)
+        a_lo = ex + timedelta(days=1)
+        a_hi = ex + timedelta(days=window)
+        example = {
+            'date_label': ex.strftime('%d.%m.%Y'),
+            'before_label': f'{b_lo.strftime("%d.%m.")}–{b_hi.strftime("%d.%m.%Y")}',
+            'after_label': f'{a_lo.strftime("%d.%m.")}–{a_hi.strftime("%d.%m.%Y")}',
+        }
     return {
         'start_label': start_date.strftime('%d.%m.%Y') if start_date else '–',
         'end_label': end_date.strftime('%d.%m.%Y') if end_date else '–',
         'span_days': kpi_time.span_days(start_date, end_date),
         'window': window,
         'coaching_count': len(events),
-        'coaching_days': len(coaching_dates),
-        'ext_start_label': ext_start.strftime('%d.%m.%Y') if ext_start else None,
-        'ext_end_label': ext_end.strftime('%d.%m.%Y') if ext_end else None,
-        'has_extended': has_extended,
-        'months': months,
+        'example': example,
     }
 
 
