@@ -539,17 +539,15 @@
 
         <div class="form-row align-items-end">
             <div class="col-12 col-lg-7 mb-2">
-                <div class="ci-mini-label mb-1">Zeitraum &amp; Wirkungsfenster</div>
                 <div class="ci-range-setup">
                     <button type="button" class="ci-range-setup-btn" id="ciOpenRangeWizard"
                             {% if not selection_made %}disabled title="Zuerst Projekt, Team oder Agent wählen"{% endif %}>
                         <span class="ci-range-setup-icon"><i class="fas fa-sliders-h"></i></span>
                         <span class="ci-range-setup-text">
-                            <strong>Zeitraum &amp; Wirkungsfenster einstellen</strong>
+                            <strong>Zeitraum &amp; Wirkungsfenster</strong>
                             <span class="ci-range-setup-value" id="ciRangeSetupValue">
-                                {% if range_summary %}{{ range_summary }}{% else %}Noch nicht festgelegt — Zeitraum festlegen{% endif %}
+                                {% if range_summary %}{{ range_summary }}{% else %}Noch nicht festgelegt{% endif %}
                             </span>
-                            <span class="ci-range-setup-hint">Hier klicken: Timeline, Coachings, Bewertungen &amp; Prod.-Rohdaten pro Tag wählen</span>
                         </span>
                         <span class="ci-range-setup-action">Zeitraum festlegen <i class="fas fa-chevron-right"></i></span>
                     </button>
@@ -1404,12 +1402,13 @@
                 data: overlay.map(function (d) { return d.avg_perf; }),
                 borderColor: '#ff8fc7',
                 backgroundColor: 'rgba(226,0,116,0.15)',
-                yAxisID: 'yCoach',
+                yAxisID: 'yQuote',
                 spanGaps: true,
                 tension: 0.25,
-                order: 3,
-                pointRadius: 3,
-                pointHoverRadius: 5,
+                order: 0,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2,
             };
         }
         if (corrMode === 'dauer') {
@@ -1468,10 +1467,12 @@
         var datasets = [ciCorrelationDataset(corrMode)];
         var scales = {
             x: { ticks: { maxRotation: 45, minRotation: 0, maxTicksLimit: 24 } },
-            yCoach: ciCorrelationScale(corrMode),
         };
         if (mode === 'produktivitaet') {
-            scales.yQuote = { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } };
+            scales.yQuote = {
+                type: 'linear', position: 'left', min: 0, max: 100,
+                title: { display: true, text: corrMode === 'bewertung' ? 'Quote / Bewertung (%)' : 'Quote (%)' },
+            };
             if (visibleProd.sign_on) datasets.push({
                 type: 'line', label: prodLabels.sign_on + ' (%)',
                 data: overlay.map(function (d) { return d.sign_on_pct; }),
@@ -1504,7 +1505,10 @@
                 });
             }
         } else {
-            scales.yQuote = { type: 'linear', position: 'left', min: 0, max: 100, title: { display: true, text: 'Quote (%)' } };
+            scales.yQuote = {
+                type: 'linear', position: 'left', min: 0, max: 100,
+                title: { display: true, text: corrMode === 'bewertung' ? 'Quote / Bewertung (%)' : 'Quote (%)' },
+            };
             if (visible.info) datasets.push({
                 type: 'line', label: 'Informationsquote (%)',
                 data: overlay.map(function (d) { return d.info_quote; }),
@@ -1550,6 +1554,9 @@
                     yAxisID: 'yStars', spanGaps: true, tension: 0.25, order: 1,
                 });
             }
+        }
+        if (corrMode === 'anzahl' || corrMode === 'dauer') {
+            scales.yCoach = ciCorrelationScale(corrMode);
         }
         ciOverlayChartInstance = new Chart(oc.getContext('2d'), {
             data: {

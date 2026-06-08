@@ -5984,6 +5984,24 @@ def _impact_avg(values):
     return round(sum(values) / len(values), 2)
 
 
+def _coaching_performance_mark_valid(perf):
+    """True when performance_mark is a usable 0–10 score."""
+    if perf is None:
+        return False
+    try:
+        mark = int(perf)
+    except (TypeError, ValueError):
+        return False
+    return 0 <= mark <= 10
+
+
+def _coaching_performance_pct(perf):
+    """Convert performance_mark (0–10) to percentage, or None if invalid."""
+    if not _coaching_performance_mark_valid(perf):
+        return None
+    return int(perf) * 10
+
+
 def _impact_event_quote(values):
     if not values:
         return None
@@ -6559,16 +6577,16 @@ def coaching_impact():
         for member_id, d, perf, time_spent in coaching_rows:
             if time_spent:
                 total_time += time_spent
-            if perf is not None:
-                perf_values.append(perf)
+            if _coaching_performance_mark_valid(perf):
+                perf_values.append(int(perf))
             if d is None:
                 continue
             cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': [], 'time': 0})
             cb['count'] += 1
             if time_spent:
                 cb['time'] += time_spent
-            if perf is not None:
-                cb['perf'].append(perf)
+            if _coaching_performance_mark_valid(perf):
+                cb['perf'].append(int(perf))
 
         prod_filters = list(prod_base)
         if mode == 'agent' and sel_member:
