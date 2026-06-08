@@ -27,6 +27,10 @@
         background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
     }
     .kpi-card .kpi-value { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+    .kpi-summary-row .kpi-card { padding: 1rem 0.85rem; }
+    .kpi-summary-row .kpi-card .kpi-value { font-size: 1.65rem; }
+    .kpi-summary-row .kpi-card .kpi-label { font-size: 0.82rem; }
+    .kpi-summary-row .kpi-card .kpi-sub { font-size: 0.72rem; }
     .kpi-card .kpi-label { font-size: 0.95rem; color: #b9b9c2; margin-bottom: 0.4rem; }
     .kpi-card .kpi-sub { font-size: 0.8rem; color: #8a8a95; margin-top: 0.5rem; }
     .kpi-info .kpi-value { color: #36c6a0; }
@@ -119,49 +123,49 @@
     <div class="mb-3">
         <h4 class="mb-0">{{ scope_label }}</h4>
     </div>
-    <div class="row mb-4">
+    <div class="row mb-4 kpi-summary-row">
         {% if visible.info %}
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-info">
                 <div class="kpi-label">Informationsquote</div>
                 <div class="kpi-value">{% if kpi.info_quote is not none %}{{ kpi.info_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="kpi-sub">{{ kpi.info_pos }} von {{ kpi.info_total }} Befragungen positiv ("Ja" oder "Noch nicht …informiert")</div>
+                <div class="kpi-sub">{{ kpi.info_pos }}/{{ kpi.info_total }} positiv</div>
             </div>
         </div>
         {% endif %}
         {% if visible.loesung %}
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-loes">
                 <div class="kpi-label">Lösungsquote</div>
                 <div class="kpi-value">{% if kpi.loes_quote is not none %}{{ kpi.loes_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="kpi-sub">{{ kpi.loes_pos }} von {{ kpi.loes_total }} Befragungen mit "Ja"</div>
+                <div class="kpi-sub">{{ kpi.loes_pos }}/{{ kpi.loes_total }} mit „Ja“</div>
             </div>
         </div>
         {% endif %}
         {% if visible.nps %}
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-nps">
                 <div class="kpi-label">NPS</div>
                 <div class="kpi-value">{% if kpi.nps is not none %}{{ kpi.nps|de_decimal }}{% else %}–{% endif %}</div>
-                <div class="kpi-sub">{{ kpi.nps_total }} Bewertungen · {{ kpi.nps_promoters }} Promotoren / {{ kpi.nps_neutrals }} Neutrale / {{ kpi.nps_detractors }} Detraktoren</div>
+                <div class="kpi-sub">{{ kpi.nps_total }} Bewertungen</div>
             </div>
         </div>
         {% endif %}
         {% if visible.fachkompetenz %}
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-fach">
                 <div class="kpi-label">Fachkompetenz</div>
                 <div class="kpi-value">{% if kpi.fachkompetenz is not none %}{{ kpi.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</div>
-                <div class="kpi-sub">Ø Sterne (0–5) · {{ kpi.fachkompetenz_total }} Bewertungen</div>
+                <div class="kpi-sub">Ø Sterne · {{ kpi.fachkompetenz_total }} Bew.</div>
             </div>
         </div>
         {% endif %}
         {% if visible.vertrieb %}
-        <div class="col-12 col-md-4 mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-vert">
-                <div class="kpi-label">Vertriebliche Ansprache</div>
+                <div class="kpi-label">Vertriebl. Ansprache</div>
                 <div class="kpi-value">{% if kpi.vertrieb_quote is not none %}{{ kpi.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="kpi-sub">{{ kpi.vertrieb_pos }} von {{ kpi.vertrieb_total }} positiv bewertet</div>
+                <div class="kpi-sub">{{ kpi.vertrieb_pos }}/{{ kpi.vertrieb_total }} positiv</div>
             </div>
         </div>
         {% endif %}

@@ -41,11 +41,18 @@
     .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
     .ci-chart-card-header {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.75rem;
+        flex-direction: column;
+        gap: 0.65rem;
     }
+    .ci-chart-card-header-main {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        width: 100%;
+    }
+    .ci-chart-header-actions { flex-shrink: 0; margin-left: auto; }
     .ci-view-toggle {
         display: inline-flex;
         border: 1px solid #4a4a55;
@@ -238,6 +245,8 @@
     }
     /* Range wizard */
     .ci-wz-modal { background: #1f1f24; border: 1px solid #34343c; color: #e8e8ec; }
+    .ci-wz-modal-dialog { max-width: min(1320px, 96vw); width: 96vw; margin: 1rem auto; }
+    .ci-wz-modal .modal-body { padding: 1rem 1.25rem 1.25rem; }
     .ci-wz-modal .modal-header .close { color: #e8e8ec; }
     .ci-wz-header {
         display: flex;
@@ -289,34 +298,35 @@
         border: 1px solid #34343c;
         border-radius: 10px;
         background: #18181c;
-        padding: 0.75rem 0.5rem 1rem;
+        padding: 0.5rem 0.5rem 0.65rem;
         -webkit-overflow-scrolling: touch;
     }
-    .ci-wz-track { position: relative; height: 118px; min-width: 100%; }
+    .ci-wz-track { position: relative; height: 108px; min-width: 100%; }
     .ci-wz-days {
         display: flex;
-        align-items: flex-end;
-        height: 100px;
+        align-items: stretch;
+        height: 108px;
         position: relative;
         z-index: 2;
         touch-action: none;
     }
     .ci-wz-day {
-        flex: 0 0 38px;
-        width: 38px;
-        height: 92px;
+        flex: 0 0 44px;
+        width: 44px;
+        height: 100%;
         position: relative;
         border-right: 1px solid rgba(255,255,255,0.05);
         cursor: pointer;
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        justify-content: flex-end;
-        padding: 2px 1px 3px;
+        justify-content: flex-start;
+        padding: 3px 2px;
         font-size: 0.55rem;
         color: #7a7a85;
         touch-action: none;
         user-select: none;
+        box-sizing: border-box;
     }
     .ci-wz-day:hover { background: rgba(255,255,255,0.06); }
     .ci-wz-day--hover { outline: 1px solid rgba(74, 163, 255, 0.6); outline-offset: -1px; z-index: 2; }
@@ -325,33 +335,36 @@
     .ci-wz-day--impact { background: rgba(226, 0, 116, 0.07); }
     .ci-wz-day--coach-day { box-shadow: inset 0 -2px 0 #e20074; }
     .ci-wz-day-date {
-        font-size: 0.48rem;
+        font-size: 0.5rem;
         text-align: center;
         color: #9a9aa3;
-        margin-bottom: 2px;
+        margin-bottom: 3px;
         line-height: 1;
         flex-shrink: 0;
     }
     .ci-wz-day-rows {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 3px;
         flex: 1;
-        justify-content: flex-end;
+        min-height: 0;
     }
     .ci-wz-day-row {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
         gap: 1px;
-        font-size: 0.48rem;
-        line-height: 1.1;
-        padding: 2px 3px;
-        border-radius: 3px;
-        min-height: 14px;
+        font-size: 0.5rem;
+        line-height: 1;
+        padding: 2px 1px;
+        border-radius: 4px;
+        flex: 1;
+        min-height: 0;
+        text-align: center;
     }
-    .ci-wz-day-row i { font-size: 0.45rem; flex-shrink: 0; width: 8px; text-align: center; }
-    .ci-wz-day-row-val { font-weight: 700; font-size: 0.5rem; }
+    .ci-wz-day-row i { font-size: 0.5rem; flex-shrink: 0; }
+    .ci-wz-day-row-val { font-weight: 700; font-size: 0.52rem; line-height: 1.1; }
     .ci-wz-day-row--coach { background: rgba(226, 0, 116, 0.18); color: #ffb8dc; }
     .ci-wz-day-row--coach.ci-wz-day-row--empty { background: rgba(255,255,255,0.03); color: #5a5a65; }
     .ci-wz-day-row--survey { background: rgba(74, 163, 255, 0.15); color: #b3d9ff; }
@@ -361,7 +374,7 @@
     .ci-wz-legend-prod { color: #36c6a0; }
     .ci-wz-day-label { display: none; }
     .ci-wz-impact-layer {
-        position: absolute; top: 0; left: 0; right: 0; height: 100px; pointer-events: none; z-index: 0;
+        position: absolute; top: 0; left: 0; right: 0; height: 108px; pointer-events: none; z-index: 0;
     }
     .ci-wz-impact-band {
         position: absolute; top: 0; height: 100%;
@@ -370,7 +383,7 @@
         border-bottom: 1px dashed rgba(226, 0, 116, 0.35);
     }
     .ci-wz-selection-bg {
-        position: absolute; top: 0; height: 100px; z-index: 1;
+        position: absolute; top: 0; height: 108px; z-index: 1;
         border: 2px solid #4aa3ff;
         border-radius: 4px;
         background: rgba(74, 163, 255, 0.14);
@@ -380,7 +393,7 @@
     }
     .ci-wz-selection-bg--single { border-color: #36c6a0; background: rgba(54, 198, 160, 0.14); }
     .ci-wz-handles {
-        position: absolute; top: 0; height: 100px; z-index: 10;
+        position: absolute; top: 0; height: 108px; z-index: 10;
         pointer-events: none;
         min-width: 30px;
     }
@@ -409,7 +422,7 @@
         position: absolute;
         top: 0;
         width: 22px;
-        height: 100px;
+        height: 108px;
         background: linear-gradient(180deg, #4aa3ff 0%, #2d7fd4 100%);
         pointer-events: auto;
         cursor: ew-resize;
@@ -518,7 +531,6 @@
                         <button type="button" class="btn" data-ci-view="produktivitaet">{{ cat_labels.produktivitaet }}</button>
                     </div>
                     {% endif %}
-                    {% include 'main/_kpi_granularity_toggle.html' %}
                 </div>
             </div>
         </div>
@@ -659,11 +671,16 @@
     {% if overlay %}
     <div class="ci-view-panel ci-view-panel-charts">
     <div class="ci-chart-card-header mb-2">
-        <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
-            Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
-            {% if chart_granularity == 'day' %}
-            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
-            {% endif %}
+        <div class="ci-chart-card-header-main">
+            <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
+                Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
+                {% if chart_granularity == 'day' %}
+                <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
+                {% endif %}
+            </div>
+            <div class="ci-chart-header-actions">
+                {% include 'main/_kpi_granularity_toggle.html' %}
+            </div>
         </div>
         <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
             <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
@@ -846,7 +863,7 @@
 
     /* ---- Range wizard ---- */
     (function initRangeWizard() {
-        var DAY_W = 38;
+        var DAY_W = 44;
         var openBtn = document.getElementById('ciOpenRangeWizard');
         var modal = document.getElementById('ciRangeWizardModal');
         if (!openBtn || !modal || !form) return;
