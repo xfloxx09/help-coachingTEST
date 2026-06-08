@@ -245,13 +245,14 @@
         padding: 0.75rem 0.5rem 1rem;
         -webkit-overflow-scrolling: touch;
     }
-    .ci-wz-track { position: relative; height: 88px; min-width: 100%; }
+    .ci-wz-track { position: relative; height: 96px; min-width: 100%; }
     .ci-wz-days {
         display: flex;
         align-items: flex-end;
         height: 72px;
         position: relative;
         z-index: 2;
+        touch-action: none;
     }
     .ci-wz-day {
         flex: 0 0 30px;
@@ -267,9 +268,12 @@
         padding-bottom: 2px;
         font-size: 0.55rem;
         color: #7a7a85;
+        touch-action: none;
+        user-select: none;
     }
     .ci-wz-day:hover { background: rgba(255,255,255,0.06); }
     .ci-wz-day--hover { outline: 1px solid rgba(74, 163, 255, 0.6); outline-offset: -1px; z-index: 2; }
+    .ci-wz-day--dragging { background: rgba(74, 163, 255, 0.18); }
     .ci-wz-day--in-range { background: rgba(74, 163, 255, 0.08); }
     .ci-wz-day--impact { background: rgba(226, 0, 116, 0.07); }
     .ci-wz-day--coach-day { box-shadow: inset 0 -3px 0 #e20074; }
@@ -294,54 +298,66 @@
         border-top: 1px dashed rgba(226, 0, 116, 0.35);
         border-bottom: 1px dashed rgba(226, 0, 116, 0.35);
     }
-    .ci-wz-selection {
-        position: absolute; top: 0; height: 72px; z-index: 3;
+    .ci-wz-selection-bg {
+        position: absolute; top: 0; height: 72px; z-index: 1;
         border: 2px solid #4aa3ff;
         border-radius: 4px;
-        background: rgba(74, 163, 255, 0.12);
+        background: rgba(74, 163, 255, 0.14);
         box-shadow: 0 0 0 1px rgba(74, 163, 255, 0.25);
         pointer-events: none;
         min-width: 30px;
     }
-    .ci-wz-selection--single { border-color: #36c6a0; background: rgba(54, 198, 160, 0.12); }
+    .ci-wz-selection-bg--single { border-color: #36c6a0; background: rgba(54, 198, 160, 0.14); }
+    .ci-wz-handles {
+        position: absolute; top: 0; height: 72px; z-index: 10;
+        pointer-events: none;
+        min-width: 30px;
+    }
     .ci-wz-selection-grip {
         position: absolute;
-        top: -11px;
+        top: -13px;
         left: 50%;
         transform: translateX(-50%);
-        width: 28px;
-        height: 14px;
+        width: 36px;
+        height: 18px;
         border-radius: 4px;
         background: #4aa3ff;
         color: #fff;
-        font-size: 0.55rem;
+        font-size: 0.6rem;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: grab;
         pointer-events: auto;
-        z-index: 5;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+        touch-action: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
     .ci-wz-selection-grip:active { cursor: grabbing; }
-    .ci-wz-selection--single .ci-wz-selection-grip { background: #36c6a0; }
+    .ci-wz-handles--single .ci-wz-selection-grip { background: #36c6a0; }
     .ci-wz-handle {
-        position: absolute; top: -2px; width: 14px; height: calc(100% + 4px);
-        background: #4aa3ff; pointer-events: auto; cursor: ew-resize; z-index: 4;
-        border-radius: 3px;
-        box-shadow: 0 0 6px rgba(74, 163, 255, 0.45);
-    }
-    .ci-wz-handle::after {
-        content: '';
         position: absolute;
-        top: 20%; bottom: 20%;
-        left: 50%; transform: translateX(-50%);
-        width: 2px; background: rgba(255,255,255,0.7); border-radius: 1px;
+        top: 0;
+        width: 22px;
+        height: 72px;
+        background: linear-gradient(180deg, #4aa3ff 0%, #2d7fd4 100%);
+        pointer-events: auto;
+        cursor: ew-resize;
+        touch-action: none;
+        border-radius: 4px;
+        box-shadow: 0 0 10px rgba(74, 163, 255, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.55rem;
+        user-select: none;
     }
-    .ci-wz-handle-start { left: -7px; }
-    .ci-wz-handle-end { right: -7px; }
-    .ci-wz-selection--single .ci-wz-handle-start { left: -7px; }
-    .ci-wz-selection--single .ci-wz-handle-end { right: -7px; }
+    .ci-wz-handle span { pointer-events: none; opacity: 0.9; }
+    .ci-wz-handle-start { left: -11px; }
+    .ci-wz-handle-end { right: -11px; }
+    .ci-wz-handles--single .ci-wz-handle { background: linear-gradient(180deg, #36c6a0 0%, #2a9d7a 100%); box-shadow: 0 0 10px rgba(54,198,160,0.55); }
+    .ci-wz-scroll.is-dragging { cursor: ew-resize; }
+    .ci-wz-scroll.is-dragging .ci-wz-day { cursor: ew-resize; }
     .ci-wz-window-row {
         padding: 0.75rem 0.85rem;
         border: 1px solid #34343c;
@@ -762,7 +778,8 @@
         var daysEl = document.getElementById('ciWzDays');
         var trackEl = document.getElementById('ciWzTrack');
         var scrollEl = document.getElementById('ciWzScroll');
-        var selectionEl = document.getElementById('ciWzSelection');
+        var selectionBgEl = document.getElementById('ciWzSelectionBg');
+        var handlesEl = document.getElementById('ciWzHandles');
         var impactLayerEl = document.getElementById('ciWzImpactLayer');
         var windowSlider = document.getElementById('ciWzWindowSlider');
         var windowValEl = document.getElementById('ciWzWindowVal');
@@ -787,6 +804,7 @@
             dragOrigStart: 0,
             dragOrigEnd: 0,
             anchorIdx: -1,
+            pointer: null,
         };
 
         function rangeDays() {
@@ -937,6 +955,7 @@
                     el.classList.remove('ci-wz-day--hover');
                 });
                 el.addEventListener('click', function (e) {
+                    if (state.pointer && state.pointer.moved) return;
                     if (e.shiftKey && state.anchorIdx >= 0) {
                         state.startIdx = Math.min(state.anchorIdx, idx);
                         state.endIdx = Math.max(state.anchorIdx, idx);
@@ -1010,12 +1029,22 @@
             if (windowSlider) windowSlider.value = state.windowDays;
             applyBtn.disabled = !d0 || !d1;
             updatePresetButtons();
-            selectionEl.classList.toggle('ci-wz-selection--single', rangeDays() === 1);
+            var single = rangeDays() === 1;
+            if (selectionBgEl) selectionBgEl.classList.toggle('ci-wz-selection-bg--single', single);
+            if (handlesEl) handlesEl.classList.toggle('ci-wz-handles--single', single);
         }
 
         function updateSelectionBox() {
-            selectionEl.style.left = (state.startIdx * DAY_W) + 'px';
-            selectionEl.style.width = (Math.max(1, rangeDays()) * DAY_W) + 'px';
+            var left = state.startIdx * DAY_W;
+            var width = Math.max(1, rangeDays()) * DAY_W;
+            if (selectionBgEl) {
+                selectionBgEl.style.left = left + 'px';
+                selectionBgEl.style.width = width + 'px';
+            }
+            if (handlesEl) {
+                handlesEl.style.left = left + 'px';
+                handlesEl.style.width = width + 'px';
+            }
         }
 
         function updateUI() {
@@ -1027,12 +1056,34 @@
         }
 
         function idxFromClientX(clientX) {
-            var rect = trackEl.getBoundingClientRect();
+            var rect = scrollEl.getBoundingClientRect();
             var x = clientX - rect.left + scrollEl.scrollLeft;
-            return Math.max(0, Math.min(state.days.length - 1, Math.floor((x + DAY_W * 0.5) / DAY_W)));
+            return Math.max(0, Math.min(state.days.length - 1, Math.floor(x / DAY_W)));
+        }
+
+        function endPointerDrag() {
+            state.dragging = null;
+            state.pointer = null;
+            scrollEl.classList.remove('is-dragging');
+            daysEl.querySelectorAll('.ci-wz-day--dragging').forEach(function (el) {
+                el.classList.remove('ci-wz-day--dragging');
+            });
         }
 
         function onPointerMove(e) {
+            if (!state.dragging && !(state.pointer && state.pointer.mode === 'paint')) return;
+            if (state.pointer && e.pointerId !== state.pointer.id) return;
+
+            if (state.pointer && state.pointer.mode === 'paint') {
+                if (Math.abs(e.clientX - state.pointer.x) > 3) state.pointer.moved = true;
+                var idx = idxFromClientX(e.clientX);
+                state.startIdx = Math.min(state.pointer.idx, idx);
+                state.endIdx = Math.max(state.pointer.idx, idx);
+                state.anchorIdx = state.endIdx;
+                updateUI();
+                return;
+            }
+
             if (!state.dragging) return;
             var idx = idxFromClientX(e.clientX);
             if (state.dragging === 'start') {
@@ -1050,25 +1101,64 @@
             updateUI();
         }
 
-        function onPointerUp() {
-            state.dragging = null;
-            document.removeEventListener('mousemove', onPointerMove);
-            document.removeEventListener('mouseup', onPointerUp);
+        function onPointerUp(e) {
+            if (state.pointer && e.pointerId === state.pointer.id) {
+                if (state.pointer.mode === 'paint' && !state.pointer.moved) {
+                    state.startIdx = state.endIdx = state.pointer.idx;
+                    state.anchorIdx = state.pointer.idx;
+                    updateUI();
+                }
+                endPointerDrag();
+            }
+            if (state.dragging) endPointerDrag();
         }
 
-        selectionEl.querySelectorAll('[data-handle]').forEach(function (el) {
-            el.addEventListener('mousedown', function (e) {
-                e.preventDefault();
-                state.dragging = el.getAttribute('data-handle');
-                if (state.dragging === 'range') {
-                    state.dragAnchorIdx = idxFromClientX(e.clientX) - state.startIdx;
-                    state.dragOrigStart = state.startIdx;
-                    state.dragOrigEnd = state.endIdx;
-                }
-                document.addEventListener('mousemove', onPointerMove);
-                document.addEventListener('mouseup', onPointerUp);
+        function startHandleDrag(e, handleType) {
+            e.preventDefault();
+            e.stopPropagation();
+            state.pointer = null;
+            state.dragging = handleType;
+            if (handleType === 'range') {
+                state.dragAnchorIdx = idxFromClientX(e.clientX) - state.startIdx;
+                state.dragOrigStart = state.startIdx;
+                state.dragOrigEnd = state.endIdx;
+            }
+            scrollEl.classList.add('is-dragging');
+            if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+        }
+
+        function startPaintDrag(e, dayEl, idx) {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            state.pointer = { mode: 'paint', idx: idx, x: e.clientX, id: e.pointerId, moved: false };
+            state.startIdx = idx;
+            state.endIdx = idx;
+            dayEl.classList.add('ci-wz-day--dragging');
+            scrollEl.classList.add('is-dragging');
+            if (dayEl.setPointerCapture) dayEl.setPointerCapture(e.pointerId);
+            updateUI();
+        }
+
+        if (handlesEl) {
+            handlesEl.querySelectorAll('[data-handle]').forEach(function (el) {
+                el.addEventListener('pointerdown', function (e) {
+                    startHandleDrag(e, el.getAttribute('data-handle'));
+                });
             });
-        });
+        }
+
+        if (daysEl) {
+            daysEl.addEventListener('pointerdown', function (e) {
+                if (e.target.closest('[data-handle]')) return;
+                var dayEl = e.target.closest('.ci-wz-day');
+                if (!dayEl) return;
+                startPaintDrag(e, dayEl, +dayEl.dataset.idx);
+            });
+        }
+
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
 
         if (windowSlider) {
             windowSlider.addEventListener('input', function () {

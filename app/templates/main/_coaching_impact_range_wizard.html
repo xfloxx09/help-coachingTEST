@@ -49,16 +49,17 @@
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
                     <p class="ci-wz-help small text-muted mb-2">
-                        <i class="fas fa-hand-pointer mr-1"></i> Tag anklicken = genau dieser Tag · Ziehen am blauen Rahmen = Zeitraum anpassen · Shift+Klick = Bereich bis zu diesem Tag
+                        <i class="fas fa-hand-pointer mr-1"></i> Auf Timeline <strong>ziehen</strong> = Zeitraum wählen · <strong>Ränder</strong> ziehen = vergrößern/verkleinern · Griff oben = verschieben
                     </p>
                     <div class="ci-wz-scroll" id="ciWzScroll">
                         <div class="ci-wz-track" id="ciWzTrack">
                             <div class="ci-wz-days" id="ciWzDays"></div>
                             <div class="ci-wz-impact-layer" id="ciWzImpactLayer"></div>
-                            <div class="ci-wz-selection" id="ciWzSelection">
+                            <div class="ci-wz-selection-bg" id="ciWzSelectionBg"></div>
+                            <div class="ci-wz-handles" id="ciWzHandles">
                                 <div class="ci-wz-selection-grip" data-handle="range" title="Zeitraum verschieben"><i class="fas fa-grip-lines"></i></div>
-                                <div class="ci-wz-handle ci-wz-handle-start" data-handle="start" title="Start ziehen"></div>
-                                <div class="ci-wz-handle ci-wz-handle-end" data-handle="end" title="Ende ziehen"></div>
+                                <div class="ci-wz-handle ci-wz-handle-start" data-handle="start" title="Start ziehen"><span>◀</span></div>
+                                <div class="ci-wz-handle ci-wz-handle-end" data-handle="end" title="Ende ziehen"><span>▶</span></div>
                             </div>
                         </div>
                     </div>
