@@ -36,9 +36,6 @@
     .ci-prod .ci-label { color: #36c6a0; }
     .ci-nachp .ci-label { color: #ffb648; }
     .ci-idle .ci-label { color: #b388ff; }
-    .ci-stat { border: 1px solid #34343c; border-radius: 10px; padding: 0.85rem 1rem; background: #22222a; height: 100%; }
-    .ci-stat .ci-stat-val { font-size: 1.6rem; font-weight: 700; }
-    .ci-stat .ci-stat-lbl { font-size: 0.78rem; color: #9a9aa3; }
     .ci-chart-card-header {
         display: flex;
         flex-direction: column;
@@ -538,7 +535,7 @@
         <hr style="border-color:#34343c;">
 
         <div class="form-row align-items-end">
-            <div class="col-12 col-lg-7 mb-2">
+            <div class="col-12 mb-2">
                 <div class="ci-range-setup">
                     <button type="button" class="ci-range-setup-btn" id="ciOpenRangeWizard"
                             {% if not selection_made %}disabled title="Zuerst Projekt, Team oder Agent wählen"{% endif %}>
@@ -557,9 +554,6 @@
                 <input type="hidden" name="date_to" id="ciDateTo" value="{{ date_to }}">
                 <input type="hidden" name="window" id="ciWindow" value="{{ impact_window_days }}">
             </div>
-            <div class="col-6 col-md-2 mb-2">
-                <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
-            </div>
         </div>
     </form>
     {% include 'main/_kpi_granularity_notice.html' %}
@@ -568,28 +562,6 @@
     {% if selection_made %}
     <div class="d-flex align-items-baseline mb-3" style="gap:0.5rem;">
         <h4 class="mb-0">{{ scope_label }}</h4>
-    </div>
-
-    <!-- Coaching activity summary -->
-    <div class="row mb-4">
-        <div class="col-6 col-md-3 mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{{ summary.coachings }}</div>
-                <div class="ci-stat-lbl">Coachings im Zeitraum</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{{ summary.total_time_h }}h {{ summary.total_time_m }}m</div>
-                <div class="ci-stat-lbl">Gesamte Coaching-Zeit</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 mb-3">
-            <div class="ci-stat">
-                <div class="ci-stat-val">{% if summary.avg_perf is not none %}{{ summary.avg_perf|de_decimal(1) }}%{% else %}–{% endif %}</div>
-                <div class="ci-stat-lbl">Ø Coaching-Performance</div>
-            </div>
-        </div>
     </div>
 
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
