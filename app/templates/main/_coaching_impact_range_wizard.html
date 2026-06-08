@@ -2,12 +2,35 @@
 <div class="modal fade" id="ciRangeWizardModal" tabindex="-1" role="dialog" aria-labelledby="ciRangeWizardTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content ci-wz-modal">
-            <div class="modal-header border-0 pb-0">
+            <div class="modal-header border-0 pb-0 ci-wz-header">
                 <div>
                     <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Zeitraum &amp; Wirkungsfenster</h5>
-                    <p class="text-muted small mb-0">Timeline ziehen für Zeitraum · Schieberegler für Vor/Nach-Tage je Coaching</p>
+                    <p class="text-muted small mb-0">Timeline ziehen oder Schnellauswahl · Klick wählt einen Tag</p>
                 </div>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
+                <div class="ci-wz-presets-wrap d-none" id="ciWzPresetsWrap">
+                    <div class="ci-wz-preset-group">
+                        <span class="ci-wz-preset-label">Zeitraum</span>
+                        <div class="btn-group btn-group-sm ci-wz-preset-btns" id="ciWzPeriodPresets">
+                            <button type="button" class="btn btn-outline-light" data-period="1">1 Tag</button>
+                            <button type="button" class="btn btn-outline-light" data-period="2">2 Tage</button>
+                            <button type="button" class="btn btn-outline-light" data-period="7">7 Tage</button>
+                            <button type="button" class="btn btn-outline-light" data-period="14">14 Tage</button>
+                            <button type="button" class="btn btn-outline-light" data-period="30">30 Tage</button>
+                            <button type="button" class="btn btn-outline-light" data-period="90">90 Tage</button>
+                            <button type="button" class="btn btn-outline-light" data-period="all">Alle</button>
+                        </div>
+                    </div>
+                    <div class="ci-wz-preset-group">
+                        <span class="ci-wz-preset-label">Fenster</span>
+                        <div class="btn-group btn-group-sm ci-wz-preset-btns" id="ciWzWindowPresets">
+                            <button type="button" class="btn btn-outline-light" data-window="7">7</button>
+                            <button type="button" class="btn btn-outline-light" data-window="14">14</button>
+                            <button type="button" class="btn btn-outline-light" data-window="28">28</button>
+                            <button type="button" class="btn btn-outline-light" data-window="56">56</button>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="close ml-2" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body pt-2">
                 <div class="ci-wz-legend mb-2">
@@ -25,14 +48,17 @@
                 </div>
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
+                    <p class="ci-wz-help small text-muted mb-2">
+                        <i class="fas fa-hand-pointer mr-1"></i> Tag anklicken = genau dieser Tag · Ziehen am blauen Rahmen = Zeitraum anpassen · Shift+Klick = Bereich bis zu diesem Tag
+                    </p>
                     <div class="ci-wz-scroll" id="ciWzScroll">
                         <div class="ci-wz-track" id="ciWzTrack">
                             <div class="ci-wz-days" id="ciWzDays"></div>
                             <div class="ci-wz-impact-layer" id="ciWzImpactLayer"></div>
                             <div class="ci-wz-selection" id="ciWzSelection">
+                                <div class="ci-wz-selection-grip" data-handle="range" title="Zeitraum verschieben"><i class="fas fa-grip-lines"></i></div>
                                 <div class="ci-wz-handle ci-wz-handle-start" data-handle="start" title="Start ziehen"></div>
                                 <div class="ci-wz-handle ci-wz-handle-end" data-handle="end" title="Ende ziehen"></div>
-                                <div class="ci-wz-selection-body" data-handle="range" title="Zeitraum verschieben"></div>
                             </div>
                         </div>
                     </div>

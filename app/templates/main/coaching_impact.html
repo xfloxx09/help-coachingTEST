@@ -192,6 +192,42 @@
     /* Range wizard */
     .ci-wz-modal { background: #1f1f24; border: 1px solid #34343c; color: #e8e8ec; }
     .ci-wz-modal .modal-header .close { color: #e8e8ec; }
+    .ci-wz-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 0.75rem 1rem;
+    }
+    .ci-wz-header .close { margin-left: auto; }
+    .ci-wz-presets-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.45rem;
+        margin-left: auto;
+        margin-right: 0.5rem;
+    }
+    .ci-wz-preset-group { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+    .ci-wz-preset-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #9a9aa3;
+        min-width: 4.5rem;
+        text-align: right;
+    }
+    .ci-wz-preset-btns .btn {
+        border-color: #4a4a55;
+        color: #d6d6dd;
+        font-size: 0.72rem;
+        padding: 0.2rem 0.45rem;
+    }
+    .ci-wz-preset-btns .btn.active {
+        background: #e20074;
+        border-color: #e20074;
+        color: #fff;
+    }
+    .ci-wz-help { margin: 0; line-height: 1.45; }
     .ci-wz-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.78rem; color: #b9b9c2; }
     .ci-wz-legend-coach { color: #ff8fc7; }
     .ci-wz-legend-survey { color: #9ed0ff; }
@@ -215,7 +251,7 @@
         align-items: flex-end;
         height: 72px;
         position: relative;
-        z-index: 1;
+        z-index: 2;
     }
     .ci-wz-day {
         flex: 0 0 30px;
@@ -223,7 +259,7 @@
         height: 64px;
         position: relative;
         border-right: 1px solid rgba(255,255,255,0.04);
-        cursor: crosshair;
+        cursor: pointer;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -232,7 +268,8 @@
         font-size: 0.55rem;
         color: #7a7a85;
     }
-    .ci-wz-day:hover { background: rgba(255,255,255,0.04); }
+    .ci-wz-day:hover { background: rgba(255,255,255,0.06); }
+    .ci-wz-day--hover { outline: 1px solid rgba(74, 163, 255, 0.6); outline-offset: -1px; z-index: 2; }
     .ci-wz-day--in-range { background: rgba(74, 163, 255, 0.08); }
     .ci-wz-day--impact { background: rgba(226, 0, 116, 0.07); }
     .ci-wz-day--coach-day { box-shadow: inset 0 -3px 0 #e20074; }
@@ -264,19 +301,47 @@
         background: rgba(74, 163, 255, 0.12);
         box-shadow: 0 0 0 1px rgba(74, 163, 255, 0.25);
         pointer-events: none;
+        min-width: 30px;
     }
-    .ci-wz-selection-body {
-        position: absolute; inset: 0;
-        pointer-events: auto;
+    .ci-wz-selection--single { border-color: #36c6a0; background: rgba(54, 198, 160, 0.12); }
+    .ci-wz-selection-grip {
+        position: absolute;
+        top: -11px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 28px;
+        height: 14px;
+        border-radius: 4px;
+        background: #4aa3ff;
+        color: #fff;
+        font-size: 0.55rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         cursor: grab;
+        pointer-events: auto;
+        z-index: 5;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
-    .ci-wz-selection-body:active { cursor: grabbing; }
+    .ci-wz-selection-grip:active { cursor: grabbing; }
+    .ci-wz-selection--single .ci-wz-selection-grip { background: #36c6a0; }
     .ci-wz-handle {
-        position: absolute; top: 0; width: 10px; height: 100%;
-        background: #4aa3ff; pointer-events: auto; cursor: ew-resize; z-index: 2;
+        position: absolute; top: -2px; width: 14px; height: calc(100% + 4px);
+        background: #4aa3ff; pointer-events: auto; cursor: ew-resize; z-index: 4;
+        border-radius: 3px;
+        box-shadow: 0 0 6px rgba(74, 163, 255, 0.45);
     }
-    .ci-wz-handle-start { left: -5px; border-radius: 4px 0 0 4px; }
-    .ci-wz-handle-end { right: -5px; border-radius: 0 4px 4px 0; }
+    .ci-wz-handle::after {
+        content: '';
+        position: absolute;
+        top: 20%; bottom: 20%;
+        left: 50%; transform: translateX(-50%);
+        width: 2px; background: rgba(255,255,255,0.7); border-radius: 1px;
+    }
+    .ci-wz-handle-start { left: -7px; }
+    .ci-wz-handle-end { right: -7px; }
+    .ci-wz-selection--single .ci-wz-handle-start { left: -7px; }
+    .ci-wz-selection--single .ci-wz-handle-end { right: -7px; }
     .ci-wz-window-row {
         padding: 0.75rem 0.85rem;
         border: 1px solid #34343c;
@@ -708,6 +773,9 @@
         var dateFromInput = document.getElementById('ciDateFrom');
         var dateToInput = document.getElementById('ciDateTo');
         var windowInput = document.getElementById('ciWindow');
+        var presetsWrap = document.getElementById('ciWzPresetsWrap');
+        var periodPresets = document.getElementById('ciWzPeriodPresets');
+        var windowPresets = document.getElementById('ciWzWindowPresets');
 
         var state = {
             days: [],
@@ -718,7 +786,70 @@
             dragAnchorIdx: 0,
             dragOrigStart: 0,
             dragOrigEnd: 0,
+            anchorIdx: -1,
         };
+
+        function rangeDays() {
+            return state.endIdx - state.startIdx + 1;
+        }
+
+        function lastActivityIdx() {
+            for (var i = state.days.length - 1; i >= 0; i--) {
+                if (state.days[i].coachings || state.days[i].surveys) return i;
+            }
+            return state.days.length - 1;
+        }
+
+        function lastCoachingIdx() {
+            for (var i = state.days.length - 1; i >= 0; i--) {
+                if (state.days[i].coachings) return i;
+            }
+            return lastActivityIdx();
+        }
+
+        function scrollToIdx(idx) {
+            scrollEl.scrollLeft = Math.max(0, idx * DAY_W - scrollEl.clientWidth / 2 + DAY_W / 2);
+        }
+
+        function updatePresetButtons() {
+            if (!periodPresets || !windowPresets) return;
+            var len = rangeDays();
+            periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
+                var p = btn.getAttribute('data-period');
+                var active = false;
+                if (p === 'all') active = state.startIdx === 0 && state.endIdx === state.days.length - 1;
+                else if (p === '1' || p === '2') active = len === parseInt(p, 10);
+                else active = len === parseInt(p, 10);
+                btn.classList.toggle('active', active);
+            });
+            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
+                btn.classList.toggle('active', parseInt(btn.getAttribute('data-window'), 10) === state.windowDays);
+            });
+        }
+
+        function applyPeriodPreset(kind) {
+            if (!state.days.length) return;
+            var anchor = state.anchorIdx >= 0 ? state.anchorIdx : lastCoachingIdx();
+            if (kind === 'all') {
+                state.startIdx = 0;
+                state.endIdx = state.days.length - 1;
+            } else if (kind === '1') {
+                state.startIdx = anchor;
+                state.endIdx = anchor;
+            } else {
+                var n = parseInt(kind, 10) || 7;
+                state.endIdx = Math.min(state.days.length - 1, Math.max(state.endIdx, anchor));
+                state.startIdx = Math.max(0, state.endIdx - n + 1);
+            }
+            state.anchorIdx = state.endIdx;
+            updateUI();
+            scrollToIdx(state.startIdx);
+        }
+
+        function applyWindowPreset(days) {
+            state.windowDays = days;
+            updateUI();
+        }
 
         function parseIso(s) {
             if (!s) return null;
@@ -795,16 +926,24 @@
                     el.appendChild(lbl);
                 }
                 el.addEventListener('mouseenter', function () {
+                    el.classList.add('ci-wz-day--hover');
                     var parts = [fmtDe(day.date)];
                     if (day.coachings) parts.push(day.coachings + ' Coaching' + (day.coachings === 1 ? '' : 's'));
                     if (day.surveys) parts.push(day.surveys + ' Bewertung' + (day.surveys === 1 ? '' : 'en'));
                     if (!day.coachings && !day.surveys) parts.push('keine Aktivität');
-                    dayHintEl.textContent = parts.join(' · ');
+                    dayHintEl.textContent = parts.join(' · ') + ' · Klick = Tag wählen';
                 });
-                el.addEventListener('click', function () {
-                    if (idx < state.startIdx || idx > state.endIdx) {
-                        state.startIdx = Math.max(0, idx - 14);
-                        state.endIdx = Math.min(state.days.length - 1, idx + 14);
+                el.addEventListener('mouseleave', function () {
+                    el.classList.remove('ci-wz-day--hover');
+                });
+                el.addEventListener('click', function (e) {
+                    if (e.shiftKey && state.anchorIdx >= 0) {
+                        state.startIdx = Math.min(state.anchorIdx, idx);
+                        state.endIdx = Math.max(state.anchorIdx, idx);
+                    } else {
+                        state.startIdx = idx;
+                        state.endIdx = idx;
+                        state.anchorIdx = idx;
                     }
                     updateUI();
                 });
@@ -858,7 +997,8 @@
             var d0 = state.days[state.startIdx];
             var d1 = state.days[state.endIdx];
             if (d0 && d1) {
-                rangeLabelEl.textContent = fmtDe(d0.date) + ' – ' + fmtDe(d1.date);
+                var n = rangeDays();
+                rangeLabelEl.textContent = fmtDe(d0.date) + ' – ' + fmtDe(d1.date) + ' (' + n + ' Tag' + (n === 1 ? '' : 'e') + ')';
             }
             var coach = 0, surv = 0;
             for (var i = state.startIdx; i <= state.endIdx; i++) {
@@ -869,11 +1009,13 @@
             windowValEl.textContent = state.windowDays;
             if (windowSlider) windowSlider.value = state.windowDays;
             applyBtn.disabled = !d0 || !d1;
+            updatePresetButtons();
+            selectionEl.classList.toggle('ci-wz-selection--single', rangeDays() === 1);
         }
 
         function updateSelectionBox() {
             selectionEl.style.left = (state.startIdx * DAY_W) + 'px';
-            selectionEl.style.width = ((state.endIdx - state.startIdx + 1) * DAY_W) + 'px';
+            selectionEl.style.width = (Math.max(1, rangeDays()) * DAY_W) + 'px';
         }
 
         function updateUI() {
@@ -887,7 +1029,7 @@
         function idxFromClientX(clientX) {
             var rect = trackEl.getBoundingClientRect();
             var x = clientX - rect.left + scrollEl.scrollLeft;
-            return Math.max(0, Math.min(state.days.length - 1, Math.floor(x / DAY_W)));
+            return Math.max(0, Math.min(state.days.length - 1, Math.floor((x + DAY_W * 0.5) / DAY_W)));
         }
 
         function onPointerMove(e) {
@@ -904,6 +1046,7 @@
                 state.startIdx = newStart;
                 state.endIdx = newStart + len;
             }
+            state.anchorIdx = state.endIdx;
             updateUI();
         }
 
@@ -934,6 +1077,21 @@
             });
         }
 
+        if (periodPresets) {
+            periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    applyPeriodPreset(btn.getAttribute('data-period'));
+                });
+            });
+        }
+        if (windowPresets) {
+            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    applyWindowPreset(parseInt(btn.getAttribute('data-window'), 10));
+                });
+            });
+        }
+
         function pickDefaultRange() {
             var fromIso = dateFromInput.value;
             var toIso = dateToInput.value;
@@ -942,12 +1100,10 @@
             if (si >= 0 && ei >= 0 && ei >= si) {
                 state.startIdx = si;
                 state.endIdx = ei;
+                state.anchorIdx = ei;
                 return;
             }
-            var lastCoach = -1;
-            for (var i = state.days.length - 1; i >= 0; i--) {
-                if (state.days[i].coachings) { lastCoach = i; break; }
-            }
+            var lastCoach = lastCoachingIdx();
             if (lastCoach < 0) {
                 state.endIdx = state.days.length - 1;
                 state.startIdx = Math.max(0, state.endIdx - 89);
@@ -955,12 +1111,14 @@
                 state.endIdx = Math.min(state.days.length - 1, lastCoach + 7);
                 state.startIdx = Math.max(0, state.endIdx - 89);
             }
+            state.anchorIdx = state.endIdx;
         }
 
         function loadAndShow() {
             loadingEl.classList.remove('d-none');
             emptyEl.classList.add('d-none');
             workspaceEl.classList.add('d-none');
+            if (presetsWrap) presetsWrap.classList.add('d-none');
             applyBtn.disabled = true;
 
             var q = new URLSearchParams(new FormData(form));
@@ -988,8 +1146,8 @@
                     renderDays();
                     updateUI();
                     workspaceEl.classList.remove('d-none');
-                    var mid = Math.floor((state.startIdx + state.endIdx) / 2);
-                    scrollEl.scrollLeft = Math.max(0, mid * DAY_W - scrollEl.clientWidth / 2);
+                    if (presetsWrap) presetsWrap.classList.remove('d-none');
+                    scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
                 })
                 .catch(function () {
                     loadingEl.classList.add('d-none');
