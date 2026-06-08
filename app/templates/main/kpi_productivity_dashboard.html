@@ -72,6 +72,52 @@
         border-radius: 4px;
         word-break: break-word;
     }
+    .prod-day-agent-card {
+        background: #25252b;
+        border: 1px solid #34343c;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .prod-day-agent-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.65rem 0.85rem;
+        cursor: pointer;
+        user-select: none;
+        background: #2a2a31;
+        border: none;
+        width: 100%;
+        text-align: left;
+        color: #e8e8ec;
+    }
+    .prod-day-agent-header:hover { background: rgba(226, 0, 116, 0.1); }
+    .prod-day-agent-header .prod-day-agent-meta {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #9a9aa3;
+        font-size: 0.85rem;
+    }
+    .prod-day-agent-header .prod-day-chevron {
+        transition: transform 0.2s ease;
+        font-size: 0.75rem;
+    }
+    .prod-day-agent-header:not(.collapsed) .prod-day-chevron { transform: rotate(180deg); }
+    .prod-day-agent-body {
+        border-top: 1px solid #34343c;
+        padding: 0.5rem 0.65rem 0.65rem;
+    }
+    .prod-day-agent-body .table { margin-bottom: 0; color: #d6d6dd; }
+    .prod-day-agent-body .table thead th {
+        border-top: none;
+        border-color: #34343c;
+        color: #9a9aa3;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+    .prod-day-agent-body .table td { border-color: #34343c; font-size: 0.85rem; }
 </style>
 {% endblock %}
 
@@ -371,6 +417,49 @@
     }
 
     var modalParams = { mode: {{ mode|tojson }}, project_id: {{ (sel_project or '')|tojson }}, team_id: {{ (sel_team or '')|tojson }}, member_id: {{ (sel_member or '')|tojson }} };
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function groupProdIntervals(intervals) {
+        var map = {};
+        intervals.forEach(function (iv) {
+            var key = iv.member_id != null ? String(iv.member_id) : (iv.agent + '|' + iv.team);
+            if (!map[key]) {
+                map[key] = { agent: iv.agent, team: iv.team, intervals: [] };
+            }
+            map[key].intervals.push(iv);
+        });
+        return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+            return (a.agent || '').localeCompare(b.agent || '', 'de');
+        });
+    }
+
+    function renderProdIntervalTable(intervals) {
+        var html = '<table class="table table-sm table-hover mb-0"><thead><tr><th>Zeit</th>';
+        if (visible.sign_on) html += '<th class="text-right">' + escapeHtml(prodLabels.sign_on) + '</th>';
+        if (visible.prod) html += '<th class="text-right">' + escapeHtml(prodLabels.prod) + '</th>';
+        if (visible.nach) html += '<th class="text-right">' + escapeHtml(prodLabels.nach) + '</th>';
+        if (visible.idle) html += '<th class="text-right">' + escapeHtml(prodLabels.idle) + '</th>';
+        if (visible.calls) html += '<th class="text-right">' + escapeHtml(prodLabels.calls) + '</th>';
+        if (visible.works) html += '<th class="text-right">' + escapeHtml(prodLabels.works) + '</th>';
+        html += '</tr></thead><tbody>';
+        intervals.forEach(function (iv) {
+            html += '<tr><td>' + escapeHtml(iv.time) + '</td>';
+            if (visible.sign_on) html += '<td class="text-right">' + (iv.sign_on_pct != null ? iv.sign_on_pct + '%' : '–') + '</td>';
+            if (visible.prod) html += '<td class="text-right">' + (iv.prod_pct != null ? iv.prod_pct + '%' : '–') + '</td>';
+            if (visible.nach) html += '<td class="text-right">' + (iv.nach_per_call != null ? iv.nach_per_call : '–') + '</td>';
+            if (visible.idle) html += '<td class="text-right">' + (iv.idle_pct != null ? iv.idle_pct + '%' : '–') + '</td>';
+            if (visible.calls) html += '<td class="text-right">' + (iv.calls != null ? iv.calls : '–') + '</td>';
+            if (visible.works) html += '<td class="text-right">' + (iv.works_beendet != null ? iv.works_beendet : '–') + '</td>';
+            html += '</tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
     window.openProdDay = function (dateStr) {
         var q = new URLSearchParams(); q.set('date', dateStr); q.set('mode', modalParams.mode);
         if (modalParams.project_id) q.set('project_id', modalParams.project_id);
@@ -380,19 +469,42 @@
         body.innerHTML = '<div class="text-center text-muted py-4">Lädt…</div>';
         $('#prodDayModal').modal('show');
         fetch('{{ url_for("main.productivity_day_detail") }}?' + q.toString()).then(function (r) { return r.json(); }).then(function (data) {
-            document.getElementById('prodDayModalDate').textContent = '— ' + data.date;
-            if (!data.intervals.length) { body.innerHTML = '<div class="text-muted">Keine Intervalle.</div>'; return; }
-            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">'+prodLabels.sign_on+'</th><th class="text-right">'+prodLabels.prod+'</th><th class="text-right">'+prodLabels.nach+'</th><th class="text-right">'+prodLabels.idle+'</th><th class="text-right">'+prodLabels.calls+'</th><th class="text-right">'+prodLabels.works+'</th></tr></thead><tbody>';
-            data.intervals.forEach(function (iv) {
-                html += '<tr><td>'+iv.time+'</td><td>'+iv.agent+'</td><td>'+iv.team+'</td>';
-                html += '<td class="text-right">'+(iv.sign_on_pct!=null?iv.sign_on_pct+'%':'–')+'</td>';
-                html += '<td class="text-right">'+(iv.prod_pct!=null?iv.prod_pct+'%':'–')+'</td>';
-                html += '<td class="text-right">'+(iv.nach_per_call!=null?iv.nach_per_call:'–')+'</td>';
-                html += '<td class="text-right">'+(iv.idle_pct!=null?iv.idle_pct+'%':'–')+'</td>';
-                html += '<td class="text-right">'+iv.calls+'</td>';
-                html += '<td class="text-right">'+(iv.works_beendet!=null?iv.works_beendet:'–')+'</td></tr>';
+            if (data.error) {
+                body.innerHTML = '<div class="alert alert-danger">' + escapeHtml(data.error) + '</div>';
+                return;
+            }
+            if (!data.intervals.length) {
+                document.getElementById('prodDayModalDate').textContent = '— ' + data.date;
+                body.innerHTML = '<div class="text-muted">Keine Intervalle.</div>';
+                return;
+            }
+            var groups = groupProdIntervals(data.intervals);
+            var agentLabel = groups.length === 1 ? '1 Agent' : (groups.length + ' Agenten');
+            document.getElementById('prodDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Intervall' + (data.count === 1 ? '' : 'e') + ' · ' + agentLabel + ')';
+
+            if (modalParams.member_id || groups.length === 1) {
+                var single = groups[0];
+                var title = modalParams.member_id ? '' : ('<div class="mb-2"><strong>' + escapeHtml(single.agent) + '</strong> · ' + escapeHtml(single.team) + '</div>');
+                body.innerHTML = title + renderProdIntervalTable(single.intervals);
+                return;
+            }
+
+            var html = '<div class="prod-day-agents">';
+            groups.forEach(function (g, idx) {
+                var collapseId = 'prodDayAgent' + idx;
+                var n = g.intervals.length;
+                html += '<div class="prod-day-agent-card mb-2">';
+                html += '<button type="button" class="prod-day-agent-header collapsed" data-toggle="collapse" data-target="#' + collapseId + '" aria-expanded="false" aria-controls="' + collapseId + '">';
+                html += '<span><strong>' + escapeHtml(g.agent) + '</strong> <span class="text-muted">· ' + escapeHtml(g.team) + '</span></span>';
+                html += '<span class="prod-day-agent-meta"><span>' + n + ' Intervall' + (n === 1 ? '' : 'e') + '</span><i class="fas fa-chevron-down prod-day-chevron"></i></span>';
+                html += '</button>';
+                html += '<div id="' + collapseId + '" class="collapse"><div class="prod-day-agent-body">';
+                html += renderProdIntervalTable(g.intervals);
+                html += '</div></div></div>';
             });
-            body.innerHTML = html + '</tbody></table>';
+            body.innerHTML = html + '</div>';
+        }).catch(function () {
+            body.innerHTML = '<div class="alert alert-danger">Daten konnten nicht geladen werden.</div>';
         });
     };
     document.querySelectorAll('.kpi-day-row').forEach(function (row) {

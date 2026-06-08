@@ -5879,6 +5879,7 @@ def productivity_day_detail():
     out = []
     for r in rows:
         out.append({
+            'member_id': r.team_member_id,
             'time': r.slot_at.strftime('%H:%M') if r.slot_at else '-',
             'agent': r.team_member.name if r.team_member else '-',
             'team': r.team.name if r.team else '-',
