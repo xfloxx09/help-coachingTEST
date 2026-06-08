@@ -5940,6 +5940,7 @@ def kpi_day_detail():
     for s in surveys:
         counts = True if counting_types is None else (s.studie in counting_types)
         out.append({
+            'member_id': s.team_member_id,
             'datensatz_id': s.datensatz_id,
             'agent': s.team_member.name if s.team_member else (
                 (s.vorname + ' ' + s.nachname).strip() or s.ma_kenner or '-'

@@ -195,6 +195,54 @@
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
+    .kpi-day-agent-card {
+        background: #25252b;
+        border: 1px solid #34343c;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .kpi-day-agent-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.65rem 0.85rem;
+        cursor: pointer;
+        user-select: none;
+        background: #2a2a31;
+        border: none;
+        width: 100%;
+        text-align: left;
+        color: #e8e8ec;
+    }
+    .kpi-day-agent-header:hover { background: rgba(226, 0, 116, 0.1); }
+    .kpi-day-agent-header .kpi-day-agent-meta {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #9a9aa3;
+        font-size: 0.85rem;
+    }
+    .kpi-day-agent-header .kpi-day-chevron {
+        transition: transform 0.2s ease;
+        font-size: 0.75rem;
+    }
+    .kpi-day-agent-header:not(.collapsed) .kpi-day-chevron { transform: rotate(180deg); }
+    .kpi-day-agent-body {
+        border-top: 1px solid #34343c;
+        padding: 0.65rem;
+    }
+    .kpi-survey-entry {
+        background: #1f1f24;
+        border-color: #34343c;
+    }
+    .kpi-survey-entry .card-header {
+        background: transparent;
+        border-color: #34343c;
+        color: #d6d6dd;
+    }
+    .kpi-survey-entry .table { margin-bottom: 0; color: #d6d6dd; }
+    .kpi-survey-entry .table td { border-color: #34343c; font-size: 0.85rem; }
     .ci-day-table-scroll thead th {
         position: sticky;
         top: 0;
@@ -1742,30 +1790,74 @@
         fetch('{{ url_for("main.kpi_day_detail") }}?' + q.toString())
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (data.error) { body.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>'; return; }
-                document.getElementById('ciDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Befragung' + (data.count === 1 ? '' : 'en') + ')';
-                if (!data.surveys.length) { body.innerHTML = '<div class="text-muted">Keine Befragungen an diesem Tag.</div>'; return; }
-                var html = '';
-                data.surveys.forEach(function (s) {
-                    html += '<div class="card mb-3"' + (s.counts === false ? ' style="opacity:0.7;"' : '') + '><div class="card-header py-2">'
-                        + '<strong>' + escapeHtml(s.agent) + '</strong> · ' + escapeHtml(s.team)
-                        + ' <span class="text-muted small">(ID ' + escapeHtml(s.datensatz_id) + ')</span>'
-                        + ' <span class="badge badge-light">' + escapeHtml(s.studie || '-') + '</span>'
-                        + (s.counts === false ? ' <span class="badge badge-secondary">zählt nicht</span>' : '')
-                        + (s.nps !== null ? ' <span class="badge badge-warning">NPS ' + s.nps + '</span>' : '')
-                        + '</div><div class="card-body p-2"><table class="table table-sm mb-0"><tbody>';
-                    s.answers.forEach(function (a) {
-                        html += '<tr><td style="width:55%">' + escapeHtml(a.frage || '') + '</td>'
-                            + '<td>' + escapeHtml(a.antwort || '') + '</td></tr>';
-                    });
-                    html += '</tbody></table></div></div>';
-                });
-                body.innerHTML = html;
+                if (data.error) { body.innerHTML = '<div class="alert alert-danger">' + escapeHtml(data.error) + '</div>'; return; }
+                if (!data.surveys.length) {
+                    document.getElementById('ciDayModalDate').textContent = '— ' + data.date;
+                    body.innerHTML = '<div class="text-muted">Keine Befragungen an diesem Tag.</div>';
+                    return;
+                }
+                var groups = groupSurveysByAgent(data.surveys);
+                var agentLabel = groups.length === 1 ? '1 Agent' : (groups.length + ' Agenten');
+                document.getElementById('ciDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Befragung' + (data.count === 1 ? '' : 'en') + ' · ' + agentLabel + ')';
+                body.innerHTML = renderKpiSurveyDayBody(data.surveys, modalParams, groups);
             })
             .catch(function () {
                 body.innerHTML = '<div class="alert alert-danger">Daten konnten nicht geladen werden.</div>';
             });
     };
+
+    function groupSurveysByAgent(surveys) {
+        var map = {};
+        surveys.forEach(function (s) {
+            var key = s.member_id != null ? String(s.member_id) : (s.agent + '|' + s.team);
+            if (!map[key]) map[key] = { agent: s.agent, team: s.team, surveys: [] };
+            map[key].surveys.push(s);
+        });
+        return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+            return (a.agent || '').localeCompare(b.agent || '', 'de');
+        });
+    }
+
+    function renderSurveyEntryCard(s) {
+        var html = '<div class="card mb-2 kpi-survey-entry"' + (s.counts === false ? ' style="opacity:0.7;"' : '') + '>';
+        html += '<div class="card-header py-2">';
+        html += '<span class="text-muted small">ID ' + escapeHtml(s.datensatz_id) + '</span> ';
+        html += '<span class="badge badge-light">' + escapeHtml(s.studie || '-') + '</span>';
+        if (s.counts === false) html += ' <span class="badge badge-secondary">zählt nicht</span>';
+        if (s.nps !== null) html += ' <span class="badge badge-warning">NPS ' + s.nps + '</span>';
+        html += '</div><div class="card-body p-2"><table class="table table-sm mb-0"><tbody>';
+        s.answers.forEach(function (a) {
+            html += '<tr><td style="width:55%">' + escapeHtml(a.frage || '') + '</td>'
+                + '<td>' + escapeHtml(a.antwort || '') + '</td></tr>';
+        });
+        return html + '</tbody></table></div></div>';
+    }
+
+    function renderKpiSurveyDayBody(surveys, params, groups) {
+        groups = groups || groupSurveysByAgent(surveys);
+        if (params.member_id || groups.length === 1) {
+            var html = '';
+            if (!params.member_id && groups.length === 1) {
+                html += '<div class="mb-2"><strong>' + escapeHtml(groups[0].agent) + '</strong> · ' + escapeHtml(groups[0].team) + '</div>';
+            }
+            groups[0].surveys.forEach(function (s) { html += renderSurveyEntryCard(s); });
+            return html;
+        }
+        var html = '<div class="kpi-day-agents">';
+        groups.forEach(function (g, idx) {
+            var collapseId = 'ciDayAgent' + idx;
+            var n = g.surveys.length;
+            html += '<div class="kpi-day-agent-card mb-2">';
+            html += '<button type="button" class="kpi-day-agent-header collapsed" data-toggle="collapse" data-target="#' + collapseId + '" aria-expanded="false" aria-controls="' + collapseId + '">';
+            html += '<span><strong>' + escapeHtml(g.agent) + '</strong> <span class="text-muted">· ' + escapeHtml(g.team) + '</span></span>';
+            html += '<span class="kpi-day-agent-meta"><span>' + n + ' Befragung' + (n === 1 ? '' : 'en') + '</span><i class="fas fa-chevron-down kpi-day-chevron"></i></span>';
+            html += '</button>';
+            html += '<div id="' + collapseId + '" class="collapse"><div class="kpi-day-agent-body">';
+            g.surveys.forEach(function (s) { html += renderSurveyEntryCard(s); });
+            html += '</div></div></div>';
+        });
+        return html + '</div>';
+    }
 
     window.openCiCoachingDay = function (dateStr) {
         var q = new URLSearchParams();
