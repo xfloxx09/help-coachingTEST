@@ -428,3 +428,17 @@ def kpi_features_enabled():
         return bool(row.kpi_features_enabled)
     except Exception:
         return True
+
+
+def coaching_impact_window_days():
+    """Days before/after each coaching for Coaching VS KPI analysis (admin-configured)."""
+    default = 14
+    try:
+        from app.models import PlatformSettings
+        row = PlatformSettings.query.get(1)
+        if row is None:
+            return default
+        days = int(row.coaching_impact_window_days or default)
+        return max(1, min(days, 90))
+    except Exception:
+        return default

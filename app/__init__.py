@@ -863,6 +863,19 @@ def create_app(config_class=Config):
             except Exception as e:
                 conn.rollback()
                 print(f"ℹ️ platform_settings: {e}")
+        elif 'platform_settings' in inspector.get_table_names():
+            ps_cols = [c['name'] for c in inspect(db.engine).get_columns('platform_settings')]
+            if 'coaching_impact_window_days' not in ps_cols:
+                try:
+                    conn.execute(text(
+                        'ALTER TABLE platform_settings '
+                        'ADD COLUMN coaching_impact_window_days INTEGER NOT NULL DEFAULT 14'
+                    ))
+                    conn.commit()
+                    print("✅ Spalte 'coaching_impact_window_days' zu 'platform_settings' hinzugefügt.")
+                except Exception as e:
+                    conn.rollback()
+                    print(f"ℹ️ platform_settings.coaching_impact_window_days: {e}")
 
         # 21. Productivity metric display labels
         if 'project_productivity_settings' in inspector.get_table_names():

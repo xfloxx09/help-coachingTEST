@@ -4436,6 +4436,11 @@ def kpi_verwaltung():
                 row = PlatformSettings(id=1)
                 db.session.add(row)
             row.kpi_features_enabled = bool(request.form.get('kpi_features_enabled'))
+            try:
+                window_days = int(request.form.get('coaching_impact_window_days', 14))
+            except (TypeError, ValueError):
+                window_days = 14
+            row.coaching_impact_window_days = max(1, min(window_days, 90))
             db.session.commit()
             state = 'aktiviert' if row.kpi_features_enabled else 'deaktiviert'
             flash(f'KPI-Funktionen in der Plattform wurden {state}.', 'success')
@@ -4639,7 +4644,7 @@ def kpi_verwaltung():
     prod_impact_visibility = productivity_logic.impact_visibility_dict(prod_setting)
     known_headers = session.get('prod_csv_headers') or []
 
-    from app.kpi import kpi_features_enabled
+    from app.kpi import kpi_features_enabled, coaching_impact_window_days
     return render_template(
         'admin/kpi_verwaltung.html',
         projects=projects,
@@ -4654,6 +4659,7 @@ def kpi_verwaltung():
         prod_impact_visibility=prod_impact_visibility,
         known_headers=known_headers,
         kpi_features_enabled=kpi_features_enabled(),
+        coaching_impact_window_days=coaching_impact_window_days(),
         config=current_app.config,
     )
 

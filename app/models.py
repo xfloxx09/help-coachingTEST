@@ -604,6 +604,7 @@ class PlatformSettings(db.Model):
     __tablename__ = 'platform_settings'
     id = db.Column(db.Integer, primary_key=True)
     kpi_features_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    coaching_impact_window_days = db.Column(db.Integer, nullable=False, default=14)
 
 
 class KpiCategory(db.Model):

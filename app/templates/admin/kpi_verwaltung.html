@@ -17,21 +17,33 @@
                 Anwendung sichtbar sind — z.&nbsp;B. Performance-Übersicht, Team-View, Coaching-Berichte und
                 Demo-Dashboards. Import, Konfiguration und Berechnung bleiben hier im Admin immer verfügbar.
             </p>
-            <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}" class="form-inline">
+            <form method="POST" action="{{ url_for('admin.kpi_verwaltung') }}" class="form-inline flex-wrap align-items-end">
                 {% if sel_project %}
                 <input type="hidden" name="project_id" value="{{ sel_project }}">
                 {% endif %}
-                <div class="custom-control custom-switch mr-3">
+                <div class="custom-control custom-switch mr-3 mb-2">
                     <input type="checkbox" class="custom-control-input" id="kpi_features_enabled"
                            name="kpi_features_enabled" value="1" {% if kpi_features_enabled %}checked{% endif %}>
                     <label class="custom-control-label" for="kpi_features_enabled">
                         KPI-Funktionen für alle Nutzer {% if kpi_features_enabled %}aktiv{% else %}inaktiv{% endif %}
                     </label>
                 </div>
-                <button type="submit" name="action" value="save_global" class="btn telekom-button btn-sm">
+                <div class="form-group mr-3 mb-2">
+                    <label for="coaching_impact_window_days" class="small text-muted mb-1 d-block">
+                        Coaching VS KPI · Wirkungsfenster (Tage)
+                    </label>
+                    <input type="number" class="form-control form-control-sm" style="width:5.5rem;"
+                           id="coaching_impact_window_days" name="coaching_impact_window_days"
+                           min="1" max="90" value="{{ coaching_impact_window_days|default(14) }}">
+                </div>
+                <button type="submit" name="action" value="save_global" class="btn telekom-button btn-sm mb-2">
                     <i class="fas fa-save mr-1"></i>Speichern
                 </button>
             </form>
+            <p class="text-muted small mb-0 mt-2">
+                Wirkungsfenster: Tage vor und nach einem Coaching (Standard: 14, max. 90).
+                Nur über den Admin änderbar — Nutzer wählen auf Coaching VS KPI nur den Zeitraum.
+            </p>
         </div>
     </div>
 
