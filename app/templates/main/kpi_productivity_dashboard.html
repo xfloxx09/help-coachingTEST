@@ -15,6 +15,7 @@
     .kpi-nach .kpi-value { color: #ffb648; }
     .kpi-idle .kpi-value { color: #b388ff; }
     .kpi-calls .kpi-value { color: #e20074; }
+    .kpi-works .kpi-value { color: #ff8fc7; }
     .kpi-chart-wrap { position: relative; height: 260px; }
     .kpi-day-row { cursor: pointer; }
     .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
@@ -71,7 +72,7 @@
 {% endblock %}
 
 {% block content %}
-{% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
+{% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls', 'works': 'Works'} %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap: 0.75rem;">
         <h2 class="mb-0"><i class="fas fa-tachometer-alt text-info"></i> KPIs {{ kpi_category_labels.produktivitaet if kpi_category_labels else 'Produktivität' }} <span class="badge badge-info align-middle">Demo</span></h2>
@@ -184,6 +185,15 @@
             </div>
         </div>
         {% endif %}
+        {% if visible.works %}
+        <div class="col-12 col-md-4 col-lg mb-3">
+            <div class="kpi-card kpi-works">
+                <div class="kpi-label">{{ prod_labels.works }}</div>
+                <div class="kpi-value">{% if summary.works is not none %}{{ summary.works|de_decimal(0) }}{% else %}–{% endif %}</div>
+                <div class="kpi-sub">Summe im Zeitraum</div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     {% if chart_daily %}
@@ -224,6 +234,7 @@
                         {% if visible.nach %}<th class="text-right">{{ prod_labels.nach }}</th>{% endif %}
                         {% if visible.idle %}<th class="text-right">{{ prod_labels.idle }}</th>{% endif %}
                         {% if visible.calls %}<th class="text-right">{{ prod_labels.calls }}</th>{% endif %}
+                        {% if visible.works %}<th class="text-right">{{ prod_labels.works }}</th>{% endif %}
                         {% if table_granularity == 'day' %}<th></th>{% endif %}
                     </tr></thead>
                     <tbody>
@@ -236,6 +247,7 @@
                         {% if visible.nach %}<td class="text-right">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
                         {% if visible.idle %}<td class="text-right">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
                         {% if visible.calls %}<td class="text-right">{% if d.calls is not none %}{{ d.calls|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
+                        {% if visible.works %}<td class="text-right">{% if d.works is not none %}{{ d.works|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
                         {% if table_granularity == 'day' %}<td class="text-right"><i class="fas fa-search text-muted"></i></td>{% endif %}
                     </tr>
                     {% endfor %}
@@ -366,14 +378,15 @@
         fetch('{{ url_for("main.productivity_day_detail") }}?' + q.toString()).then(function (r) { return r.json(); }).then(function (data) {
             document.getElementById('prodDayModalDate').textContent = '— ' + data.date;
             if (!data.intervals.length) { body.innerHTML = '<div class="text-muted">Keine Intervalle.</div>'; return; }
-            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">'+prodLabels.sign_on+'</th><th class="text-right">'+prodLabels.prod+'</th><th class="text-right">'+prodLabels.nach+'</th><th class="text-right">'+prodLabels.idle+'</th><th class="text-right">'+prodLabels.calls+'</th></tr></thead><tbody>';
+            var html = '<table class="table table-sm"><thead><tr><th>Zeit</th><th>Agent</th><th>Team</th><th class="text-right">'+prodLabels.sign_on+'</th><th class="text-right">'+prodLabels.prod+'</th><th class="text-right">'+prodLabels.nach+'</th><th class="text-right">'+prodLabels.idle+'</th><th class="text-right">'+prodLabels.calls+'</th><th class="text-right">'+prodLabels.works+'</th></tr></thead><tbody>';
             data.intervals.forEach(function (iv) {
                 html += '<tr><td>'+iv.time+'</td><td>'+iv.agent+'</td><td>'+iv.team+'</td>';
                 html += '<td class="text-right">'+(iv.sign_on_pct!=null?iv.sign_on_pct+'%':'–')+'</td>';
                 html += '<td class="text-right">'+(iv.prod_pct!=null?iv.prod_pct+'%':'–')+'</td>';
                 html += '<td class="text-right">'+(iv.nach_per_call!=null?iv.nach_per_call:'–')+'</td>';
                 html += '<td class="text-right">'+(iv.idle_pct!=null?iv.idle_pct+'%':'–')+'</td>';
-                html += '<td class="text-right">'+iv.calls+'</td></tr>';
+                html += '<td class="text-right">'+iv.calls+'</td>';
+                html += '<td class="text-right">'+(iv.works_beendet!=null?iv.works_beendet:'–')+'</td></tr>';
             });
             body.innerHTML = html + '</tbody></table>';
         });

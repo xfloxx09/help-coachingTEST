@@ -384,8 +384,8 @@
 
         {% if team_members_performance %}
             {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
-            {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls'} %}
-            {% set prod_vis = prod_visibility or {'sign_on': true, 'prod': true, 'nach': true, 'idle': true, 'calls': true} %}
+            {% set prod_labels = prod_labels or {'sign_on': 'Sign-On', 'prod': 'Produktivität', 'nach': 'Nacharbeit', 'idle': 'Idle', 'calls': 'Calls', 'works': 'Works'} %}
+            {% set prod_vis = prod_visibility or {'sign_on': true, 'prod': true, 'nach': true, 'idle': true, 'calls': true, 'works': true} %}
             {% set prod_tgt = prod_targets or {'target_sign_on': 95, 'target_prod': 85, 'target_nach_per_call': 30, 'target_idle_max': 10} %}
             {% set show_tv_kpi_qual = kpi_features_enabled and can_view_kpi_qualitaet %}
             {% set show_tv_kpi_prod = kpi_features_enabled and can_view_kpi_produktivitaet and has_productivity_data %}
@@ -589,6 +589,21 @@
                                 <span class="kpi-chip kpi-chip-na" style="color:#f8f9fa;background:#4a5560;"
                                       title="{{ member_stat.prod_intervals }} Intervalle">
                                     {{ member_stat.prod_calls|de_decimal(0) }}
+                                </span>
+                                {% else %}
+                                <span class="kpi-chip kpi-chip-na">k.A.</span>
+                                {% endif %}
+                            </div>
+                            </div>
+                            {% endif %}
+                            {% if prod_vis.works %}
+                            <div class="col-6">
+                            <div class="stat-group text-center">
+                                <div class="stat-label">{{ prod_labels.works }}</div>
+                                {% if member_stat.prod_works is not none %}
+                                <span class="kpi-chip kpi-chip-na" style="color:#f8f9fa;background:#4a5560;"
+                                      title="{{ member_stat.prod_intervals }} Intervalle">
+                                    {{ member_stat.prod_works|de_decimal(0) }}
                                 </span>
                                 {% else %}
                                 <span class="kpi-chip kpi-chip-na">k.A.</span>

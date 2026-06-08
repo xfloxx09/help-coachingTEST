@@ -4525,6 +4525,7 @@ def kpi_verwaltung():
                 pset.interval_sec = 1800
             pset.pause_col = (request.form.get('prod_pause_col') or 'IDLE_RC12_Bearbeitung').strip()[:80]
             pset.calls_col = (request.form.get('prod_calls_col') or 'Mex1').strip()[:80]
+            pset.works_col = (request.form.get('prod_works_col') or 'Works_Beendet').strip()[:80]
 
             def _cols_from_form(prefix):
                 return [c.strip() for c in request.form.getlist(prefix) if c.strip()]
@@ -4539,11 +4540,13 @@ def kpi_verwaltung():
             pset.dashboard_show_nach = bool(request.form.get('dashboard_show_nach'))
             pset.dashboard_show_idle = bool(request.form.get('dashboard_show_idle'))
             pset.dashboard_show_calls = bool(request.form.get('dashboard_show_calls'))
+            pset.dashboard_show_works = bool(request.form.get('dashboard_show_works'))
             pset.impact_show_sign_on = bool(request.form.get('impact_show_sign_on'))
             pset.impact_show_prod = bool(request.form.get('impact_show_prod'))
             pset.impact_show_nach = bool(request.form.get('impact_show_nach'))
             pset.impact_show_idle = bool(request.form.get('impact_show_idle'))
             pset.impact_show_calls = bool(request.form.get('impact_show_calls'))
+            pset.impact_show_works = bool(request.form.get('impact_show_works'))
             pset.target_sign_on = _float_form('target_sign_on', 95.0)
             pset.target_prod = _float_form('target_prod', 85.0)
             pset.target_nach_per_call = _float_form('target_nach_per_call', 30.0)
@@ -4553,6 +4556,7 @@ def kpi_verwaltung():
             pset.label_nach = _label_form('label_nach', productivity_logic.DEFAULT_LABELS['nach'])
             pset.label_idle = _label_form('label_idle', productivity_logic.DEFAULT_LABELS['idle'])
             pset.label_calls = _label_form('label_calls', productivity_logic.DEFAULT_LABELS['calls'])
+            pset.label_works = _label_form('label_works', productivity_logic.DEFAULT_LABELS['works'])
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')

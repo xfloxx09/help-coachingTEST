@@ -297,6 +297,10 @@
                             <label class="small text-muted">Calls</label>
                             <input type="text" class="form-control form-control-sm" name="label_calls" maxlength="80" value="{{ prod_settings.labels.calls }}">
                         </div>
+                        <div class="col-md-2 col-6 form-group mb-2">
+                            <label class="small text-muted">Works</label>
+                            <input type="text" class="form-control form-control-sm" name="label_works" maxlength="80" value="{{ prod_settings.labels.works }}">
+                        </div>
                     </div>
                 </div>
                 <div class="form-row mb-3">
@@ -304,13 +308,17 @@
                         <label>Intervall (Sek.)</label>
                         <input type="number" class="form-control form-control-sm" name="prod_interval_sec" value="{{ prod_settings.interval_sec }}">
                     </div>
-                    <div class="col-md-4 form-group">
+                    <div class="col-md-3 form-group">
                         <label>Pause-Spalte</label>
                         <input type="text" class="form-control form-control-sm" name="prod_pause_col" value="{{ prod_settings.pause_col }}">
                     </div>
-                    <div class="col-md-4 form-group">
+                    <div class="col-md-3 form-group">
                         <label>Calls-Spalte</label>
                         <input type="text" class="form-control form-control-sm" name="prod_calls_col" value="{{ prod_settings.calls_col }}">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label>Works-Spalte</label>
+                        <input type="text" class="form-control form-control-sm" name="prod_works_col" value="{{ prod_settings.works_col }}">
                     </div>
                 </div>
                 {% macro col_checks(name, selected) %}
@@ -365,6 +373,10 @@
                     <div class="form-check form-check-inline">
                         <input class="form-check-input" type="checkbox" name="dashboard_show_calls" value="1" {% if prod_dashboard_visibility.calls %}checked{% endif %}>
                         <label class="form-check-label">Calls</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="dashboard_show_works" value="1" {% if prod_dashboard_visibility.works %}checked{% endif %}>
+                        <label class="form-check-label">Works</label>
                     </div>
                 </div>
                 <div class="form-group mb-4">

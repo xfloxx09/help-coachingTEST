@@ -1208,6 +1208,7 @@ def _build_team_members_performance(team):
             'nach_per_call': prod.get('nach_per_call'),
             'idle_pct': prod.get('idle_pct'),
             'prod_calls': prod.get('calls'),
+            'prod_works': prod.get('works'),
             'prod_intervals': prod.get('intervals', 0),
         })
     return team_members_performance
@@ -5886,6 +5887,7 @@ def productivity_day_detail():
             'nach_per_call': r.nach_per_call,
             'idle_pct': r.idle_pct,
             'calls': r.calls,
+            'works_beendet': r.works_beendet,
         })
     return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'intervals': out})
 
@@ -6037,6 +6039,7 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
             'prod_pct': prod_sm['prod_pct'] if prod_sm else None,
             'nach_per_call': prod_sm['nach_per_call'] if prod_sm else None,
             'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
+            'works': prod_sm['works'] if prod_sm else None,
             'coachings': cb['count'],
             'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
             'coaching_time': cb['time'] or 0,

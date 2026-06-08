@@ -873,12 +873,29 @@ def create_app(config_class=Config):
                 ('label_nach', 'Nacharbeit'),
                 ('label_idle', 'Idle'),
                 ('label_calls', 'Calls'),
+                ('label_works', 'Works'),
             ):
                 if col not in pps_cols:
                     try:
                         conn.execute(text(
                             f"ALTER TABLE project_productivity_settings ADD COLUMN {col} "
                             f"VARCHAR(80) NOT NULL DEFAULT '{default}'"
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'project_productivity_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ project_productivity_settings.{col}: {e}")
+            pps_cols = [c['name'] for c in inspect(db.engine).get_columns('project_productivity_settings')]
+            for col, ddl in (
+                ('works_col', "VARCHAR(80) NOT NULL DEFAULT 'Works_Beendet'"),
+                ('dashboard_show_works', 'BOOLEAN NOT NULL DEFAULT true'),
+                ('impact_show_works', 'BOOLEAN NOT NULL DEFAULT false'),
+            ):
+                if col not in pps_cols:
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE project_productivity_settings ADD COLUMN {col} {ddl}"
                         ))
                         conn.commit()
                         print(f"✅ Spalte '{col}' zu 'project_productivity_settings' hinzugefügt.")

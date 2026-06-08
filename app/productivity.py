@@ -12,7 +12,7 @@ DEFAULT_NACH_COLS = ['CF_IB_Nacharbeit']
 DEFAULT_IDLE_COLS = ['IDLE']
 DEFAULT_PAUSE_COL = 'IDLE_RC12_Bearbeitung'
 DEFAULT_CALLS_COL = 'Mex1'
-DEFAULT_WORKS_BEENDET_COL = 'Works_Beendet'
+DEFAULT_WORKS_COL = 'Works_Beendet'
 
 DEFAULT_LABELS = {
     'sign_on': 'Sign-On',
@@ -20,6 +20,7 @@ DEFAULT_LABELS = {
     'nach': 'Nacharbeit',
     'idle': 'Idle',
     'calls': 'Calls',
+    'works': 'Works',
 }
 
 META_COLS = frozenset({
@@ -50,6 +51,7 @@ def labels_dict(row):
         'nach': (row.label_nach or DEFAULT_LABELS['nach']).strip(),
         'idle': (row.label_idle or DEFAULT_LABELS['idle']).strip(),
         'calls': (row.label_calls or DEFAULT_LABELS['calls']).strip(),
+        'works': (row.label_works or DEFAULT_LABELS['works']).strip(),
     }
 
 
@@ -59,6 +61,7 @@ def settings_dict(row):
         'interval_sec': (row.interval_sec if row else INTERVAL_DEFAULT) or INTERVAL_DEFAULT,
         'pause_col': (row.pause_col if row else DEFAULT_PAUSE_COL) or DEFAULT_PAUSE_COL,
         'calls_col': (row.calls_col if row else DEFAULT_CALLS_COL) or DEFAULT_CALLS_COL,
+        'works_col': (row.works_col if row else DEFAULT_WORKS_COL) or DEFAULT_WORKS_COL,
         'sign_on_cols': _json_list(row.sign_on_cols if row else None, DEFAULT_SIGN_ON_COLS),
         'prod_cols': _json_list(row.prod_cols if row else None, DEFAULT_PROD_COLS),
         'nach_cols': _json_list(row.nach_cols if row else None, DEFAULT_NACH_COLS),
@@ -75,7 +78,7 @@ def settings_dict(row):
 def dashboard_visibility_dict(row):
     if row is None:
         return {
-            'sign_on': True, 'prod': True, 'nach': True, 'idle': True, 'calls': True,
+            'sign_on': True, 'prod': True, 'nach': True, 'idle': True, 'calls': True, 'works': True,
         }
     return {
         'sign_on': row.dashboard_show_sign_on,
@@ -83,13 +86,14 @@ def dashboard_visibility_dict(row):
         'nach': row.dashboard_show_nach,
         'idle': row.dashboard_show_idle,
         'calls': row.dashboard_show_calls,
+        'works': row.dashboard_show_works,
     }
 
 
 def impact_visibility_dict(row):
     if row is None:
         return {
-            'sign_on': True, 'prod': True, 'nach': True, 'idle': True, 'calls': False,
+            'sign_on': True, 'prod': True, 'nach': True, 'idle': True, 'calls': False, 'works': False,
         }
     return {
         'sign_on': row.impact_show_sign_on,
@@ -97,6 +101,7 @@ def impact_visibility_dict(row):
         'nach': row.impact_show_nach,
         'idle': row.impact_show_idle,
         'calls': row.impact_show_calls,
+        'works': row.impact_show_works,
     }
 
 
@@ -111,6 +116,19 @@ def parse_german_num(value):
         return float(s)
     except ValueError:
         return 0.0
+
+
+def row_column_val(row, col_name):
+    """Read a CSV row cell; match column name case-insensitively."""
+    if not col_name:
+        return None
+    if col_name in row:
+        return row.get(col_name)
+    col_lower = col_name.lower()
+    for key, val in row.items():
+        if key and key.lower() == col_lower:
+            return val
+    return None
 
 
 def combine_datum_zeit(row):
@@ -191,6 +209,9 @@ def active_metric_columns(settings, metric_key):
     elif metric_key == 'calls':
         col = settings.get('calls_col')
         return [col] if col and col not in excluded else []
+    elif metric_key == 'works':
+        col = settings.get('works_col')
+        return [col] if col and col not in excluded else []
     else:
         return []
     return [c for c in cols if c not in excluded]
@@ -216,6 +237,7 @@ def merge_rows_to_slot(rows, settings):
     excluded = set(settings['excluded_cols'])
     pause_col = settings['pause_col']
     calls_col = settings['calls_col']
+    works_col = settings.get('works_col') or DEFAULT_WORKS_COL
     has_pause = pause_col not in excluded
 
     acc = {
@@ -251,9 +273,9 @@ def merge_rows_to_slot(rows, settings):
         if has_pause and pause_col in row:
             acc['pause'] += parse_german_num(row.get(pause_col))
         if calls_col not in excluded:
-            acc['calls'] += parse_german_num(row.get(calls_col))
-        if DEFAULT_WORKS_BEENDET_COL not in excluded:
-            acc['works_beendet'] += parse_german_num(row.get(DEFAULT_WORKS_BEENDET_COL))
+            acc['calls'] += parse_german_num(row_column_val(row, calls_col))
+        if works_col not in excluded:
+            acc['works_beendet'] += parse_german_num(row_column_val(row, works_col))
 
     pause_sec = acc['pause']
     kpi_denom = kpi_interval_sec(interval_sec, pause_sec, has_pause)
@@ -355,7 +377,7 @@ def _iv_val(obj, key, default=None):
 def aggregate_summary(intervals):
     """Weighted summary from interval rows (list of dicts or ORM objects)."""
     total_interval = total_kpi_denom = 0.0
-    sign_on_sum = prod_sum = nach_sum = idle_sum = calls_sum = 0.0
+    sign_on_sum = prod_sum = nach_sum = idle_sum = calls_sum = works_sum = 0.0
     count = 0
     nach_per_call_vals = []
 
@@ -370,6 +392,7 @@ def aggregate_summary(intervals):
         nach_sum += _iv_val(iv, 'nach_sec', 0)
         idle_sum += _iv_val(iv, 'idle_sec', 0)
         calls_sum += _iv_val(iv, 'calls', 0)
+        works_sum += _iv_val(iv, 'works_beendet', 0)
         npc = _iv_val(iv, 'nach_per_call')
         if npc is not None:
             nach_per_call_vals.append(npc)
@@ -384,6 +407,7 @@ def aggregate_summary(intervals):
         'nach_pct': round(nach_sum / total_kpi_denom * 100, 2) if total_kpi_denom else None,
         'idle_pct': round(idle_sum / total_interval * 100, 2) if total_interval else None,
         'calls': round(calls_sum, 1),
+        'works': round(works_sum, 1),
         'nach_per_call': (
             round(sum(nach_per_call_vals) / len(nach_per_call_vals), 2) if nach_per_call_vals else None
         ),
@@ -421,6 +445,7 @@ def aggregate_daily(intervals, start_date=None, end_date=None):
                 'idle_pct': sm['idle_pct'] if sm else None,
                 'nach_per_call': sm['nach_per_call'] if sm else None,
                 'calls': sm['calls'] if sm else None,
+                'works': sm['works'] if sm else None,
             }
             daily.append(entry)
             if rows:
@@ -440,6 +465,7 @@ def aggregate_daily(intervals, start_date=None, end_date=None):
                 'idle_pct': sm['idle_pct'],
                 'nach_per_call': sm['nach_per_call'],
                 'calls': sm['calls'],
+                'works': sm['works'],
             }
             daily.append(entry)
             chart_daily.append(entry)
@@ -454,7 +480,7 @@ def cumulative_chart_daily(chart_daily):
     acc = {
         'interval_sec': 0.0, 'kpi_denom': 0.0,
         'sign_on_sec': 0.0, 'prod_sec': 0.0, 'nach_sec': 0.0, 'idle_sec': 0.0,
-        'calls': 0.0, 'nach_weighted': 0.0, 'nach_calls': 0.0,
+        'calls': 0.0, 'nach_weighted': 0.0, 'nach_calls': 0.0, 'works': 0.0,
     }
     out = []
     for d in chart_daily:
@@ -479,6 +505,7 @@ def cumulative_chart_daily(chart_daily):
                 round(acc['nach_weighted'] / acc['nach_calls'], 2) if acc['nach_calls'] else d.get('nach_per_call')
             ),
             'calls': d.get('calls'),
+            'works': d.get('works'),
         })
     return out
 
@@ -491,7 +518,7 @@ def cumulative_from_intervals(intervals, start_date, end_date):
     )
     acc_isec = acc_kden = 0.0
     acc_sign = acc_prod = acc_nach = acc_idle = 0.0
-    acc_nach_sec = acc_calls = 0.0
+    acc_nach_sec = acc_calls = acc_works = 0.0
     by_day = {}
     for iv in sorted_ivs:
         slot = iv.slot_at if hasattr(iv, 'slot_at') else iv['slot_at']
@@ -512,6 +539,7 @@ def cumulative_from_intervals(intervals, start_date, end_date):
         acc_idle += _iv_val(iv, 'idle_sec', 0)
         acc_nach_sec += _iv_val(iv, 'nach_sec', 0)
         acc_calls += _iv_val(iv, 'calls', 0)
+        acc_works += _iv_val(iv, 'works_beendet', 0)
         by_day[d] = {
             'date': d.strftime('%Y-%m-%d'),
             'label': d.strftime('%d.%m.'),
@@ -522,6 +550,7 @@ def cumulative_from_intervals(intervals, start_date, end_date):
             'idle_pct': round(acc_idle / acc_isec * 100, 2) if acc_isec else None,
             'nach_per_call': round(acc_nach_sec / acc_calls, 2) if acc_calls else None,
             'calls': round(acc_calls, 1),
+            'works': round(acc_works, 1),
         }
     if start_date and end_date:
         result = []
@@ -540,6 +569,7 @@ def cumulative_from_intervals(intervals, start_date, end_date):
                     'idle_pct': 0,
                     'nach_per_call': 0,
                     'calls': 0,
+                    'works': 0,
                 })
             cur += timedelta(days=1)
         return result
@@ -574,7 +604,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
     )
     acc_isec = acc_kden = 0.0
     acc_sign = acc_prod = acc_nach = acc_idle = 0.0
-    acc_nach_sec = acc_calls = 0.0
+    acc_nach_sec = acc_calls = acc_works = 0.0
     idx = 0
     chart_daily = []
     daily = []
@@ -600,6 +630,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
             acc_idle += _iv_val(iv, 'idle_sec', 0)
             acc_nach_sec += _iv_val(iv, 'nach_sec', 0)
             acc_calls += _iv_val(iv, 'calls', 0)
+            acc_works += _iv_val(iv, 'works_beendet', 0)
             idx += 1
 
         if period_count > 0:
@@ -613,6 +644,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'idle_pct': round(acc_idle / acc_isec * 100, 2) if acc_isec else 0,
                 'nach_per_call': round(acc_nach_sec / acc_calls, 2) if acc_calls else 0,
                 'calls': round(acc_calls, 1),
+                'works': round(acc_works, 1),
             })
         else:
             chart_daily.append({
@@ -625,6 +657,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'idle_pct': 0,
                 'nach_per_call': 0,
                 'calls': 0,
+                'works': 0,
             })
 
         period_ivs = []
@@ -647,6 +680,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'idle_pct': sm['idle_pct'],
                 'nach_per_call': sm['nach_per_call'],
                 'calls': sm['calls'],
+                'works': sm['works'],
             })
         else:
             daily.append({
@@ -659,12 +693,13 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'idle_pct': None,
                 'nach_per_call': None,
                 'calls': None,
+                'works': None,
             })
 
     return chart_daily, daily
 
 
-def _totals_entry(day, count, isec, kden, sign, prod, nach, idle, calls):
+def _totals_entry(day, count, isec, kden, sign, prod, nach, idle, calls, works=0):
     isec = float(isec or 0)
     kden = float(kden or isec or 0)
     return {
@@ -677,6 +712,7 @@ def _totals_entry(day, count, isec, kden, sign, prod, nach, idle, calls):
         'nach': float(nach or 0),
         'idle': float(idle or 0),
         'calls': float(calls or 0),
+        'works': float(works or 0),
     }
 
 
@@ -691,6 +727,7 @@ def _row_metrics_from_totals(totals, cumulative=False):
         'idle_pct': round(totals['idle'] / isec * 100, 2) if isec else empty,
         'nach_per_call': round(totals['nach'] / totals['calls'], 2) if totals['calls'] else empty,
         'calls': round(totals['calls'], 1),
+        'works': round(totals['works'], 1),
     }
 
 
@@ -709,13 +746,14 @@ def query_interval_summary_sql(filters):
             func.sum(ProductivityInterval.nach_sec),
             func.sum(ProductivityInterval.idle_sec),
             func.sum(ProductivityInterval.calls),
+            func.sum(ProductivityInterval.works_beendet),
         )
         .filter(*filters)
         .one()
     )
     if not row[0]:
         return None
-    totals = _totals_entry(None, row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+    totals = _totals_entry(None, row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8])
     return {'intervals': totals['count'], **_row_metrics_from_totals(totals)}
 
 
@@ -736,6 +774,7 @@ def query_daily_buckets_sql(filters):
             func.sum(ProductivityInterval.nach_sec),
             func.sum(ProductivityInterval.idle_sec),
             func.sum(ProductivityInterval.calls),
+            func.sum(ProductivityInterval.works_beendet),
         )
         .filter(*filters)
         .group_by(day_col)
@@ -743,13 +782,16 @@ def query_daily_buckets_sql(filters):
         .all()
     )
     return [
-        _totals_entry(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8])
+        _totals_entry(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9])
         for r in rows if r[0] is not None
     ]
 
 
 def _sum_buckets(buckets):
-    out = {'count': 0, 'isec': 0.0, 'kden': 0.0, 'sign': 0.0, 'prod': 0.0, 'nach': 0.0, 'idle': 0.0, 'calls': 0.0}
+    out = {
+        'count': 0, 'isec': 0.0, 'kden': 0.0, 'sign': 0.0, 'prod': 0.0,
+        'nach': 0.0, 'idle': 0.0, 'calls': 0.0, 'works': 0.0,
+    }
     for b in buckets:
         if not b:
             continue
@@ -761,6 +803,7 @@ def _sum_buckets(buckets):
         out['nach'] += b['nach']
         out['idle'] += b['idle']
         out['calls'] += b['calls']
+        out['works'] += b['works']
     return out
 
 
@@ -809,7 +852,7 @@ def build_dashboard_series_from_buckets(
                     'label': cur.strftime('%d.%m.'),
                     'count': 0,
                     'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
-                    'nach_per_call': 0, 'calls': 0,
+                    'nach_per_call': 0, 'calls': 0, 'works': 0,
                 })
             cur += timedelta(days=1)
     else:
@@ -848,6 +891,6 @@ def build_dashboard_series_from_buckets(
                 'label': period['label'],
                 'count': 0,
                 'sign_on_pct': None, 'prod_pct': None, 'nach_pct': None, 'idle_pct': None,
-                'nach_per_call': None, 'calls': None,
+                'nach_per_call': None, 'calls': None, 'works': None,
             })
     return chart_daily, daily
