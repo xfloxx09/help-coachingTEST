@@ -6208,8 +6208,26 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
     return overlay
 
 
+def _coaching_impact_coaches_in_scope(coaching_filters):
+    """Distinct coaches who performed coachings matching scope filters (excludes coach filter)."""
+    coach_ids_q = (
+        db.session.query(Coaching.coach_id)
+        .filter(*coaching_filters)
+        .filter(Coaching.coach_id.isnot(None))
+        .distinct()
+    )
+    users = (
+        User.query.options(selectinload(User.team_members))
+        .filter(User.id.in_(coach_ids_q))
+        .all()
+    )
+    coaches = [{'id': u.id, 'name': u.coach_display_name or u.username or '—'} for u in users]
+    coaches.sort(key=lambda c: (c['name'] or '').lower())
+    return coaches
+
+
 def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_base, coaching_base,
-                                   prod_base, projects, teams, members):
+                                   prod_base, projects, teams, members, sel_coach=None):
     """Build scoped KPI/coaching/productivity filters; return None if selection incomplete."""
     selection_made = (
         (mode == 'project' and sel_project) or
@@ -6239,6 +6257,8 @@ def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_
         coaching_filters.append(Coaching.project_id == sel_project)
         prod_filters.append(ProductivityInterval.project_id == sel_project)
         scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+    if sel_coach:
+        coaching_filters.append(Coaching.coach_id == sel_coach)
     return {
         'kpi_filters': kpi_filters,
         'coaching_filters': coaching_filters,
@@ -6264,13 +6284,24 @@ def coaching_impact_activity_map():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
+    sel_coach = request.args.get('coach_id', type=int)
 
+    scope_base = _coaching_impact_scope_filters(
+        mode, sel_project, sel_team, sel_member, kpi_base, coaching_base, prod_base,
+        [], [], [], sel_coach=None,
+    )
+    if scope_base is None:
+        return jsonify({'error': 'Bitte zuerst Projekt, Team oder Agent wählen.'}), 400
+    valid_coach_ids = {c['id'] for c in _coaching_impact_coaches_in_scope(scope_base['coaching_filters'])}
+    if sel_coach and sel_coach not in valid_coach_ids:
+        sel_coach = None
     scope = _coaching_impact_scope_filters(
         mode, sel_project, sel_team, sel_member, kpi_base, coaching_base, prod_base,
-        [], [], [],
+        [], [], [], sel_coach=sel_coach,
     )
-    if scope is None:
-        return jsonify({'error': 'Bitte zuerst Projekt, Team oder Agent wählen.'}), 400
+
+    show_surveys = can_view_kpi_qualitaet(current_user)
+    show_prod_perm = can_view_kpi_produktivitaet(current_user)
 
     coach_rows = (
         db.session.query(
@@ -6281,24 +6312,28 @@ def coaching_impact_activity_map():
         .group_by(cast(Coaching.coaching_date, Date))
         .all()
     )
-    survey_rows = (
-        db.session.query(
-            KpiSurvey.antwort_date,
-            func.count(KpiSurvey.id),
+    survey_rows = []
+    if show_surveys:
+        survey_rows = (
+            db.session.query(
+                KpiSurvey.antwort_date,
+                func.count(KpiSurvey.id),
+            )
+            .filter(*scope['kpi_filters'])
+            .group_by(KpiSurvey.antwort_date)
+            .all()
         )
-        .filter(*scope['kpi_filters'])
-        .group_by(KpiSurvey.antwort_date)
-        .all()
-    )
-    prod_rows = (
-        db.session.query(
-            cast(ProductivityInterval.slot_at, Date),
-            func.count(ProductivityInterval.id),
+    prod_rows = []
+    if show_prod_perm:
+        prod_rows = (
+            db.session.query(
+                cast(ProductivityInterval.slot_at, Date),
+                func.count(ProductivityInterval.id),
+            )
+            .filter(*scope['prod_filters'])
+            .group_by(cast(ProductivityInterval.slot_at, Date))
+            .all()
         )
-        .filter(*scope['prod_filters'])
-        .group_by(cast(ProductivityInterval.slot_at, Date))
-        .all()
-    )
 
     by_date = {}
     for d, cnt in coach_rows:
@@ -6320,7 +6355,8 @@ def coaching_impact_activity_map():
         by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
         by_date[key]['productivity'] = int(cnt)
 
-    has_productivity = any(v['productivity'] > 0 for v in by_date.values())
+    has_productivity = show_prod_perm and any(v['productivity'] > 0 for v in by_date.values())
+    show_productivity = has_productivity
 
     if not by_date:
         return jsonify({
@@ -6328,7 +6364,8 @@ def coaching_impact_activity_map():
             'min_date': None,
             'max_date': None,
             'default_window': kpi_logic.coaching_impact_window_days(),
-            'show_productivity': has_productivity,
+            'show_surveys': show_surveys,
+            'show_productivity': show_productivity,
         })
 
     dates = sorted(by_date.keys())
@@ -6346,9 +6383,9 @@ def coaching_impact_activity_map():
             'date': key,
             'label': cur.strftime('%d.%m.'),
             'coachings': bucket['coachings'],
-            'surveys': bucket['surveys'],
-            'productivity': bucket['productivity'],
-            'has_productivity': bucket['productivity'] > 0,
+            'surveys': bucket['surveys'] if show_surveys else 0,
+            'productivity': bucket['productivity'] if show_prod_perm else 0,
+            'has_productivity': bool(show_prod_perm and bucket['productivity'] > 0),
         })
         cur += timedelta(days=1)
 
@@ -6360,7 +6397,8 @@ def coaching_impact_activity_map():
         'min_date': pad_start.isoformat(),
         'max_date': pad_end.isoformat(),
         'default_window': default_window,
-        'show_productivity': has_productivity,
+        'show_surveys': show_surveys,
+        'show_productivity': show_productivity,
     })
 
 
@@ -6402,6 +6440,7 @@ def coaching_impact():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
+    sel_coach = request.args.get('coach_id', type=int)
 
     team_filters = list(kpi_base)
     if sel_project:
@@ -6497,6 +6536,7 @@ def coaching_impact():
     }
     visible_prod = productivity_logic.impact_visibility_dict(None)
     prod_labels = productivity_logic.labels_dict(None)
+    coaches = []
 
     if selection_made:
         # KPI active filters (scope + mode + date)
@@ -6519,6 +6559,16 @@ def coaching_impact():
             kpi_filters.append(KpiSurvey.project_id == sel_project)
             coaching_filters.append(Coaching.project_id == sel_project)
             scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+
+        coaches = _coaching_impact_coaches_in_scope(coaching_filters)
+        valid_coach_ids = {c['id'] for c in coaches}
+        if sel_coach and sel_coach not in valid_coach_ids:
+            sel_coach = None
+        if sel_coach:
+            coaching_filters.append(Coaching.coach_id == sel_coach)
+            coach_name = next((c['name'] for c in coaches if c['id'] == sel_coach), None)
+            if coach_name:
+                scope_label = scope_label + ' · ' + coach_name
 
         kpi_range_filters = list(kpi_filters)
         if start_date:
@@ -6697,6 +6747,8 @@ def coaching_impact():
         sel_project=sel_project,
         sel_team=sel_team,
         sel_member=sel_member,
+        sel_coach=sel_coach,
+        coaches=coaches,
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
@@ -6741,6 +6793,7 @@ def coaching_impact_day():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
+    sel_coach = request.args.get('coach_id', type=int)
 
     filters.append(cast(Coaching.coaching_date, Date) == day)
     if mode == 'agent' and sel_member:
@@ -6749,6 +6802,8 @@ def coaching_impact_day():
         filters.append(Coaching.team_id == sel_team)
     elif mode == 'project' and sel_project:
         filters.append(Coaching.project_id == sel_project)
+    if sel_coach:
+        filters.append(Coaching.coach_id == sel_coach)
 
     coachings = (
         Coaching.query.options(

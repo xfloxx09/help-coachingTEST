@@ -538,6 +538,18 @@
                     {% endfor %}
                 </select>
             </div>
+
+            {% if selection_made and coaches %}
+            <div class="ci-filter-item">
+                <div class="ci-mini-label mb-1">coach</div>
+                <select name="coach_id" class="form-control form-control-sm ci-auto">
+                    <option value="">Alle Coaches</option>
+                    {% for c in coaches %}
+                    <option value="{{ c.id }}" {% if sel_coach == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
         </div>
 
         {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
@@ -878,6 +890,9 @@
         var presetsWrap = document.getElementById('ciWzPresetsWrap');
         var periodPresets = document.getElementById('ciWzPeriodPresets');
         var windowPresets = document.getElementById('ciWzWindowPresets');
+        var wzHelpEl = document.getElementById('ciWzHelp');
+        var wzSubtitleEl = document.getElementById('ciWzSubtitle');
+        var wzEmptyDefault = 'Keine Coachings in dieser Auswahl.';
 
         var state = {
             days: [],
@@ -890,8 +905,35 @@
             dragOrigEnd: 0,
             anchorIdx: -1,
             pointer: null,
+            showSurveys: {{ (can_view_kpi_qualitaet or false)|tojson }},
             showProductivity: false,
         };
+
+        function syncWizardVisibility() {
+            var surveyLegend = document.querySelector('.ci-wz-legend-survey-wrap');
+            var prodLegend = document.querySelector('.ci-wz-legend-prod-wrap');
+            if (surveyLegend) surveyLegend.classList.toggle('d-none', !state.showSurveys);
+            if (prodLegend) prodLegend.classList.toggle('d-none', !state.showProductivity);
+            var dayBits = ['<strong>C</strong> Coachings'];
+            var subtitleBits = ['Coachings'];
+            if (state.showSurveys) {
+                dayBits.push('<strong>B</strong> Bewertungen');
+                subtitleBits.push('Bewertungen');
+            }
+            if (state.showProductivity) {
+                dayBits.push('<strong>P</strong> Prod.-Rohdaten (Ja/Nein)');
+                subtitleBits.push('Prod.-Rohdaten');
+            }
+            if (wzSubtitleEl) {
+                wzSubtitleEl.textContent = 'Pro Tag: ' + subtitleBits.join(' · ') + ' — Timeline ziehen oder Schnellauswahl';
+            }
+            if (wzHelpEl) {
+                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> Jeder Tag zeigt '
+                    + dayBits.join(', ')
+                    + '. Auf Timeline <strong>ziehen</strong> = Zeitraum · <strong>Ränder</strong> = vergrößern/verkleinern';
+            }
+        }
+        syncWizardVisibility();
 
         function buildDayRow(iconClass, value, rowClass, empty) {
             var row = document.createElement('div');
@@ -907,7 +949,9 @@
         function lastActivityIdx() {
             for (var i = state.days.length - 1; i >= 0; i--) {
                 var d = state.days[i];
-                if (d.coachings || d.surveys || (state.showProductivity && d.has_productivity)) return i;
+                if (d.coachings
+                    || (state.showSurveys && d.surveys)
+                    || (state.showProductivity && d.has_productivity)) return i;
             }
             return state.days.length - 1;
         }
@@ -1005,12 +1049,14 @@
                     'ci-wz-day-row--coach',
                     !day.coachings
                 ));
-                rows.appendChild(buildDayRow(
-                    'fas fa-star',
-                    day.surveys || '–',
-                    'ci-wz-day-row--survey',
-                    !day.surveys
-                ));
+                if (state.showSurveys) {
+                    rows.appendChild(buildDayRow(
+                        'fas fa-star',
+                        day.surveys || '–',
+                        'ci-wz-day-row--survey',
+                        !day.surveys
+                    ));
+                }
                 if (state.showProductivity) {
                     rows.appendChild(buildDayRow(
                         'fas fa-chart-line',
@@ -1027,9 +1073,11 @@
                     parts.push(day.coachings
                         ? day.coachings + ' Coaching' + (day.coachings === 1 ? '' : 's')
                         : 'Keine Coachings');
-                    parts.push(day.surveys
-                        ? day.surveys + ' Bewertung' + (day.surveys === 1 ? '' : 'en')
-                        : 'Keine Bewertungen');
+                    if (state.showSurveys) {
+                        parts.push(day.surveys
+                            ? day.surveys + ' Bewertung' + (day.surveys === 1 ? '' : 'en')
+                            : 'Keine Bewertungen');
+                    }
                     if (state.showProductivity) {
                         parts.push(day.has_productivity
                             ? 'Prod.-Rohdaten vorhanden'
@@ -1108,10 +1156,11 @@
             var coach = 0, surv = 0, prodDays = 0;
             for (var i = state.startIdx; i <= state.endIdx; i++) {
                 coach += state.days[i].coachings || 0;
-                surv += state.days[i].surveys || 0;
+                if (state.showSurveys) surv += state.days[i].surveys || 0;
                 if (state.showProductivity && state.days[i].has_productivity) prodDays++;
             }
-            var countParts = [coach + ' Coaching(s)', surv + ' Bewertung(en)'];
+            var countParts = [coach + ' Coaching(s)'];
+            if (state.showSurveys) countParts.push(surv + ' Bewertung(en)');
             if (state.showProductivity) {
                 countParts.push(prodDays + ' Tag' + (prodDays === 1 ? '' : 'e') + ' mit Prod.-Rohdaten');
             }
@@ -1318,14 +1367,15 @@
                         return;
                     }
                     if (!data.days || !data.days.length) {
+                        emptyEl.textContent = wzEmptyDefault;
                         emptyEl.classList.remove('d-none');
                         return;
                     }
                     state.days = data.days;
+                    state.showSurveys = !!data.show_surveys;
                     state.showProductivity = !!data.show_productivity;
                     state.windowDays = parseInt(windowInput.value, 10) || data.default_window || 14;
-                    var prodLegend = document.querySelector('.ci-wz-legend-prod-wrap');
-                    if (prodLegend) prodLegend.classList.toggle('d-none', !state.showProductivity);
+                    syncWizardVisibility();
                     pickDefaultRange();
                     renderDays();
                     updateUI();
@@ -1364,7 +1414,14 @@
     })();
 
     document.querySelectorAll('.ci-auto').forEach(function (sel) {
-        sel.addEventListener('change', function () { ciUpdateWizardButtonState(); form.submit(); });
+        sel.addEventListener('change', function () {
+            if (sel.name !== 'coach_id') {
+                var coachSel = form.querySelector('[name=coach_id]');
+                if (coachSel) coachSel.value = '';
+            }
+            ciUpdateWizardButtonState();
+            form.submit();
+        });
     });
 
     var overlay = {{ overlay|tojson }};
@@ -1668,6 +1725,7 @@
         project_id: {{ (sel_project or '')|tojson }},
         team_id: {{ (sel_team or '')|tojson }},
         member_id: {{ (sel_member or '')|tojson }},
+        coach_id: {{ (sel_coach or '')|tojson }},
     };
 
     window.openCiDay = function (dateStr) {
@@ -1720,6 +1778,7 @@
         if (modalParams.project_id) q.set('project_id', modalParams.project_id);
         if (modalParams.team_id) q.set('team_id', modalParams.team_id);
         if (modalParams.member_id) q.set('member_id', modalParams.member_id);
+        if (modalParams.coach_id) q.set('coach_id', modalParams.coach_id);
 
         var body = document.getElementById('ciDayModalBody');
         var kindEl = document.getElementById('ciDayModalKind');
