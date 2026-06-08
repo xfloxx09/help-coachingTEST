@@ -5,7 +5,7 @@
             <div class="modal-header border-0 pb-0 ci-wz-header">
                 <div>
                     <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Zeitraum &amp; Wirkungsfenster</h5>
-                    <p class="text-muted small mb-0">Timeline ziehen oder Schnellauswahl · Klick wählt einen Tag</p>
+                    <p class="text-muted small mb-0">Pro Tag: Coachings · Bewertungen · Prod.-Rohdaten — Timeline ziehen oder Schnellauswahl</p>
                 </div>
                 <div class="ci-wz-presets-wrap d-none" id="ciWzPresetsWrap">
                     <div class="ci-wz-preset-group">
@@ -34,8 +34,9 @@
             </div>
             <div class="modal-body pt-2">
                 <div class="ci-wz-legend mb-2">
-                    <span><i class="fas fa-chalkboard-teacher ci-wz-legend-coach"></i> Coachings</span>
-                    <span><i class="fas fa-star ci-wz-legend-survey"></i> Bewertungen</span>
+                    <span><i class="fas fa-chalkboard-teacher ci-wz-legend-coach"></i> C = Coachings</span>
+                    <span><i class="fas fa-star ci-wz-legend-survey"></i> B = Bewertungen</span>
+                    <span class="ci-wz-legend-prod-wrap"><i class="fas fa-chart-line ci-wz-legend-prod"></i> P = Prod. Rohdaten</span>
                     <span class="ci-wz-legend-sel"><span></span> Zeitraum</span>
                     <span class="ci-wz-legend-impact"><span></span> Wirkungsfenster</span>
                 </div>
@@ -44,12 +45,12 @@
                     <i class="fas fa-spinner fa-spin mr-1"></i> Timeline wird geladen…
                 </div>
                 <div class="ci-wz-empty text-center py-5 text-muted d-none" id="ciWzEmpty">
-                    Keine Coachings oder Bewertungen in dieser Auswahl.
+                    Keine Coachings, Bewertungen oder Produktivitätsdaten in dieser Auswahl.
                 </div>
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
                     <p class="ci-wz-help small text-muted mb-2">
-                        <i class="fas fa-hand-pointer mr-1"></i> Auf Timeline <strong>ziehen</strong> = Zeitraum wählen · <strong>Ränder</strong> ziehen = vergrößern/verkleinern · Griff oben = verschieben
+                        <i class="fas fa-hand-pointer mr-1"></i> Jeder Tag zeigt <strong>C</strong> Coachings, <strong>B</strong> Bewertungen und <strong>P</strong> Prod.-Rohdaten (Ja/Nein). Auf Timeline <strong>ziehen</strong> = Zeitraum · <strong>Ränder</strong> = vergrößern/verkleinern
                     </p>
                     <div class="ci-wz-scroll" id="ciWzScroll">
                         <div class="ci-wz-track" id="ciWzTrack">

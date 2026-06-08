@@ -6191,8 +6191,8 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
 
 
 def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_base, coaching_base,
-                                   projects, teams, members):
-    """Build scoped KPI/coaching filters; return None if selection incomplete."""
+                                   prod_base, projects, teams, members):
+    """Build scoped KPI/coaching/productivity filters; return None if selection incomplete."""
     selection_made = (
         (mode == 'project' and sel_project) or
         (mode == 'team' and sel_team) or
@@ -6204,22 +6204,27 @@ def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_
     kpi_filters = list(kpi_base)
     kpi_filters.extend(_kpi_source_filter(active_project_id))
     coaching_filters = list(coaching_base)
+    prod_filters = list(prod_base)
     scope_label = ''
     if mode == 'agent' and sel_member:
         kpi_filters.append(KpiSurvey.team_member_id == sel_member)
         coaching_filters.append(Coaching.team_member_id == sel_member)
+        prod_filters.append(ProductivityInterval.team_member_id == sel_member)
         scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
     elif mode == 'team' and sel_team:
         kpi_filters.append(KpiSurvey.team_id == sel_team)
         coaching_filters.append(Coaching.team_id == sel_team)
+        prod_filters.append(ProductivityInterval.team_id == sel_team)
         scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
     elif mode == 'project' and sel_project:
         kpi_filters.append(KpiSurvey.project_id == sel_project)
         coaching_filters.append(Coaching.project_id == sel_project)
+        prod_filters.append(ProductivityInterval.project_id == sel_project)
         scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
     return {
         'kpi_filters': kpi_filters,
         'coaching_filters': coaching_filters,
+        'prod_filters': prod_filters,
         'scope_label': scope_label,
         'active_project_id': active_project_id,
     }
@@ -6235,6 +6240,7 @@ def coaching_impact_activity_map():
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
     kpi_base = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
     coaching_base = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
+    prod_base = _prod_base_filters(accessible, sees_all_teams, my_team_ids)
 
     mode = (request.args.get('mode') or 'project').strip()
     sel_project = request.args.get('project_id', type=int)
@@ -6242,7 +6248,7 @@ def coaching_impact_activity_map():
     sel_member = request.args.get('member_id', type=int)
 
     scope = _coaching_impact_scope_filters(
-        mode, sel_project, sel_team, sel_member, kpi_base, coaching_base,
+        mode, sel_project, sel_team, sel_member, kpi_base, coaching_base, prod_base,
         [], [], [],
     )
     if scope is None:
@@ -6266,20 +6272,37 @@ def coaching_impact_activity_map():
         .group_by(KpiSurvey.antwort_date)
         .all()
     )
+    prod_rows = (
+        db.session.query(
+            cast(ProductivityInterval.slot_at, Date),
+            func.count(ProductivityInterval.id),
+        )
+        .filter(*scope['prod_filters'])
+        .group_by(cast(ProductivityInterval.slot_at, Date))
+        .all()
+    )
 
     by_date = {}
     for d, cnt in coach_rows:
         if d is None:
             continue
         key = d.isoformat()
-        by_date.setdefault(key, {'coachings': 0, 'surveys': 0})
+        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
         by_date[key]['coachings'] = int(cnt)
     for d, cnt in survey_rows:
         if d is None:
             continue
         key = d.isoformat()
-        by_date.setdefault(key, {'coachings': 0, 'surveys': 0})
+        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
         by_date[key]['surveys'] = int(cnt)
+    for d, cnt in prod_rows:
+        if d is None:
+            continue
+        key = d.isoformat()
+        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
+        by_date[key]['productivity'] = int(cnt)
+
+    has_productivity = any(v['productivity'] > 0 for v in by_date.values())
 
     if not by_date:
         return jsonify({
@@ -6287,6 +6310,7 @@ def coaching_impact_activity_map():
             'min_date': None,
             'max_date': None,
             'default_window': kpi_logic.coaching_impact_window_days(),
+            'show_productivity': has_productivity,
         })
 
     dates = sorted(by_date.keys())
@@ -6299,12 +6323,14 @@ def coaching_impact_activity_map():
     cur = pad_start
     while cur <= pad_end:
         key = cur.isoformat()
-        bucket = by_date.get(key, {'coachings': 0, 'surveys': 0})
+        bucket = by_date.get(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
         days_out.append({
             'date': key,
             'label': cur.strftime('%d.%m.'),
             'coachings': bucket['coachings'],
             'surveys': bucket['surveys'],
+            'productivity': bucket['productivity'],
+            'has_productivity': bucket['productivity'] > 0,
         })
         cur += timedelta(days=1)
 
@@ -6316,6 +6342,7 @@ def coaching_impact_activity_map():
         'min_date': pad_start.isoformat(),
         'max_date': pad_end.isoformat(),
         'default_window': default_window,
+        'show_productivity': has_productivity,
     })
 
 
