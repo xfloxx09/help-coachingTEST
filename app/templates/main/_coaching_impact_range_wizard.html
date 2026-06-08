@@ -1,0 +1,80 @@
+{# Zeitraum + Wirkungsfenster wizard modal for Coaching VS KPI #}
+<div class="modal fade" id="ciRangeWizardModal" tabindex="-1" role="dialog" aria-labelledby="ciRangeWizardTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content ci-wz-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Zeitraum &amp; Wirkungsfenster</h5>
+                    <p class="text-muted small mb-0">Timeline ziehen für Zeitraum · Schieberegler für Vor/Nach-Tage je Coaching</p>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div class="ci-wz-legend mb-2">
+                    <span><i class="fas fa-chalkboard-teacher ci-wz-legend-coach"></i> Coachings</span>
+                    <span><i class="fas fa-star ci-wz-legend-survey"></i> Bewertungen</span>
+                    <span class="ci-wz-legend-sel"><span></span> Zeitraum</span>
+                    <span class="ci-wz-legend-impact"><span></span> Wirkungsfenster</span>
+                </div>
+
+                <div class="ci-wz-loading text-center py-5 text-muted" id="ciWzLoading">
+                    <i class="fas fa-spinner fa-spin mr-1"></i> Timeline wird geladen…
+                </div>
+                <div class="ci-wz-empty text-center py-5 text-muted d-none" id="ciWzEmpty">
+                    Keine Coachings oder Bewertungen in dieser Auswahl.
+                </div>
+
+                <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
+                    <div class="ci-wz-scroll" id="ciWzScroll">
+                        <div class="ci-wz-track" id="ciWzTrack">
+                            <div class="ci-wz-days" id="ciWzDays"></div>
+                            <div class="ci-wz-impact-layer" id="ciWzImpactLayer"></div>
+                            <div class="ci-wz-selection" id="ciWzSelection">
+                                <div class="ci-wz-handle ci-wz-handle-start" data-handle="start" title="Start ziehen"></div>
+                                <div class="ci-wz-handle ci-wz-handle-end" data-handle="end" title="Ende ziehen"></div>
+                                <div class="ci-wz-selection-body" data-handle="range" title="Zeitraum verschieben"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ci-wz-window-row mt-3">
+                        <label class="ci-wz-window-label" for="ciWzWindowSlider">
+                            <i class="fas fa-arrows-alt-h mr-1"></i> Wirkungsfenster
+                            <strong id="ciWzWindowVal">14</strong> Tage vor &amp; nach Coaching
+                        </label>
+                        <div class="ci-wz-window-slider-wrap">
+                            <input type="range" class="custom-range ci-wz-window-slider" id="ciWzWindowSlider"
+                                   min="1" max="90" value="14">
+                            <div class="ci-wz-window-grip" id="ciWzWindowGrip" title="Wirkungsfenster ziehen"></div>
+                        </div>
+                    </div>
+
+                    <div class="ci-wz-summary row mt-3">
+                        <div class="col-md-4">
+                            <div class="ci-wz-summary-box">
+                                <div class="ci-wz-summary-lbl">Zeitraum</div>
+                                <div class="ci-wz-summary-val" id="ciWzRangeLabel">–</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="ci-wz-summary-box">
+                                <div class="ci-wz-summary-lbl">Im Zeitraum</div>
+                                <div class="ci-wz-summary-val" id="ciWzCountsLabel">–</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="ci-wz-summary-box ci-wz-hint-box">
+                                <div class="ci-wz-summary-lbl">Tag-Info</div>
+                                <div class="ci-wz-summary-val small" id="ciWzDayHint">Maus über einen Tag bewegen</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn telekom-button btn-sm" id="ciWzApply" disabled>Übernehmen &amp; anzeigen</button>
+            </div>
+        </div>
+    </div>
+</div>

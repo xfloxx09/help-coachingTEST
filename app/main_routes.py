@@ -6190,6 +6190,135 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
     return overlay
 
 
+def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_base, coaching_base,
+                                   projects, teams, members):
+    """Build scoped KPI/coaching filters; return None if selection incomplete."""
+    selection_made = (
+        (mode == 'project' and sel_project) or
+        (mode == 'team' and sel_team) or
+        (mode == 'agent' and sel_member)
+    )
+    if not selection_made:
+        return None
+    active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
+    kpi_filters = list(kpi_base)
+    kpi_filters.extend(_kpi_source_filter(active_project_id))
+    coaching_filters = list(coaching_base)
+    scope_label = ''
+    if mode == 'agent' and sel_member:
+        kpi_filters.append(KpiSurvey.team_member_id == sel_member)
+        coaching_filters.append(Coaching.team_member_id == sel_member)
+        scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+    elif mode == 'team' and sel_team:
+        kpi_filters.append(KpiSurvey.team_id == sel_team)
+        coaching_filters.append(Coaching.team_id == sel_team)
+        scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+    elif mode == 'project' and sel_project:
+        kpi_filters.append(KpiSurvey.project_id == sel_project)
+        coaching_filters.append(Coaching.project_id == sel_project)
+        scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+    return {
+        'kpi_filters': kpi_filters,
+        'coaching_filters': coaching_filters,
+        'scope_label': scope_label,
+        'active_project_id': active_project_id,
+    }
+
+
+@bp.route('/coaching-impact/activity-map')
+@login_required
+@permission_required('view_coaching_impact')
+def coaching_impact_activity_map():
+    """Daily coaching + survey counts for the range wizard timeline."""
+    if not kpi_logic.kpi_features_enabled():
+        return jsonify({'error': 'KPI deaktiviert.'}), 403
+    accessible, sees_all_teams, my_team_ids = _kpi_scope()
+    kpi_base = _kpi_base_filters(accessible, sees_all_teams, my_team_ids)
+    coaching_base = _impact_coaching_filters(accessible, sees_all_teams, my_team_ids)
+
+    mode = (request.args.get('mode') or 'project').strip()
+    sel_project = request.args.get('project_id', type=int)
+    sel_team = request.args.get('team_id', type=int)
+    sel_member = request.args.get('member_id', type=int)
+
+    scope = _coaching_impact_scope_filters(
+        mode, sel_project, sel_team, sel_member, kpi_base, coaching_base,
+        [], [], [],
+    )
+    if scope is None:
+        return jsonify({'error': 'Bitte zuerst Projekt, Team oder Agent wählen.'}), 400
+
+    coach_rows = (
+        db.session.query(
+            cast(Coaching.coaching_date, Date),
+            func.count(Coaching.id),
+        )
+        .filter(*scope['coaching_filters'])
+        .group_by(cast(Coaching.coaching_date, Date))
+        .all()
+    )
+    survey_rows = (
+        db.session.query(
+            KpiSurvey.antwort_date,
+            func.count(KpiSurvey.id),
+        )
+        .filter(*scope['kpi_filters'])
+        .group_by(KpiSurvey.antwort_date)
+        .all()
+    )
+
+    by_date = {}
+    for d, cnt in coach_rows:
+        if d is None:
+            continue
+        key = d.isoformat()
+        by_date.setdefault(key, {'coachings': 0, 'surveys': 0})
+        by_date[key]['coachings'] = int(cnt)
+    for d, cnt in survey_rows:
+        if d is None:
+            continue
+        key = d.isoformat()
+        by_date.setdefault(key, {'coachings': 0, 'surveys': 0})
+        by_date[key]['surveys'] = int(cnt)
+
+    if not by_date:
+        return jsonify({
+            'days': [],
+            'min_date': None,
+            'max_date': None,
+            'default_window': kpi_logic.coaching_impact_window_days(),
+        })
+
+    dates = sorted(by_date.keys())
+    min_d = datetime.strptime(dates[0], '%Y-%m-%d').date()
+    max_d = datetime.strptime(dates[-1], '%Y-%m-%d').date()
+    # Pad timeline so user can extend selection slightly beyond last activity
+    pad_start = min_d - timedelta(days=7)
+    pad_end = max_d + timedelta(days=7)
+    days_out = []
+    cur = pad_start
+    while cur <= pad_end:
+        key = cur.isoformat()
+        bucket = by_date.get(key, {'coachings': 0, 'surveys': 0})
+        days_out.append({
+            'date': key,
+            'label': cur.strftime('%d.%m.'),
+            'coachings': bucket['coachings'],
+            'surveys': bucket['surveys'],
+        })
+        cur += timedelta(days=1)
+
+    window_q = request.args.get('window', type=int)
+    default_window = window_q if window_q and 1 <= window_q <= 90 else kpi_logic.coaching_impact_window_days()
+
+    return jsonify({
+        'days': days_out,
+        'min_date': pad_start.isoformat(),
+        'max_date': pad_end.isoformat(),
+        'default_window': default_window,
+    })
+
+
 @bp.route('/coaching-impact')
 @login_required
 @permission_required('view_coaching_impact')
@@ -6290,6 +6419,12 @@ def coaching_impact():
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
     granularity_arg = (request.args.get('granularity') or '').strip()
+    window_q = request.args.get('window', type=int)
+    admin_window = kpi_logic.coaching_impact_window_days()
+    if window_q is not None and 1 <= window_q <= 90:
+        impact_window_days = window_q
+    else:
+        impact_window_days = admin_window
     start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
     chart_granularity = kpi_time.resolve_granularity(
         granularity_arg, period_arg, start_date, end_date, None,
@@ -6308,7 +6443,6 @@ def coaching_impact():
     before_after = None
     before_after_prod = None
     summary = None
-    impact_window_days = kpi_logic.coaching_impact_window_days()
     kpi = None
     scope_label = ''
     has_any_data = bool(projects)
@@ -6499,6 +6633,13 @@ def coaching_impact():
             'avg_perf': (round(sum(perf_values) / len(perf_values) * 10, 1) if perf_values else None),
         }
 
+    range_summary = None
+    if start_date and end_date:
+        range_summary = (
+            f'{start_date.strftime("%d.%m.%Y")} – {end_date.strftime("%d.%m.%Y")}'
+            f' · Wirkungsfenster {impact_window_days} Tage'
+        )
+
     return render_template(
         'main/coaching_impact.html',
         visible=visible,
@@ -6523,6 +6664,7 @@ def coaching_impact():
         before_after=before_after,
         before_after_prod=before_after_prod,
         impact_window_days=impact_window_days,
+        range_summary=range_summary,
         summary=summary,
         kpi=kpi,
         scope_label=scope_label,
