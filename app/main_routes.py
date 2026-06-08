@@ -6202,7 +6202,7 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
             'idle_pct': prod_sm['idle_pct'] if prod_sm else None,
             'works': prod_sm['works'] if prod_sm else None,
             'coachings': cb['count'],
-            'avg_perf': (round(sum(cb['perf']) / len(cb['perf']) * 10, 1) if cb['perf'] else None),
+            'avg_perf': (round(sum(cb['perf']) / len(cb['perf']), 1) if cb['perf'] else None),
             'coaching_time': cb['time'] or 0,
         })
     return overlay
@@ -6627,16 +6627,17 @@ def coaching_impact():
         for member_id, d, perf, time_spent in coaching_rows:
             if time_spent:
                 total_time += time_spent
-            if _coaching_performance_mark_valid(perf):
-                perf_values.append(int(perf))
+            perf_pct = _coaching_performance_pct(perf)
+            if perf_pct is not None:
+                perf_values.append(perf_pct)
             if d is None:
                 continue
             cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': [], 'time': 0})
             cb['count'] += 1
             if time_spent:
                 cb['time'] += time_spent
-            if _coaching_performance_mark_valid(perf):
-                cb['perf'].append(int(perf))
+            if perf_pct is not None:
+                cb['perf'].append(perf_pct)
 
         prod_filters = list(prod_base)
         if mode == 'agent' and sel_member:
@@ -6725,7 +6726,7 @@ def coaching_impact():
             'total_time': total_time,
             'total_time_h': total_time // 60,
             'total_time_m': total_time % 60,
-            'avg_perf': (round(sum(perf_values) / len(perf_values) * 10, 1) if perf_values else None),
+            'avg_perf': (round(sum(perf_values) / len(perf_values), 1) if perf_values else None),
         }
 
     range_summary = None
@@ -6823,7 +6824,7 @@ def coaching_impact_day():
             'coach': c.coach.coach_display_name if c.coach else '-',
             'subject': c.coaching_subject or '-',
             'style': c.coaching_style or '-',
-            'performance': (c.performance_mark * 10) if c.performance_mark is not None else None,
+            'performance': _coaching_performance_pct(c.performance_mark),
             'time_spent': c.time_spent or 0,
         })
     return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'coachings': out})

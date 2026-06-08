@@ -1445,18 +1445,13 @@
     function ciCorrelationDataset(corrMode) {
         if (corrMode === 'bewertung') {
             return {
-                type: 'line',
+                type: 'bar',
                 label: 'Bewertung vom Coach (%)',
                 data: overlay.map(function (d) { return d.avg_perf; }),
-                borderColor: '#ff8fc7',
-                backgroundColor: 'rgba(226,0,116,0.15)',
-                yAxisID: 'yQuote',
-                spanGaps: true,
-                tension: 0.25,
-                order: 0,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                borderWidth: 2,
+                backgroundColor: 'rgba(226,0,116,0.55)',
+                borderColor: '#e20074',
+                yAxisID: 'yCoach',
+                order: 3,
             };
         }
         if (corrMode === 'dauer') {
@@ -1519,7 +1514,7 @@
         if (mode === 'produktivitaet') {
             scales.yQuote = {
                 type: 'linear', position: 'left', min: 0, max: 100,
-                title: { display: true, text: corrMode === 'bewertung' ? 'Quote / Bewertung (%)' : 'Quote (%)' },
+                title: { display: true, text: 'Quote (%)' },
             };
             if (visibleProd.sign_on) datasets.push({
                 type: 'line', label: prodLabels.sign_on + ' (%)',
@@ -1555,7 +1550,7 @@
         } else {
             scales.yQuote = {
                 type: 'linear', position: 'left', min: 0, max: 100,
-                title: { display: true, text: corrMode === 'bewertung' ? 'Quote / Bewertung (%)' : 'Quote (%)' },
+                title: { display: true, text: 'Quote (%)' },
             };
             if (visible.info) datasets.push({
                 type: 'line', label: 'Informationsquote (%)',
@@ -1603,10 +1598,11 @@
                 });
             }
         }
-        if (corrMode === 'anzahl' || corrMode === 'dauer') {
+        if (corrMode === 'anzahl' || corrMode === 'dauer' || corrMode === 'bewertung') {
             scales.yCoach = ciCorrelationScale(corrMode);
         }
         ciOverlayChartInstance = new Chart(oc.getContext('2d'), {
+            type: 'bar',
             data: {
                 labels: overlay.map(function (d) { return d.label; }),
                 datasets: datasets,
