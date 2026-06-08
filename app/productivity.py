@@ -883,7 +883,7 @@ def build_dashboard_series_from_buckets(
                 'label': period['label'],
                 'count': 0,
                 'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
-                'nach_per_call': 0, 'calls': 0,
+                'nach_per_call': 0, 'calls': 0, 'works': 0,
             })
         else:
             daily.append({
