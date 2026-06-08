@@ -94,6 +94,20 @@
     body.ci-view-qual .ci-view-panel-prod { display: none !important; }
     body.ci-view-qual .ci-col-prod { display: none !important; }
     body.ci-view-prod .ci-col-qual { display: none !important; }
+    .ci-ba-chart-wrap {
+        position: relative;
+        height: 280px;
+        min-height: 220px;
+    }
+    .ci-window-note {
+        font-size: 0.82rem;
+        color: #9a9aa3;
+        margin-bottom: 1rem;
+        padding: 0.55rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #34343c;
+        background: rgba(255, 255, 255, 0.03);
+    }
     .ci-day-date-cell {
         display: flex;
         align-items: center;
@@ -287,6 +301,83 @@
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
     {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
 
+    <p class="ci-window-note mb-3">
+        <i class="fas fa-info-circle mr-1"></i>
+        Vor/Nach je Coaching berücksichtigt <strong>{{ impact_window_days }} Tage</strong>
+        (Admin-Einstellung). Chart und Tabelle nur im gewählten Zeitraum.
+    </p>
+
+    {% if show_ci_kpi_qual and before_after %}
+    <div class="ci-view-panel ci-view-panel-qual mb-4">
+        <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.qualitaet }}</div>
+        <div class="row mb-2">
+            {% set parts = [] %}
+            {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
+            {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
+            {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '')) %}{% endif %}
+            {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '')) %}{% endif %}
+            {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
+            {% for key, label, cls, unit in parts %}
+            {% set ba = before_after[key] %}
+            <div class="col-12 col-md-4 col-lg-2 mb-3">
+                <div class="ci-card {{ cls }}">
+                    <div class="ci-label">{{ label }}</div>
+                    {% if ba.pairs %}
+                    <div>
+                        <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                        <i class="fas fa-arrow-right ci-arrow"></i>
+                        <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                    </div>
+                    <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
+                    {% else %}
+                    <div class="ci-ba text-muted">–</div>
+                    <div class="ci-sub">Keine Daten auf beiden Seiten</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_ci_kpi_prod and before_after_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
+    <div class="ci-view-panel ci-view-panel-prod mb-4">
+        <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.produktivitaet }}</div>
+        <div class="row mb-2">
+            {% set prod_parts = [] %}
+            {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
+            {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
+            {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's')) %}{% endif %}
+            {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
+            {% for key, label, cls, unit in prod_parts %}
+            {% set ba = before_after_prod[key] %}
+            <div class="col-12 col-md-4 col-lg-2 mb-3">
+                <div class="ci-card {{ cls }}">
+                    <div class="ci-label">{{ label }}</div>
+                    {% if ba.pairs %}
+                    <div>
+                        <span class="ci-ba">{{ ba.before|de_decimal }}{{ unit }}</span>
+                        <i class="fas fa-arrow-right ci-arrow"></i>
+                        <span class="ci-ba">{{ ba.after|de_decimal }}{{ unit }}</span>
+                    </div>
+                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
+                    </div>
+                    <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
+                    {% else %}
+                    <div class="ci-ba text-muted">–</div>
+                    <div class="ci-sub">Keine Daten auf beiden Seiten</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if overlay %}
     <div class="ci-view-panel ci-view-panel-charts">
     <div class="ci-chart-card-header mb-2">
@@ -378,6 +469,22 @@
     <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
     {% endif %}
 
+    {% if show_ci_kpi_qual or show_ci_kpi_prod %}
+    {% if (show_ci_kpi_qual and before_after) or (show_ci_kpi_prod and before_after_prod) %}
+    <div class="card mb-4" style="background:#22222a;border-color:#34343c;">
+        <div class="card-header" style="background:transparent;border-color:#34343c;">
+            <strong>Vorher / Nachher</strong>
+            <span class="text-muted small font-weight-normal">— Ø über alle Coachings mit Daten auf beiden Seiten</span>
+        </div>
+        <div class="card-body">
+            <div class="ci-ba-chart-wrap">
+                <canvas id="ciBaChart"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
     {% elif has_any_data %}
     <div class="alert alert-secondary">
         <i class="fas fa-hand-pointer mr-1"></i>
@@ -454,6 +561,8 @@
     });
 
     var overlay = {{ overlay|tojson }};
+    var ba = {{ before_after|tojson if before_after else 'null' }};
+    var baProd = {{ before_after_prod|tojson if before_after_prod else 'null' }};
     var visible = {{ visible|tojson }};
     var visibleProd = {{ visible_prod|tojson }};
     var prodLabels = {{ prod_labels|tojson }};
@@ -465,6 +574,7 @@
 
     var oc = document.getElementById('ciOverlayChart');
     var ciOverlayChartInstance = null;
+    var ciBaChartInstance = null;
     var ciViewMode = localStorage.getItem('coachingImpactView') || ciDefaultViewMode;
     var ciCorrMode = localStorage.getItem('coachingImpactCorr') || 'anzahl';
 
@@ -644,6 +754,54 @@
         });
     }
 
+    function buildCiBaChart(mode) {
+        var bc = document.getElementById('ciBaChart');
+        if (!bc || !window.Chart) return;
+        if (ciBaChartInstance) {
+            ciBaChartInstance.destroy();
+            ciBaChartInstance = null;
+        }
+        var baLabels = [], baBefore = [], baAfter = [];
+        if (mode === 'produktivitaet' && baProd) {
+            if (visibleProd.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
+            if (visibleProd.prod) { baLabels.push(prodLabels.prod); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
+            if (visibleProd.nach) { baLabels.push(prodLabels.nach); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
+            if (visibleProd.idle) { baLabels.push(prodLabels.idle); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
+        } else if (ba) {
+            if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.before); baAfter.push(ba.info.after); }
+            if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.before); baAfter.push(ba.loes.after); }
+            if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
+            if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
+            if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
+        }
+        if (!baLabels.length) return;
+        ciBaChartInstance = new Chart(bc.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: baLabels,
+                datasets: [
+                    { label: 'Vorher', data: baBefore, backgroundColor: 'rgba(154,154,165,0.65)' },
+                    { label: 'Nachher', data: baAfter, backgroundColor: 'rgba(226,0,116,0.7)' },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true } },
+            },
+        });
+    }
+
+    function applyCiCorrMode(corrMode) {
+        ciCorrMode = corrMode;
+        localStorage.setItem('coachingImpactCorr', corrMode);
+        document.querySelectorAll('#ciCorrToggle .btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-ci-corr') === corrMode);
+        });
+        buildCiOverlayChart(ciViewMode, corrMode);
+    }
+
     function applyCiViewMode(mode) {
         ciViewMode = mode;
         localStorage.setItem('coachingImpactView', mode);
@@ -657,6 +815,7 @@
             modeLabel.textContent = mode === 'produktivitaet' ? catLabels.produktivitaet : catLabels.qualitaet;
         }
         buildCiOverlayChart(mode, ciCorrMode);
+        buildCiBaChart(mode);
     }
 
     var corrToggle = document.getElementById('ciCorrToggle');
@@ -684,6 +843,7 @@
     } else if (oc && overlay && overlay.length) {
         document.body.classList.add('ci-view-qual');
         buildCiOverlayChart('qualitaet', ciCorrMode);
+        buildCiBaChart('qualitaet');
     }
 
     // Day modal
