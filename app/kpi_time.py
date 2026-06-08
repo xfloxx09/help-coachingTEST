@@ -155,6 +155,66 @@ def month_label_de(year, month):
     return f'{month:02d}.{year}'
 
 
+def build_impact_calendar_months(start_date, end_date, ext_start, ext_end, coaching_dates, window=28):
+    """Mini-calendars for Coaching VS KPI selection overview."""
+    import calendar as cal_mod
+
+    coaching_dates = set(coaching_dates or [])
+    if not start_date or not end_date:
+        return []
+
+    cal_start = start_date
+    cal_end = end_date
+    if ext_start and ext_start < cal_start:
+        cal_start = ext_start
+    if ext_end and ext_end > cal_end:
+        cal_end = ext_end
+
+    cur = date(cal_start.year, cal_start.month, 1)
+    last = date(cal_end.year, cal_end.month, 1)
+    months = []
+    while cur <= last:
+        year, month = cur.year, cur.month
+        weeks = []
+        for week in cal_mod.monthcalendar(year, month):
+            row = []
+            for day in week:
+                if day == 0:
+                    row.append(None)
+                    continue
+                d = date(year, month, day)
+                in_period = start_date <= d <= end_date
+                in_ext = bool(ext_start and ext_end and ext_start <= d <= ext_end)
+                has_coaching = d in coaching_dates
+                tip = None
+                if has_coaching:
+                    b_lo = d - timedelta(days=window)
+                    b_hi = d - timedelta(days=1)
+                    a_lo = d + timedelta(days=1)
+                    a_hi = d + timedelta(days=window)
+                    tip = (
+                        f'Vorher {b_lo.strftime("%d.%m.")}–{b_hi.strftime("%d.%m.")} · '
+                        f'Nachher {a_lo.strftime("%d.%m.")}–{a_hi.strftime("%d.%m.")}'
+                    )
+                row.append({
+                    'day': day,
+                    'iso': d.isoformat(),
+                    'in_period': in_period,
+                    'in_ext': in_ext,
+                    'has_coaching': has_coaching,
+                    'coaching_tip': tip,
+                })
+            weeks.append(row)
+        months.append({
+            'year': year,
+            'month': month,
+            'title': month_label_de(year, month),
+            'weeks': weeks,
+        })
+        cur = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    return months
+
+
 def span_days(start_date, end_date, data_dates=None):
     if start_date and end_date:
         return (end_date - start_date).days + 1

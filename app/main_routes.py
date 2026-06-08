@@ -6199,6 +6199,34 @@ def _impact_before_after_prod(events, intervals_by_member, window):
     return out
 
 
+def _coaching_impact_overview(start_date, end_date, events, window):
+    """Selection summary + mini-calendar data for Coaching VS KPI."""
+    coaching_dates = sorted({d for _, d in events if d is not None})
+    ext_start = ext_end = None
+    if coaching_dates:
+        ext_start = min(coaching_dates) - timedelta(days=window)
+        ext_end = max(coaching_dates) + timedelta(days=window)
+    months = kpi_time.build_impact_calendar_months(
+        start_date, end_date, ext_start, ext_end, coaching_dates, window,
+    )
+    has_extended = bool(
+        ext_start and ext_end and start_date and end_date
+        and (ext_start < start_date or ext_end > end_date)
+    )
+    return {
+        'start_label': start_date.strftime('%d.%m.%Y') if start_date else '–',
+        'end_label': end_date.strftime('%d.%m.%Y') if end_date else '–',
+        'span_days': kpi_time.span_days(start_date, end_date),
+        'window': window,
+        'coaching_count': len(events),
+        'coaching_days': len(coaching_dates),
+        'ext_start_label': ext_start.strftime('%d.%m.%Y') if ext_start else None,
+        'ext_end_label': ext_end.strftime('%d.%m.%Y') if ext_end else None,
+        'has_extended': has_extended,
+        'months': months,
+    }
+
+
 @bp.route('/coaching-impact')
 @login_required
 @permission_required('view_coaching_impact')
@@ -6320,6 +6348,7 @@ def coaching_impact():
     overlay = []
     before_after = None
     before_after_prod = None
+    impact_overview = None
     summary = None
     kpi = None
     scope_label = ''
@@ -6510,6 +6539,8 @@ def coaching_impact():
             'total_time_m': total_time % 60,
             'avg_perf': (round(sum(perf_values) / len(perf_values) * 10, 1) if perf_values else None),
         }
+        if start_date and end_date:
+            impact_overview = _coaching_impact_overview(start_date, end_date, events, window)
 
     return render_template(
         'main/coaching_impact.html',
@@ -6536,6 +6567,7 @@ def coaching_impact():
         overlay=overlay,
         before_after=before_after,
         before_after_prod=before_after_prod,
+        impact_overview=impact_overview,
         summary=summary,
         kpi=kpi,
         scope_label=scope_label,

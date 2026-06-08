@@ -76,6 +76,157 @@
         height: min(52vh, 480px);
         min-height: 360px;
     }
+    .ci-section {
+        margin-bottom: 2rem;
+    }
+    .ci-section-head {
+        margin-bottom: 1rem;
+        padding-bottom: 0.65rem;
+        border-bottom: 1px solid #34343c;
+    }
+    .ci-section-head h5 {
+        margin: 0 0 0.25rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #e8e8ec;
+    }
+    .ci-section-head p {
+        margin: 0;
+        font-size: 0.82rem;
+        color: #9a9aa3;
+    }
+    .ci-selection-overview {
+        border: 1px solid #34343c;
+        border-radius: 12px;
+        padding: 1rem 1.15rem;
+        background: linear-gradient(160deg, #232329 0%, #1c1c22 100%);
+    }
+    .ci-selection-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .ci-selection-chip {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        flex: 1 1 280px;
+        padding: 0.75rem 0.9rem;
+        border-radius: 10px;
+        border: 1px solid #3a3a44;
+        background: #22222a;
+    }
+    .ci-selection-chip-icon {
+        color: #e20074;
+        font-size: 1.1rem;
+        line-height: 1.4;
+    }
+    .ci-selection-chip-period .ci-selection-chip-icon { color: #4aa3ff; }
+    .ci-selection-chip-title {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #9a9aa3;
+        margin-bottom: 0.15rem;
+    }
+    .ci-selection-chip-value {
+        font-size: 0.92rem;
+        color: #e8e8ec;
+        font-weight: 600;
+    }
+    .ci-selection-chip-sub {
+        font-size: 0.78rem;
+        color: #b9b9c2;
+        margin-top: 0.25rem;
+    }
+    .ci-cal-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.25rem;
+        font-size: 0.75rem;
+        color: #9a9aa3;
+    }
+    .ci-cal-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .ci-cal-swatch {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+    .ci-cal-swatch-period { background: rgba(74, 163, 255, 0.55); border: 1px solid #4aa3ff; }
+    .ci-cal-swatch-ext { background: transparent; border: 1px dashed #8a8a95; }
+    .ci-cal-swatch-coaching { background: #e20074; border-radius: 50%; width: 8px; height: 8px; }
+    .ci-cal-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+    }
+    .ci-cal-month {
+        flex: 0 0 auto;
+        min-width: 168px;
+        border: 1px solid #34343c;
+        border-radius: 8px;
+        padding: 0.5rem 0.55rem 0.6rem;
+        background: #1f1f24;
+    }
+    .ci-cal-month-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-align: center;
+        color: #d6d6dd;
+        margin-bottom: 0.35rem;
+    }
+    .ci-cal-weekdays,
+    .ci-cal-week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+    }
+    .ci-cal-weekdays {
+        margin-bottom: 2px;
+    }
+    .ci-cal-weekdays span {
+        font-size: 0.58rem;
+        text-align: center;
+        color: #7a7a85;
+    }
+    .ci-cal-day {
+        position: relative;
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.62rem;
+        color: #8a8a95;
+        border-radius: 4px;
+    }
+    .ci-cal-day--empty { visibility: hidden; }
+    .ci-cal-day--period {
+        background: rgba(74, 163, 255, 0.22);
+        color: #d6eaff;
+        font-weight: 600;
+    }
+    .ci-cal-day--ext {
+        box-shadow: inset 0 0 0 1px rgba(154, 154, 165, 0.45);
+        color: #b9b9c2;
+    }
+    .ci-cal-day--coaching { cursor: help; }
+    .ci-cal-coaching-dot {
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #e20074;
+    }
     .ci-view-panel {
         border: 1px solid #34343c;
         border-radius: 12px;
@@ -262,6 +413,7 @@
                     <option value="{{ w }}" {% if window == w %}selected{% endif %}>{{ w }} Tage</option>
                     {% endfor %}
                 </select>
+                <div class="text-muted" style="font-size:0.65rem;margin-top:0.2rem;">nur Vorher/Nachher</div>
             </div>
             <div class="col-6 col-md-2 mb-2">
                 <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
@@ -273,8 +425,15 @@
     {% if selection_made %}
     <div class="d-flex align-items-baseline mb-3" style="gap:0.5rem;">
         <h4 class="mb-0">{{ scope_label }}</h4>
-        <span class="text-muted small">Wirkungsfenster: {{ window }} Tage vor/nach jedem Coaching</span>
     </div>
+
+    {% include 'main/_coaching_impact_selection_overview.html' %}
+
+    <section class="ci-section ci-section-period">
+        <div class="ci-section-head">
+            <h5><i class="fas fa-chart-area text-info mr-1"></i> Zeitraum-Ansicht</h5>
+            <p>Coachings, Zeitverlauf und Tabelle — nur im gewählten Zeitraum.</p>
+        </div>
 
     <!-- Coaching activity summary -->
     <div class="row mb-4">
@@ -300,6 +459,106 @@
 
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
     {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
+
+    {% if overlay %}
+    <div class="ci-view-panel ci-view-panel-charts">
+    <div class="ci-chart-card-header mb-2">
+        <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
+            Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
+            {% if chart_granularity == 'day' %}
+            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
+            {% endif %}
+        </div>
+        <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
+            <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
+            <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
+            <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
+        </div>
+    </div>
+    <div class="ci-chart-wrap mb-4">
+        <canvas id="ciOverlayChart"></canvas>
+    </div>
+
+    <div class="card mb-2" style="background:#22222a;border-color:#34343c;">
+        <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
+        <div class="card-body p-0">
+            {% if chart_granularity == 'day' %}
+            <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
+            {% endif %}
+            <div class="table-responsive ci-day-table-scroll">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>{% if chart_granularity == 'day' %}Datum{% else %}Zeitraum{% endif %}</th>
+                            <th class="text-right">Coachings</th>
+                            {% if visible.info %}<th class="text-right ci-col-qual">Info</th>{% endif %}
+                            {% if visible.loesung %}<th class="text-right ci-col-qual">Lösung</th>{% endif %}
+                            {% if visible.nps %}<th class="text-right ci-col-qual">NPS</th>{% endif %}
+                            {% if visible.fachkompetenz %}<th class="text-right ci-col-qual">Fachk.</th>{% endif %}
+                            {% if visible.vertrieb %}<th class="text-right ci-col-qual">Vertrieb</th>{% endif %}
+                            {% if visible_prod.sign_on %}<th class="text-right ci-col-prod">{{ prod_labels.sign_on }}</th>{% endif %}
+                            {% if visible_prod.prod %}<th class="text-right ci-col-prod">{{ prod_labels.prod }}</th>{% endif %}
+                            {% if visible_prod.nach %}<th class="text-right ci-col-prod">{{ prod_labels.nach }}</th>{% endif %}
+                            {% if visible_prod.idle %}<th class="text-right ci-col-prod">{{ prod_labels.idle }}</th>{% endif %}
+                            {% if visible_prod.works %}<th class="text-right ci-col-prod">{{ prod_labels.works }}</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for d in overlay %}
+                        {% set has_survey_day = d.info_quote is not none or d.loes_quote is not none or d.nps is not none or d.fachkompetenz is not none or d.vertrieb_quote is not none %}
+                        <tr class="ci-day-row" data-date="{{ d.date }}">
+                            <td>
+                                <div class="ci-day-date-cell">
+                                    <span>{{ d.label }}</span>
+                                    {% if chart_granularity == 'day' %}
+                                    <span class="ci-day-actions">
+                                        <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-survey"
+                                                data-date="{{ d.date }}" aria-label="Befragungs-Rohdaten"
+                                                title="Befragungs-Rohdaten"
+                                                {% if not has_survey_day %}disabled{% endif %}>
+                                            <i class="fas fa-star"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-coaching"
+                                                data-date="{{ d.date }}" aria-label="Coachings"
+                                                title="Coachings"
+                                                {% if not d.coachings %}disabled{% endif %}>
+                                            <i class="fas fa-chalkboard-teacher"></i>
+                                        </button>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="text-right">{% if d.coachings %}{{ d.coachings }}{% else %}–{% endif %}</td>
+                            {% if visible.info %}<td class="text-right ci-col-qual">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.loesung %}<td class="text-right ci-col-qual">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.nps %}<td class="text-right ci-col-qual">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.fachkompetenz %}<td class="text-right ci-col-qual">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible.vertrieb %}<td class="text-right ci-col-qual">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible_prod.sign_on %}<td class="text-right ci-col-prod">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible_prod.prod %}<td class="text-right ci-col-prod">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible_prod.nach %}<td class="text-right ci-col-prod">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible_prod.idle %}<td class="text-right ci-col-prod">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
+                            {% if visible_prod.works %}<td class="text-right ci-col-prod">{% if d.works is not none %}{{ d.works|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
+    {% endif %}
+
+    </section>
+
+    <section class="ci-section ci-section-impact">
+        <div class="ci-section-head">
+            <h5><i class="fas fa-exchange-alt text-danger mr-1"></i> Wirkungsanalyse</h5>
+            <p>Pro Coaching im Zeitraum: {{ window }} Tage davor vs. {{ window }} Tage danach (Coaching-Tag ausgeschlossen).</p>
+        </div>
+
     {% if show_ci_kpi_qual %}
     <div class="ci-view-panel ci-view-panel-qual">
         <div class="ci-view-panel-title">Wirkung: {{ cat_labels.qualitaet }} vor vs. nach Coaching</div>
@@ -376,110 +635,18 @@
     </div>
     {% endif %}
 
-    {% if overlay %}
-    <div class="ci-view-panel ci-view-panel-charts">
-    <div class="ci-chart-card-header mb-2">
-        <div class="ci-view-panel-title mb-0" style="border:none;padding:0;">
-            Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
-            {% if chart_granularity == 'day' %}
-            <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
-            {% endif %}
-        </div>
-        <div class="ci-view-toggle btn-group btn-group-sm" id="ciCorrToggle" role="group" aria-label="Coaching-Korrelation">
-            <button type="button" class="btn" data-ci-corr="bewertung" title="Ø Bewertung vom Coach">Bewertung vom Coach</button>
-            <button type="button" class="btn active" data-ci-corr="anzahl" title="Anzahl Coachings pro Tag">Anzahl Coachings</button>
-            <button type="button" class="btn" data-ci-corr="dauer" title="Gesamtdauer Coachings pro Tag">Dauer Coachings</button>
-        </div>
-    </div>
-    <div class="ci-chart-wrap mb-4">
-        <canvas id="ciOverlayChart"></canvas>
-    </div>
-
-    <div class="row mb-2">
-        <div class="col-12 col-lg-6 mb-3">
-            <div class="card h-100" style="background:#22222a;border-color:#34343c;">
-                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Vorher / Nachher</strong></div>
-                <div class="card-body">
-                    <div class="ci-ba-chart-wrap">
-                        <canvas id="ciBaChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-6 mb-3">
-            <div class="card h-100" style="background:#22222a;border-color:#34343c;">
-                <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>{% if chart_granularity == 'day' %}Tagesübersicht{% elif chart_granularity == 'week' %}Wochenübersicht{% else %}Monatsübersicht{% endif %}</strong></div>
-                <div class="card-body p-0">
-                    {% if chart_granularity == 'day' %}
-                    <div class="ci-day-table-hint"><i class="fas fa-star mr-1" style="color:#9ed0ff;"></i> Befragungen · <i class="fas fa-chalkboard-teacher mr-1" style="color:#ff8fc7;"></i> Coachings</div>
-                    {% endif %}
-                    <div class="table-responsive ci-day-table-scroll">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>{% if chart_granularity == 'day' %}Datum{% else %}Zeitraum{% endif %}</th>
-                                    <th class="text-right">Coachings</th>
-                                    {% if visible.info %}<th class="text-right ci-col-qual">Info</th>{% endif %}
-                                    {% if visible.loesung %}<th class="text-right ci-col-qual">Lösung</th>{% endif %}
-                                    {% if visible.nps %}<th class="text-right ci-col-qual">NPS</th>{% endif %}
-                                    {% if visible.fachkompetenz %}<th class="text-right ci-col-qual">Fachk.</th>{% endif %}
-                                    {% if visible.vertrieb %}<th class="text-right ci-col-qual">Vertrieb</th>{% endif %}
-                                    {% if visible_prod.sign_on %}<th class="text-right ci-col-prod">{{ prod_labels.sign_on }}</th>{% endif %}
-                                    {% if visible_prod.prod %}<th class="text-right ci-col-prod">{{ prod_labels.prod }}</th>{% endif %}
-                                    {% if visible_prod.nach %}<th class="text-right ci-col-prod">{{ prod_labels.nach }}</th>{% endif %}
-                                    {% if visible_prod.idle %}<th class="text-right ci-col-prod">{{ prod_labels.idle }}</th>{% endif %}
-                                    {% if visible_prod.works %}<th class="text-right ci-col-prod">{{ prod_labels.works }}</th>{% endif %}
-                                </tr>
-                            </thead>
-                            <tbody>
-                            {% for d in overlay %}
-                                {% set has_survey_day = d.info_quote is not none or d.loes_quote is not none or d.nps is not none or d.fachkompetenz is not none or d.vertrieb_quote is not none %}
-                                <tr class="ci-day-row" data-date="{{ d.date }}">
-                                    <td>
-                                        <div class="ci-day-date-cell">
-                                            <span>{{ d.label }}</span>
-                                            {% if chart_granularity == 'day' %}
-                                            <span class="ci-day-actions">
-                                                <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-survey"
-                                                        data-date="{{ d.date }}" aria-label="Befragungs-Rohdaten"
-                                                        title="Befragungs-Rohdaten"
-                                                        {% if not has_survey_day %}disabled{% endif %}>
-                                                    <i class="fas fa-star"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm ci-rohdaten-btn ci-rohdaten-coaching"
-                                                        data-date="{{ d.date }}" aria-label="Coachings"
-                                                        title="Coachings"
-                                                        {% if not d.coachings %}disabled{% endif %}>
-                                                    <i class="fas fa-chalkboard-teacher"></i>
-                                                </button>
-                                            </span>
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                    <td class="text-right">{% if d.coachings %}{{ d.coachings }}{% else %}–{% endif %}</td>
-                                    {% if visible.info %}<td class="text-right ci-col-qual">{% if d.info_quote is not none %}{{ d.info_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.loesung %}<td class="text-right ci-col-qual">{% if d.loes_quote is not none %}{{ d.loes_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.nps %}<td class="text-right ci-col-qual">{% if d.nps is not none %}{{ d.nps|de_decimal }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.fachkompetenz %}<td class="text-right ci-col-qual">{% if d.fachkompetenz is not none %}{{ d.fachkompetenz|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible.vertrieb %}<td class="text-right ci-col-qual">{% if d.vertrieb_quote is not none %}{{ d.vertrieb_quote|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.sign_on %}<td class="text-right ci-col-prod">{% if d.sign_on_pct is not none %}{{ d.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.prod %}<td class="text-right ci-col-prod">{% if d.prod_pct is not none %}{{ d.prod_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.nach %}<td class="text-right ci-col-prod">{% if d.nach_per_call is not none %}{{ d.nach_per_call|de_decimal(1) }}{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.idle %}<td class="text-right ci-col-prod">{% if d.idle_pct is not none %}{{ d.idle_pct|de_decimal }}%{% else %}–{% endif %}</td>{% endif %}
-                                    {% if visible_prod.works %}<td class="text-right ci-col-prod">{% if d.works is not none %}{{ d.works|de_decimal(0) }}{% else %}–{% endif %}</td>{% endif %}
-                                </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+    {% if show_ci_kpi_qual or show_ci_kpi_prod %}
+    <div class="card mb-2" style="background:#22222a;border-color:#34343c;">
+        <div class="card-header" style="background:transparent;border-color:#34343c;"><strong>Vorher / Nachher</strong> <span class="text-muted small font-weight-normal">— Ø über alle Coachings mit Daten auf beiden Seiten</span></div>
+        <div class="card-body">
+            <div class="ci-ba-chart-wrap">
+                <canvas id="ciBaChart"></canvas>
             </div>
         </div>
     </div>
-    </div>
-    {% else %}
-    <div class="alert alert-secondary">Keine Coaching- oder KPI-Daten im gewählten Zeitraum.</div>
     {% endif %}
+
+    </section>
 
     {% elif has_any_data %}
     <div class="alert alert-secondary">

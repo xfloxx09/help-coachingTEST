@@ -1,0 +1,68 @@
+{% if impact_overview %}
+<div class="ci-selection-overview mb-4">
+    <div class="ci-selection-chips mb-3">
+        <div class="ci-selection-chip ci-selection-chip-period">
+            <span class="ci-selection-chip-icon"><i class="fas fa-calendar-alt"></i></span>
+            <div>
+                <div class="ci-selection-chip-title">Zeitraum · Chart &amp; Tabelle</div>
+                <div class="ci-selection-chip-value">{{ impact_overview.start_label }} – {{ impact_overview.end_label }}
+                    <span class="text-muted">({{ impact_overview.span_days }} Tage)</span></div>
+            </div>
+        </div>
+        <div class="ci-selection-chip ci-selection-chip-impact">
+            <span class="ci-selection-chip-icon"><i class="fas fa-exchange-alt"></i></span>
+            <div>
+                <div class="ci-selection-chip-title">Wirkungsanalyse</div>
+                <div class="ci-selection-chip-value">
+                    ±{{ impact_overview.window }} Tage um
+                    {{ impact_overview.coaching_count }} Coaching{% if impact_overview.coaching_count != 1 %}s{% endif %}
+                    {% if impact_overview.coaching_days != impact_overview.coaching_count %}
+                    <span class="text-muted">({{ impact_overview.coaching_days }} Tage)</span>
+                    {% endif %}
+                </div>
+                {% if impact_overview.has_extended %}
+                <div class="ci-selection-chip-sub">
+                    Datenfenster: {{ impact_overview.ext_start_label }} – {{ impact_overview.ext_end_label }}
+                    <span class="text-muted">(kann über den Zeitraum hinausreichen)</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if impact_overview.months %}
+    <div class="ci-cal-legend mb-2">
+        <span class="ci-cal-legend-item"><span class="ci-cal-swatch ci-cal-swatch-period"></span> Zeitraum</span>
+        {% if impact_overview.has_extended %}
+        <span class="ci-cal-legend-item"><span class="ci-cal-swatch ci-cal-swatch-ext"></span> Erweitertes Datenfenster</span>
+        {% endif %}
+        <span class="ci-cal-legend-item"><span class="ci-cal-swatch ci-cal-swatch-coaching"></span> Coaching</span>
+    </div>
+    <div class="ci-cal-grid">
+        {% for m in impact_overview.months %}
+        <div class="ci-cal-month">
+            <div class="ci-cal-month-title">{{ m.title }}</div>
+            <div class="ci-cal-weekdays">
+                <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+            </div>
+            {% for week in m.weeks %}
+            <div class="ci-cal-week">
+                {% for cell in week %}
+                {% if cell %}
+                <div class="ci-cal-day{% if cell.in_period %} ci-cal-day--period{% endif %}{% if cell.in_ext and not cell.in_period %} ci-cal-day--ext{% endif %}{% if cell.has_coaching %} ci-cal-day--coaching{% endif %}"
+                     {% if cell.coaching_tip %}title="{{ cell.coaching_tip }}"{% endif %}>
+                    <span class="ci-cal-day-num">{{ cell.day }}</span>
+                    {% if cell.has_coaching %}<span class="ci-cal-coaching-dot" aria-hidden="true"></span>{% endif %}
+                </div>
+                {% else %}
+                <div class="ci-cal-day ci-cal-day--empty"></div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
