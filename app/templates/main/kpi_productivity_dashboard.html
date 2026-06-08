@@ -8,6 +8,10 @@
     .kpi-card { border: 1px solid #34343c; border-radius: 12px; padding: 1.25rem; height: 100%; background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%); overflow: visible; }
     .card .card-header { overflow: visible; }
     .kpi-card .kpi-value { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+    .kpi-summary-row .kpi-card { padding: 1rem 0.85rem; }
+    .kpi-summary-row .kpi-card .kpi-value { font-size: 1.65rem; }
+    .kpi-summary-row .kpi-card .kpi-label { font-size: 0.82rem; }
+    .kpi-summary-row .kpi-card .kpi-sub { font-size: 0.72rem; }
     .kpi-card .kpi-label { font-size: 0.95rem; color: #b9b9c2; margin-bottom: 0.4rem; }
     .kpi-card .kpi-sub { font-size: 0.8rem; color: #8a8a95; margin-top: 0.5rem; }
     .kpi-sign .kpi-value { color: #4aa3ff; }
@@ -136,9 +140,9 @@
 
     {% if selection_made and summary %}
     <div class="mb-3"><h4 class="mb-0">{{ scope_label }}</h4></div>
-    <div class="row mb-4">
+    <div class="row mb-4 kpi-summary-row">
         {% if visible.sign_on %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-sign">
                 <div class="kpi-label">{{ prod_labels.sign_on }}</div>
                 <div class="kpi-value">{% if summary.sign_on_pct is not none %}{{ summary.sign_on_pct|de_decimal }}%{% else %}–{% endif %}</div>
@@ -147,7 +151,7 @@
         </div>
         {% endif %}
         {% if visible.prod %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-prod">
                 <div class="kpi-label kpi-label-with-hint">
                     <span>{{ prod_labels.prod }}</span>
@@ -159,7 +163,7 @@
         </div>
         {% endif %}
         {% if visible.nach %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-nach">
                 <div class="kpi-label">{{ prod_labels.nach }}</div>
                 <div class="kpi-value">{% if summary.nach_per_call is not none %}{{ summary.nach_per_call|de_decimal(1) }}s{% else %}–{% endif %}</div>
@@ -168,7 +172,7 @@
         </div>
         {% endif %}
         {% if visible.idle %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-idle">
                 <div class="kpi-label">{{ prod_labels.idle }}</div>
                 <div class="kpi-value">{% if summary.idle_pct is not none %}{{ summary.idle_pct|de_decimal }}%{% else %}–{% endif %}</div>
@@ -177,7 +181,7 @@
         </div>
         {% endif %}
         {% if visible.calls %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-calls">
                 <div class="kpi-label">{{ prod_labels.calls }}</div>
                 <div class="kpi-value">{% if summary.calls is not none %}{{ summary.calls|de_decimal(0) }}{% else %}–{% endif %}</div>
@@ -186,7 +190,7 @@
         </div>
         {% endif %}
         {% if visible.works %}
-        <div class="col-12 col-md-4 col-lg mb-3">
+        <div class="col-6 col-md-4 col-lg-2 mb-3">
             <div class="kpi-card kpi-works">
                 <div class="kpi-label">{{ prod_labels.works }}</div>
                 <div class="kpi-value">{% if summary.works is not none %}{{ summary.works|de_decimal(0) }}{% else %}–{% endif %}</div>
