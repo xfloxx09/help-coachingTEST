@@ -312,6 +312,42 @@ def discover_numeric_headers(headers):
     return [h for h in headers if h not in META_COLS and h not in ('Dienst', 'Segment', 'ID_Dienst', 'ID_Segment')]
 
 
+def normalize_member_id_key(value):
+    return (value or '').strip()
+
+
+def looks_like_numeric_id(value):
+    """True for non-empty all-digit IDs (typical DAG-ID / MA-Kennung in ODVS exports)."""
+    s = normalize_member_id_key(value)
+    return bool(s) and s.isdigit() and s not in ('-1',)
+
+
+def split_agent_display_name(agent_name):
+    """Split DAG_VN_NN style name into (first_name, last_name) for member forms."""
+    s = (agent_name or '').strip()
+    if not s or s == '–':
+        return '', ''
+    if ',' in s:
+        parts = [p.strip() for p in s.split(',', 1)]
+        last = parts[0]
+        first = parts[1] if len(parts) > 1 else ''
+        return first, last
+    parts = s.split(None, 1)
+    if len(parts) == 1:
+        return parts[0], ''
+    return parts[0], parts[1]
+
+
+def _pick_from_candidates(cands, preferred_team_id):
+    if not cands:
+        return None, None
+    if preferred_team_id is not None:
+        for cmid, cmt in cands:
+            if cmt == preferred_team_id:
+                return cmid, cmt
+    return cands[0][0], cands[0][1]
+
+
 def build_link_maps(team_query, member_query):
     team_map = {}
     for t in team_query:
@@ -320,47 +356,43 @@ def build_link_maps(team_query, member_query):
 
     dag_map = {}
     name_map = {}
+    ma_map = {}
     for m in member_query:
-        if m.dag_id and str(m.dag_id).strip() not in ('', '-1'):
-            dag_map.setdefault(str(m.dag_id).strip(), []).append((m.id, m.team_id))
+        dag_key = normalize_member_id_key(m.dag_id)
+        if dag_key and dag_key != '-1':
+            dag_map.setdefault(dag_key, []).append((m.id, m.team_id))
+        ma_key = normalize_member_id_key(m.ma_kennung)
+        if ma_key:
+            ma_map.setdefault(ma_key, []).append((m.id, m.team_id))
         if m.name:
             name_map.setdefault(m.name.strip().lower(), []).append((m.id, m.team_id))
 
-    return team_map, dag_map, name_map
+    return team_map, dag_map, name_map, ma_map
 
 
-def resolve_member(be4, dag_id, agent_name, team_map, dag_map, name_map):
+def resolve_member(be4, dag_id, agent_name, team_map, dag_map, name_map, ma_map=None):
     tid = pid = mid = None
     be4 = (be4 or '').strip()
     if be4 and be4 in team_map:
         tid, pid = team_map[be4]
 
-    dag_key = (dag_id or '').strip()
-    if dag_key and dag_key not in ('', '-1'):
-        cands = dag_map.get(dag_key, [])
-        if cands:
-            if tid is not None:
-                for cmid, cmt in cands:
-                    if cmt == tid:
-                        mid = cmid
-                        break
-            if mid is None:
-                mid = cands[0][0]
+    dag_key = normalize_member_id_key(dag_id)
+    if dag_key and dag_key != '-1':
+        mid, team_from_id = _pick_from_candidates(dag_map.get(dag_key, []), tid)
+        if mid is not None:
             if tid is None:
-                tid = cands[0][1]
+                tid = team_from_id
+        elif ma_map:
+            mid, team_from_id = _pick_from_candidates(ma_map.get(dag_key, []), tid)
+            if mid is not None and tid is None:
+                tid = team_from_id
 
     if mid is None and agent_name:
-        ncands = name_map.get(agent_name.strip().lower(), [])
-        if ncands:
-            if tid is not None:
-                for cmid, cmt in ncands:
-                    if cmt == tid:
-                        mid = cmid
-                        break
-            if mid is None:
-                mid = ncands[0][0]
-            if tid is None:
-                tid = ncands[0][1]
+        mid, team_from_name = _pick_from_candidates(
+            name_map.get(agent_name.strip().lower(), []), tid,
+        )
+        if mid is not None and tid is None:
+            tid = team_from_name
 
     return tid, pid, mid
 

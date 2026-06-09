@@ -1011,6 +1011,28 @@ def create_team_member():
     form = TeamMemberForm()
     projects = Project.query.order_by(Project.name).all()
     all_teams = Team.query.filter(Team.name != ARCHIV_TEAM_NAME).order_by(Team.name).all()
+    if request.method == 'GET':
+        args = request.args
+        if args.get('first_name'):
+            form.first_name.data = args.get('first_name', '').strip()
+        if args.get('last_name'):
+            form.last_name.data = args.get('last_name', '').strip()
+        if args.get('ma_kennung'):
+            form.ma_kennung.data = args.get('ma_kennung', '').strip()
+        if args.get('dag_id'):
+            form.dag_id.data = args.get('dag_id', '').strip()
+        tid = args.get('team_id', type=int)
+        if tid:
+            form.team_id.data = tid
+        elif args.get('be4'):
+            team = Team.query.filter_by(name=args.get('be4', '').strip()).first()
+            if team:
+                form.team_id.data = team.id
+        if args.get('from_prod') == '1':
+            flash(
+                'Daten aus Produktivitäts-Import übernommen. Bitte prüfen und Pylon-Nr ergänzen.',
+                'info',
+            )
     if form.validate_on_submit():
         try:
             team = Team.query.get(form.team_id.data)
@@ -4145,12 +4167,11 @@ def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
             })
             _headers, rows = _prod_read_csv_rows(temp_path)
             settings = productivity_logic.settings_dict(None)
-            team_map, dag_map, name_map = productivity_logic.build_link_maps(
-                Team.query.all(),
-                TeamMember.query.options(joinedload(TeamMember.team)).all(),
+            team_map, dag_map, name_map, ma_map = productivity_logic.build_link_maps(
+                Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
             )
             intervals, _m, _u, _unmatched = _prod_build_intervals(
-                rows, settings, team_map, dag_map, name_map,
+                rows, settings, team_map, dag_map, name_map, ma_map,
             )
 
             def progress(done, total, message):
@@ -4512,7 +4533,7 @@ def _prod_cleanup_session_temp():
                     pass
 
 
-def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
+def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
     """Group rows by agent+slot, compute metrics, resolve links."""
     archiv_team = get_or_create_archiv_team()
     members_by_id = {
@@ -4521,10 +4542,12 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
 
     def _member_candidates(agent_name, dag_id, team_id):
         ids = set()
-        dag_key = (dag_id or '').strip()
+        dag_key = productivity_logic.normalize_member_id_key(dag_id)
         agent_lower = (agent_name or '').strip().lower()
-        if dag_key and dag_key not in ('', '-1'):
+        if dag_key and dag_key != '-1':
             for mid, _ in dag_map.get(dag_key, []):
+                ids.add(mid)
+            for mid, _ in ma_map.get(dag_key, []):
                 ids.add(mid)
         if agent_lower:
             for mid, _ in name_map.get(agent_lower, []):
@@ -4546,6 +4569,42 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
         out.sort(key=lambda c: (not c['in_resolved_team'], c['is_archiv'], c['name']))
         return out[:8]
 
+    def _unmatched_extra(be4, dag_id, agent_name, tid):
+        be4_key = (be4 or '').strip()
+        dag_key = productivity_logic.normalize_member_id_key(dag_id)
+        team_entry = team_map.get(be4_key) if be4_key else None
+        first_name, last_name = productivity_logic.split_agent_display_name(agent_name)
+        dag_in_system = bool(dag_key and dag_key != '-1' and dag_key in dag_map)
+        ma_in_system = bool(dag_key and dag_key in ma_map)
+        suggest_ma = suggest_dag = ''
+        hint = ''
+        if dag_key and dag_key != '-1':
+            if not dag_in_system and not ma_in_system:
+                if productivity_logic.looks_like_numeric_id(dag_key):
+                    suggest_ma = dag_key
+                    hint = (
+                        'DAG_ID ist numerisch und passt weder zu DAG-ID noch MA-Kennung '
+                        'eines Mitglieds – vermutlich MA-Kennung aus Rohdaten.'
+                    )
+                else:
+                    suggest_dag = dag_key
+                    hint = 'DAG-ID aus CSV konnte keinem Mitglied zugeordnet werden.'
+            elif ma_in_system and not dag_in_system:
+                hint = 'Wert passt als MA-Kennung, nicht als DAG-ID.'
+        return {
+            'team_csv': be4_key or '–',
+            'team_system_id': team_entry[0] if team_entry else None,
+            'team_system_name': be4_key if team_entry else None,
+            'team_unknown': bool(be4_key and be4_key != '–' and not team_entry),
+            'first_name': first_name,
+            'last_name': last_name,
+            'suggest_ma_kennung': suggest_ma,
+            'suggest_dag_id': suggest_dag,
+            'hint': hint,
+            'dag_in_system': dag_in_system,
+            'ma_in_system': ma_in_system,
+        }
+
     groups = {}
     for row in rows:
         slot_str = productivity_logic.combine_datum_zeit(row)
@@ -4563,7 +4622,7 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
             continue
         tid, pid, mid = productivity_logic.resolve_member(
             slot.get('be4'), slot.get('dag_id'), slot.get('agent_name'),
-            team_map, dag_map, name_map,
+            team_map, dag_map, name_map, ma_map,
         )
         if mid:
             matched += 1
@@ -4585,6 +4644,9 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
                         slot.get('agent_name'), slot.get('dag_id'), tid,
                     ),
                 }
+                u.update(_unmatched_extra(
+                    slot.get('be4'), slot.get('dag_id'), slot.get('agent_name'), tid,
+                ))
                 unmatched_details[ukey] = u
             u['count'] += 1
         intervals.append({**slot, 'team_id': tid, 'project_id': pid, 'team_member_id': mid})
@@ -4683,11 +4745,11 @@ def import_productivity_csv():
             headers, rows = _prod_read_csv_rows(temp_path)
             session['prod_csv_headers'] = headers
             settings = productivity_logic.settings_dict(None)
-            team_map, dag_map, name_map = productivity_logic.build_link_maps(
+            team_map, dag_map, name_map, ma_map = productivity_logic.build_link_maps(
                 Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
             )
             intervals, matched, unmatched, unmatched_list = _prod_build_intervals(
-                rows, settings, team_map, dag_map, name_map,
+                rows, settings, team_map, dag_map, name_map, ma_map,
             )
         except Exception as e:
             flash(f'CSV konnte nicht gelesen werden: {e}', 'danger')
@@ -4727,10 +4789,12 @@ def import_productivity_csv():
         try:
             headers, rows = _prod_read_csv_rows(temp_path)
             settings = productivity_logic.settings_dict(None)
-            team_map, dag_map, name_map = productivity_logic.build_link_maps(
+            team_map, dag_map, name_map, ma_map = productivity_logic.build_link_maps(
                 Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
             )
-            intervals, _, _, _ = _prod_build_intervals(rows, settings, team_map, dag_map, name_map)
+            intervals, _, _, _ = _prod_build_intervals(
+                rows, settings, team_map, dag_map, name_map, ma_map,
+            )
             overwrite = request.form.get('confirm_overwrite') == '1'
             batch, deleted = _prod_commit_intervals(filename, intervals, overwrite=overwrite)
         except Exception as e:

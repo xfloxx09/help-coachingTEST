@@ -44,30 +44,60 @@
         </div>
         <div class="card-body">
             <p class="text-muted small mb-3">
-                Diese BE4 / DAG_ID / Agent-Kombinationen aus der CSV konnten keinem Mitglied zugeordnet werden.
-                Prüfen Sie DAG-ID oder Name beim passenden Mitglied und importieren Sie anschließend erneut.
-                Die Bearbeiten-Links öffnen sich in einem neuen Tab.
+                Zuordnung erfolgt über <strong>DAG-ID</strong>, alternativ <strong>MA-Kennung</strong> (wenn die CSV-DAG_ID numerisch ist),
+                und Agentenname. Prüfen Sie die Rohdaten unten – Sie können fehlende Mitglieder direkt anlegen
+                oder bestehende bearbeiten und danach erneut importieren.
             </p>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered">
                     <thead class="thead-light">
                         <tr>
-                            <th>BE4</th>
-                            <th>DAG_ID</th>
                             <th>Agent (CSV)</th>
+                            <th>Team (BE4)</th>
+                            <th>DAG_ID (CSV)</th>
                             <th class="text-right">Intervalle</th>
-                            <th>Passende Mitglieder</th>
+                            <th>Aktionen / Hinweise</th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for u in unmatched_rows %}
                         <tr>
-                            <td>{{ u.be4 }}</td>
-                            <td><code>{{ u.dag_id }}</code></td>
-                            <td>{{ u.agent_name }}</td>
+                            <td>
+                                <strong>{{ u.agent_name }}</strong>
+                                {% if u.first_name or u.last_name %}
+                                <div class="small text-muted">{{ u.first_name }} {{ u.last_name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <code>{{ u.team_csv }}</code>
+                                {% if u.team_system_name %}
+                                <div class="small text-success">→ {{ u.team_system_name }}</div>
+                                {% elif u.team_unknown %}
+                                <div class="small text-warning">Team nicht im System</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <code>{{ u.dag_id }}</code>
+                                {% if u.hint %}
+                                <div class="small text-muted mt-1">{{ u.hint }}</div>
+                                {% endif %}
+                            </td>
                             <td class="text-right">{{ u.count }}</td>
                             <td>
+                                <a href="{{ url_for('admin.create_team_member',
+                                    first_name=u.first_name,
+                                    last_name=u.last_name,
+                                    ma_kennung=u.suggest_ma_kennung,
+                                    dag_id=u.suggest_dag_id,
+                                    team_id=u.team_system_id or '',
+                                    be4=u.team_csv if u.team_csv != '–' else '',
+                                    from_prod='1') }}"
+                                   target="_blank" rel="noopener"
+                                   class="btn btn-xs btn-success mb-2">
+                                    <i class="fas fa-user-plus mr-1"></i> Als Mitglied anlegen
+                                </a>
                                 {% if u.candidates %}
+                                    <div class="small text-muted mb-1">Ähnliche Mitglieder:</div>
                                     {% for c in u.candidates %}
                                     <div class="mb-1">
                                         <a href="{{ url_for('admin.edit_team_member', member_id=c.id) }}"
@@ -83,7 +113,8 @@
                                     </div>
                                     {% endfor %}
                                 {% else %}
-                                    <span class="small text-muted">Kein passendes Mitglied gefunden.
+                                    <span class="small text-muted d-block">
+                                    Kein ähnliches Mitglied gefunden.
                                     {% if u.agent_name and u.agent_name != '–' %}
                                     <a href="{{ url_for('admin.panel', member_search=u.agent_name) }}" target="_blank" rel="noopener">In Mitgliederliste suchen</a>
                                     {% endif %}
