@@ -728,15 +728,6 @@
     .ci-wz-handles--single .ci-wz-handle { background: linear-gradient(180deg, #36c6a0 0%, #2a9d7a 100%); box-shadow: 0 0 10px rgba(54,198,160,0.55); }
     .ci-wz-scroll.is-dragging { cursor: ew-resize; }
     .ci-wz-scroll.is-dragging .ci-wz-day { cursor: ew-resize; }
-    .ci-wz-window-row {
-        padding: 0.75rem 0.85rem;
-        border: 1px solid #34343c;
-        border-radius: 10px;
-        background: #22222a;
-    }
-    .ci-wz-window-label { font-size: 0.85rem; color: #d6d6dd; margin-bottom: 0.5rem; display: block; }
-    .ci-wz-window-slider-wrap { position: relative; padding: 0.25rem 0; }
-    .ci-wz-window-slider { width: 100%; }
     .ci-wz-summary-box {
         border: 1px solid #34343c; border-radius: 8px; padding: 0.65rem 0.75rem; background: #22222a; height: 100%;
     }
@@ -1177,8 +1168,6 @@
         var handlesEl = document.getElementById('ciWzHandles');
         var impactLayerEl = document.getElementById('ciWzImpactLayer');
         var impactHandlesEl = document.getElementById('ciWzImpactHandles');
-        var windowSlider = document.getElementById('ciWzWindowSlider');
-        var windowValEl = document.getElementById('ciWzWindowVal');
         var rangeLabelEl = document.getElementById('ciWzRangeLabel');
         var countsLabelEl = document.getElementById('ciWzCountsLabel');
         var dayHintEl = document.getElementById('ciWzDayHint');
@@ -1188,7 +1177,6 @@
         var windowInput = document.getElementById('ciWindow');
         var presetsWrap = document.getElementById('ciWzPresetsWrap');
         var periodPresets = document.getElementById('ciWzPeriodPresets');
-        var windowPresets = document.getElementById('ciWzWindowPresets');
         var wzHelpEl = document.getElementById('ciWzHelp');
         var wzSubtitleEl = document.getElementById('ciWzSubtitle');
         var wzEmptyDefault = 'Keine auswertbaren Coachings in dieser Auswahl.';
@@ -1246,13 +1234,41 @@
             }
         }
 
+        function fallbackRowZones() {
+            var day = daysEl.querySelector('.ci-wz-day');
+            var dataRowCount = day
+                ? day.querySelectorAll('.ci-wz-day-row--survey, .ci-wz-day-row--prod').length
+                : (state.showSurveys ? 1 : 0) + (state.showProductivity ? 1 : 0);
+            dataRowCount = Math.max(dataRowCount, 1);
+            var coachTop = 20;
+            var coachH = 28;
+            var dataTop = coachTop + coachH + 3;
+            var dataH = dataRowCount * 28 + Math.max(0, dataRowCount - 1) * 3;
+            return {
+                coachTop: coachTop,
+                coachH: coachH,
+                dataTop: dataTop,
+                dataH: Math.min(dataH, 108 - dataTop - 3),
+            };
+        }
+
         function measureRowZones() {
             var day = daysEl.querySelector('.ci-wz-day');
-            if (!day || !trackEl) return;
-            var trackRect = trackEl.getBoundingClientRect();
+            if (!day || !trackEl) {
+                state.zones = fallbackRowZones();
+                return;
+            }
             var coachRow = day.querySelector('.ci-wz-day-row--coach');
-            if (!coachRow) return;
+            if (!coachRow) {
+                state.zones = fallbackRowZones();
+                return;
+            }
+            var trackRect = trackEl.getBoundingClientRect();
             var coachRect = coachRow.getBoundingClientRect();
+            if (trackRect.height < 4 || coachRect.height < 4) {
+                state.zones = fallbackRowZones();
+                return;
+            }
             var dataRows = day.querySelectorAll('.ci-wz-day-row--survey, .ci-wz-day-row--prod');
             var dataTop = coachRect.bottom - trackRect.top + 3;
             var dataH = 28;
@@ -1268,6 +1284,14 @@
                 dataTop: dataTop,
                 dataH: Math.max(dataH, 24),
             };
+        }
+
+        function scheduleWizardLayout() {
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    updateUI();
+                });
+            });
         }
 
         function impactSpanIndices() {
@@ -1369,7 +1393,7 @@
         }
 
         function updatePresetButtons() {
-            if (!periodPresets || !windowPresets) return;
+            if (!periodPresets) return;
             var len = rangeDays();
             periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
                 var p = btn.getAttribute('data-period');
@@ -1378,9 +1402,6 @@
                 else if (p === '1' || p === '2') active = len === parseInt(p, 10);
                 else active = len === parseInt(p, 10);
                 btn.classList.toggle('active', active);
-            });
-            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
-                btn.classList.toggle('active', parseInt(btn.getAttribute('data-window'), 10) === state.windowDays);
             });
         }
 
@@ -1401,13 +1422,6 @@
             state.anchorIdx = state.endIdx;
             updateUI();
             scrollToIdx(state.startIdx);
-        }
-
-        function applyWindowPreset(days) {
-            state.windowDays = days;
-            recomputeActionableForWindow();
-            renderDays();
-            updateUI();
         }
 
         function updateStepIndicators(activeStep) {
@@ -1465,11 +1479,11 @@
             if (wzSubtitleEl && !state.freeMode) {
                 wzSubtitleEl.textContent = step === 1
                     ? 'Schritt 1: Zeitraum wählen — nur Coachings mit Vorher/Nachher-Daten'
-                    : 'Schritt 2: Wirkungsfenster — Tage vor und nach jedem Coaching';
+                    : 'Schritt 2: Wirkungsfenster in der Timeline (B/P-Zeilen) ziehen';
             } else if (wzSubtitleEl && state.freeMode) {
                 wzSubtitleEl.textContent = 'Zeitraum und Wirkungsfenster anpassen';
             }
-            updateUI();
+            scheduleWizardLayout();
         }
 
         function showImpactPreview() {
@@ -1679,9 +1693,10 @@
             if (state.showProductivity) {
                 countParts.push(prodDays + ' Tag' + (prodDays === 1 ? '' : 'e') + ' mit Prod.-Rohdaten');
             }
+            if (showImpactPreview()) {
+                countParts.push('Wirkungsfenster ' + state.windowDays + ' Tage');
+            }
             countsLabelEl.textContent = countParts.join(' · ');
-            windowValEl.textContent = state.windowDays;
-            if (windowSlider) windowSlider.value = state.windowDays;
             applyBtn.disabled = !d0 || !d1 || actCoach === 0;
             if (nextBtn) nextBtn.disabled = !d0 || !d1 || actCoach === 0;
             updatePresetButtons();
@@ -1772,8 +1787,6 @@
                 updateDayClasses();
                 renderImpactBands();
                 renderImpactHandles();
-                if (windowValEl) windowValEl.textContent = state.windowDays;
-                if (windowSlider) windowSlider.value = state.windowDays;
                 updatePresetButtons();
                 return;
             }
@@ -1855,15 +1868,6 @@
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);
 
-        if (windowSlider) {
-            windowSlider.addEventListener('input', function () {
-                state.windowDays = parseInt(windowSlider.value, 10) || 14;
-                recomputeActionableForWindow();
-                renderDays();
-                updateUI();
-            });
-        }
-
         if (nextBtn) {
             nextBtn.addEventListener('click', function () {
                 if (nextBtn.disabled) return;
@@ -1881,13 +1885,6 @@
             periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     applyPeriodPreset(btn.getAttribute('data-period'));
-                });
-            });
-        }
-        if (windowPresets) {
-            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    applyWindowPreset(parseInt(btn.getAttribute('data-window'), 10));
                 });
             });
         }
@@ -1974,14 +1971,14 @@
                     }
                     pickDefaultRange();
                     renderDays();
+                    workspaceEl.classList.remove('d-none');
+                    if (presetsWrap) presetsWrap.classList.remove('d-none');
                     if (state.freeMode) {
                         setWizardStep(2);
                     } else {
                         setWizardStep(data.actionable_coaching_count ? 1 : 2);
                     }
-                    updateUI();
-                    workspaceEl.classList.remove('d-none');
-                    if (presetsWrap) presetsWrap.classList.remove('d-none');
+                    scheduleWizardLayout();
                     scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
                 })
                 .catch(function () {
@@ -1995,6 +1992,12 @@
             if (!ciScopeReady()) return;
             $('#ciRangeWizardModal').modal('show');
             loadAndShow();
+        });
+
+        $(modal).on('shown.bs.modal', function () {
+            if (state.days.length && !workspaceEl.classList.contains('d-none')) {
+                scheduleWizardLayout();
+            }
         });
 
         applyBtn.addEventListener('click', function () {
