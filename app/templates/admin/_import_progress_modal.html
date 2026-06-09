@@ -138,6 +138,16 @@
                         .then(function (st) {
                             if (st.status === 'running' || st.status === 'pending') {
                                 setProgress(st.pct || 0, st.message || (label + ' läuft…'));
+                                if (st.updated_at && (st.pct || 0) < 20) {
+                                    var ageSec = (Date.now() / 1000) - st.updated_at;
+                                    if (ageSec > 90) {
+                                        var msgEl = document.getElementById('importProgressMessage');
+                                        if (msgEl && msgEl.textContent.indexOf('Bitte warten') === -1) {
+                                            msgEl.textContent = (st.message || '') +
+                                                ' — Bitte warten, große Dateien können mehrere Minuten dauern…';
+                                        }
+                                    }
+                                }
                             } else if (st.status === 'done') {
                                 clearInterval(poll);
                                 setProgress(100, st.message || 'Fertig – Weiterleitung…');

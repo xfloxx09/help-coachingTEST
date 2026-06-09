@@ -14,6 +14,7 @@ from app.models import (
 )
 from app import productivity as productivity_logic
 from app import kpi as kpi_logic
+from app import prod_import
 from app import member_linking
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
@@ -3638,6 +3639,23 @@ def _spawn_revert_worker(command, batch_id, job_id, user_id):
     )
 
 
+def _spawn_prod_import_worker(job_id, user_id, intervals_path, filename, overwrite):
+    """Run productivity import commit in a separate OS process (never blocks gunicorn)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen(
+        [
+            sys.executable, '-m', 'app.import_worker', 'prod_import',
+            job_id, str(user_id), intervals_path, filename, '1' if overwrite else '0',
+        ],
+        cwd=root,
+        env=os.environ.copy(),
+        start_new_session=True,
+        close_fds=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def _kpi_parse_date(value):
     s = (value or '').strip()
     if not s:
@@ -4404,57 +4422,6 @@ def _kpi_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
             db.session.remove()
 
 
-def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
-    with app.app_context():
-        try:
-            _import_job_write(job_id, user_id, {
-                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
-            })
-            _headers, rows = _prod_read_csv_rows(temp_path)
-            settings = productivity_logic.settings_dict(None)
-            team_map, dag_map, name_map, ma_map = productivity_logic.build_link_maps(
-                Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
-            )
-            intervals, _m, _u, _unmatched = _prod_build_intervals(
-                rows, settings, team_map, dag_map, name_map, ma_map,
-            )
-            _import_job_write(job_id, user_id, {
-                'status': 'running', 'pct': 5,
-                'message': f'{len(intervals)} Intervalle vorbereitet, speichern…',
-            })
-
-            def progress(done, total, message):
-                pct = 5 + int((done / max(total, 1)) * 90)
-                _import_job_write(job_id, user_id, {
-                    'status': 'running', 'pct': pct, 'message': message,
-                })
-
-            batch, deleted = _prod_commit_intervals(
-                filename, intervals, overwrite=overwrite, progress_cb=progress,
-                imported_by_id=user_id,
-            )
-            msg = f'{batch.intervals_stored} Intervalle importiert'
-            if deleted:
-                msg += f', {deleted} im Zeitraum ersetzt'
-            msg += f'. {batch.matched_member} mit Agent, {batch.unmatched_member} ohne Zuordnung.'
-            _import_job_write(job_id, user_id, {
-                'status': 'done',
-                'pct': 100,
-                'message': 'Import abgeschlossen.',
-                'done_url': url_for('admin.import_productivity_csv_done', job_id=job_id),
-                'flash_category': 'success',
-                'flash_message': msg,
-            })
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.exception('Productivity import job failed')
-            _import_job_write(job_id, user_id, {
-                'status': 'error', 'pct': 0, 'message': str(e),
-            })
-        finally:
-            db.session.remove()
-
-
 @bp.route('/import_kpi_csv', methods=['GET', 'POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
@@ -4750,6 +4717,22 @@ def _prod_detect_encoding(temp_path):
     return 'latin-1'
 
 
+def _prod_intervals_sidecar_path(temp_path):
+    return prod_import.intervals_sidecar_path(temp_path)
+
+
+def _prod_write_intervals_sidecar(temp_path, intervals):
+    return prod_import.write_intervals_sidecar(temp_path, intervals)
+
+
+def read_prod_intervals_sidecar(path):
+    return prod_import.read_intervals_sidecar(path)
+
+
+def _prod_remove_intervals_sidecar(temp_path):
+    prod_import.remove_intervals_sidecar(temp_path)
+
+
 def _prod_read_csv_rows(temp_path):
     encoding = _prod_detect_encoding(temp_path)
     with open(temp_path, 'r', encoding=encoding) as f:
@@ -4769,6 +4752,7 @@ def _prod_cleanup_session_temp():
             os.unlink(temp_path)
         except OSError:
             pass
+        _prod_remove_intervals_sidecar(temp_path)
     session.pop('prod_csv_temp_file', None)
     session.pop('prod_csv_filename', None)
     session.pop('prod_csv_headers', None)
@@ -4783,14 +4767,19 @@ def _prod_cleanup_session_temp():
                     pass
 
 
-def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
+def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map, *, track_unmatched=True):
     """Group rows by agent+slot, compute metrics, resolve links."""
     archiv_team = get_or_create_archiv_team()
-    members_by_id = {
-        m.id: m for m in TeamMember.query.options(joinedload(TeamMember.team)).all()
-    }
+    archiv_team_id = archiv_team.id
+    members_by_id = None
+    if track_unmatched:
+        members_by_id = {
+            m.id: m for m in TeamMember.query.options(joinedload(TeamMember.team)).all()
+        }
 
     def _member_candidates(agent_name, dag_id, team_id):
+        if not members_by_id:
+            return []
         ids = set()
         dag_key = productivity_logic.normalize_member_id_key(dag_id)
         agent_lower = (agent_name or '').strip().lower()
@@ -4813,7 +4802,7 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
                 'team_name': m.team.name if m.team else '–',
                 'dag_id': m.dag_id or '',
                 'ma_kennung': m.ma_kennung or '',
-                'is_archiv': m.team_id == archiv_team.id,
+                'is_archiv': m.team_id == archiv_team_id,
                 'in_resolved_team': team_id is not None and m.team_id == team_id,
             })
         out.sort(key=lambda c: (not c['in_resolved_team'], c['is_archiv'], c['name']))
@@ -4876,7 +4865,7 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
         )
         if mid:
             matched += 1
-        else:
+        elif track_unmatched:
             unmatched += 1
             ukey = (
                 (slot.get('be4') or '').strip(),
@@ -4909,71 +4898,10 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
 def _prod_commit_intervals(filename, intervals, overwrite=False, progress_cb=None, imported_by_id=None):
     if imported_by_id is None:
         imported_by_id = current_user.id
-    dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
-    date_from = min(dates) if dates else None
-    date_to = max(dates) if dates else None
-    total = len(intervals)
-
-    def _progress(stored, message):
-        if progress_cb:
-            progress_cb(stored, total, message)
-
-    _progress(0, 'Vorhandene Intervalle prüfen…')
-    deleted = 0
-    if overwrite and date_from and date_to:
-        q = ProductivityInterval.query.filter(
-            ProductivityInterval.slot_at >= datetime.combine(date_from, time.min),
-            ProductivityInterval.slot_at <= datetime.combine(date_to, time.max),
-        )
-        deleted = q.delete(synchronize_session=False)
-
-    batch = ProductivityImportBatch(
-        filename=filename,
-        imported_by_id=imported_by_id,
-        date_from=date_from,
-        date_to=date_to,
-        rows_total=len(intervals),
-        intervals_stored=0,
-        matched_member=sum(1 for iv in intervals if iv.get('team_member_id')),
-        unmatched_member=sum(1 for iv in intervals if not iv.get('team_member_id')),
+    return prod_import.commit_intervals(
+        filename, intervals, overwrite=overwrite,
+        progress_cb=progress_cb, imported_by_id=imported_by_id,
     )
-    db.session.add(batch)
-    db.session.flush()
-
-    chunk = 500
-    stored = 0
-    for i in range(0, len(intervals), chunk):
-        part = intervals[i:i + chunk]
-        objs = []
-        for iv in part:
-            objs.append(ProductivityInterval(
-                batch_id=batch.id,
-                team_member_id=iv.get('team_member_id'),
-                team_id=iv.get('team_id'),
-                project_id=iv.get('project_id'),
-                slot_at=iv['slot_at'],
-                interval_sec=int(iv.get('interval_sec') or productivity_logic.INTERVAL_DEFAULT),
-                sign_on_sec=iv.get('sign_on_sec') or 0,
-                prod_sec=iv.get('prod_sec') or 0,
-                nach_sec=iv.get('nach_sec') or 0,
-                idle_sec=iv.get('idle_sec') or 0,
-                pause_sec=iv.get('pause_sec') or 0,
-                calls=iv.get('calls') or 0,
-                works_beendet=iv.get('works_beendet') or 0,
-                sign_on_pct=iv.get('sign_on_pct'),
-                prod_pct=iv.get('prod_pct'),
-                nach_pct=iv.get('nach_pct'),
-                idle_pct=iv.get('idle_pct'),
-                nach_per_call=iv.get('nach_per_call'),
-                kpi_denom=iv.get('kpi_denom'),
-            ))
-        db.session.bulk_save_objects(objs)
-        stored += len(objs)
-        _progress(stored, f'{stored}/{total} Intervalle speichern…')
-    batch.intervals_stored = stored
-    _progress(total, 'Abschluss…')
-    db.session.commit()
-    return batch, deleted
 
 
 @bp.route('/import_productivity_csv', methods=['GET', 'POST'])
@@ -5015,6 +4943,7 @@ def import_productivity_csv():
 
         dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
         unmatched_path = _import_json_temp(unmatched_list) if unmatched_list else None
+        _prod_write_intervals_sidecar(temp_path, intervals)
         session['prod_preview'] = {
             'filename': file.filename,
             'preview': {
@@ -5114,18 +5043,18 @@ def import_productivity_csv_job_start():
     filename = session.get('prod_csv_filename', 'import.csv')
     if not temp_path or not os.path.exists(temp_path):
         return jsonify({'error': 'Keine CSV-Daten gefunden. Bitte erneut hochladen.'}), 400
+    intervals_path = _prod_intervals_sidecar_path(temp_path)
+    if not os.path.isfile(intervals_path):
+        return jsonify({
+            'error': 'Vorschau-Daten fehlen (Intervalle nicht zwischengespeichert). '
+                     'Bitte CSV erneut hochladen und Import bestätigen.',
+        }), 400
     overwrite = request.form.get('confirm_overwrite') == '1'
     job_id = uuid.uuid4().hex
     _import_job_write(job_id, current_user.id, {
         'status': 'pending', 'pct': 0, 'message': 'Import wird gestartet…',
     })
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_prod_run_import_job,
-        args=(app, job_id, current_user.id, temp_path, filename, overwrite),
-        daemon=True,
-    )
-    thread.start()
+    _spawn_prod_import_worker(job_id, current_user.id, intervals_path, filename, overwrite)
     return jsonify({'job_id': job_id})
 
 
@@ -5141,6 +5070,7 @@ def import_productivity_csv_job_status(job_id):
         'pct': job.get('pct', 0),
         'message': job.get('message', ''),
         'done_url': job.get('done_url'),
+        'updated_at': job.get('updated_at'),
         'error': job.get('message') if job.get('status') == 'error' else None,
     })
 

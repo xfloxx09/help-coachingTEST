@@ -169,6 +169,65 @@ def run_prod_revert(batch_id, job_id, user_id):
         engine.dispose()
 
 
+def run_prod_import(job_id, user_id, intervals_path, filename, overwrite_flag):
+    _job_write(job_id, user_id, {
+        'status': 'running', 'pct': 2, 'message': 'Import-Prozess gestartet…',
+    })
+    from app import create_app, db
+    from app import prod_import
+
+    app = create_app()
+    with app.app_context():
+        try:
+            _job_write(job_id, user_id, {
+                'status': 'running', 'pct': 8, 'message': 'Intervalle laden…',
+            })
+            if not os.path.isfile(intervals_path):
+                raise FileNotFoundError(
+                    'Vorschau-Daten fehlen. Bitte CSV erneut hochladen.'
+                )
+            intervals = prod_import.read_intervals_sidecar(intervals_path)
+            total = len(intervals)
+            _job_write(job_id, user_id, {
+                'status': 'running', 'pct': 12,
+                'message': f'{total:,} Intervalle, speichern…',
+            })
+
+            def progress(done, _total, message):
+                pct = 12 + int((done / max(_total, 1)) * 83)
+                _job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            batch, deleted = prod_import.commit_intervals(
+                filename,
+                intervals,
+                overwrite=(overwrite_flag == '1'),
+                progress_cb=progress,
+                imported_by_id=int(user_id),
+            )
+            msg = f'{batch.intervals_stored:,} Intervalle importiert'
+            if deleted:
+                msg += f', {deleted:,} im Zeitraum ersetzt'
+            msg += (
+                f'. {batch.matched_member:,} mit Agent, '
+                f'{batch.unmatched_member:,} ohne Zuordnung.'
+            )
+            _job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import abgeschlossen.',
+                'done_url': f'/admin/import_productivity_csv/done/{job_id}',
+                'flash_category': 'success',
+                'flash_message': msg,
+            })
+        except Exception as e:
+            db.session.rollback()
+            _job_write(job_id, user_id, {'status': 'error', 'pct': 0, 'message': str(e)})
+        finally:
+            db.session.remove()
+
+
 def main(argv=None):
     argv = argv or sys.argv[1:]
     if not argv:
@@ -178,6 +237,8 @@ def main(argv=None):
         run_kpi_revert(int(argv[1]), argv[2], int(argv[3]))
     elif cmd == 'prod_revert':
         run_prod_revert(int(argv[1]), argv[2], int(argv[3]))
+    elif cmd == 'prod_import':
+        run_prod_import(argv[1], int(argv[2]), argv[3], argv[4], argv[5])
     else:
         print(f'Unknown command: {cmd}', file=sys.stderr)
         return 1
