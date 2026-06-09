@@ -14,6 +14,7 @@ from app.models import (
 )
 from app import productivity as productivity_logic
 from app import kpi as kpi_logic
+from app import member_linking
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
 from app.main_routes import calculate_date_range, get_month_name_german, _sync_assigned_coaching_status_from_progress
@@ -306,7 +307,12 @@ def panel():
         if member_team_filter:
             members_query = members_query.filter(TeamMember.team_id == member_team_filter)
         if member_search:
-            members_query = members_query.filter(TeamMember.name.ilike(f'%{member_search}%'))
+            members_query = members_query.filter(or_(
+                TeamMember.name.ilike(f'%{member_search}%'),
+                TeamMember.ma_kennung.ilike(f'%{member_search}%'),
+                TeamMember.dag_id.ilike(f'%{member_search}%'),
+                TeamMember.pylon.ilike(f'%{member_search}%'),
+            ))
     members_paginated = members_query.order_by(TeamMember.name).paginate(page=page_members, per_page=20, error_out=False)
 
     archiv_team = get_or_create_archiv_team()
@@ -319,7 +325,12 @@ def panel():
         if archiv_team_filter:
             archiv_query = archiv_query.filter(TeamMember.original_team_id == archiv_team_filter)
         if archiv_search:
-            archiv_query = archiv_query.filter(TeamMember.name.ilike(f'%{archiv_search}%'))
+            archiv_query = archiv_query.filter(or_(
+                TeamMember.name.ilike(f'%{archiv_search}%'),
+                TeamMember.ma_kennung.ilike(f'%{archiv_search}%'),
+                TeamMember.dag_id.ilike(f'%{archiv_search}%'),
+                TeamMember.pylon.ilike(f'%{archiv_search}%'),
+            ))
     archiv_paginated = archiv_query.order_by(TeamMember.name).paginate(page=page_archiv, per_page=20, error_out=False)
 
     all_projects = Project.query.order_by(Project.name).all()
@@ -843,6 +854,9 @@ def edit_user(user_id):
         title='Benutzer bearbeiten',
         form=form,
         user=user_to_edit,
+        linked_members=TeamMember.query.options(joinedload(TeamMember.team))
+            .filter_by(user_id=user_to_edit.id).order_by(TeamMember.id).all(),
+        unlinked_member_candidates=member_linking.find_unlinked_members_for_user(user_to_edit),
         role_ids_multiple_teams=_role_ids_with_multiple_teams(),
         role_ids_view_abteilung=_role_ids_with_view_abteilung(),
         config=current_app.config,
@@ -912,7 +926,9 @@ def create_team():
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
 def edit_team(team_id):
-    team_to_edit = Team.query.get_or_404(team_id)
+    team_to_edit = Team.query.options(
+        joinedload(Team.members).joinedload(TeamMember.user),
+    ).get_or_404(team_id)
     form = TeamForm(obj=team_to_edit, original_name=team_to_edit.name)
 
     if team_to_edit.name == ARCHIV_TEAM_NAME and request.method == 'GET':
@@ -1051,16 +1067,19 @@ def create_team_member():
             )
             db.session.add(member)
             db.session.flush()
-            
+
             if not form.active.data:
                 archiv_team = get_or_create_archiv_team()
                 member.original_team_id = member.team_id
                 member.original_project_id = member.team.project_id
                 member.team_id = archiv_team.id
-            
+
+            if member_linking.try_auto_link_member(member):
+                flash('Automatisch mit passendem Benutzerkonto verknüpft.', 'info')
+
             db.session.commit()
             flash('Teammitglied erfolgreich erstellt!', 'success')
-            return redirect(url_for('admin.panel'))
+            return redirect(url_for('admin.edit_team_member', member_id=member.id))
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Fehler beim Erstellen des Teammitglieds: {e}")
@@ -1125,6 +1144,11 @@ def edit_team_member(member_id):
                 member.original_project_id = sel_team.project_id
                 member.team_id = archiv_team.id
 
+            if not member.user_id:
+                auto_uid = member_linking.try_auto_link_member(member)
+                if auto_uid:
+                    flash('Automatisch mit passendem Benutzerkonto verknüpft.', 'info')
+
             db.session.commit()
             flash('Teammitglied erfolgreich aktualisiert!', 'success')
             if member.team_id == archiv_team.id:
@@ -1145,8 +1169,75 @@ def edit_team_member(member_id):
             else:
                 form.team_id.data = all_teams[0].id if all_teams else None
     
-    return render_template('admin/edit_team_member.html', title='Teammitglied bearbeiten',
-                           form=form, member=member, projects=projects, all_teams=all_teams, config=current_app.config)
+    return render_template(
+        'admin/edit_team_member.html',
+        title='Person / Teammitglied',
+        form=form,
+        member=member,
+        projects=projects,
+        all_teams=all_teams,
+        link_status=member_linking.member_link_status(member),
+        user_candidates=member_linking.find_user_candidates_for_member(member),
+        config=current_app.config,
+    )
+
+
+@bp.route('/teammembers/<int:member_id>/link-user/<int:user_id>', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def link_member_to_user(member_id, user_id):
+    member = TeamMember.query.get_or_404(member_id)
+    user = User.query.get_or_404(user_id)
+    member_linking.link_member_to_user(member, user)
+    db.session.commit()
+    flash(f'„{member.name}" mit Benutzer „{user.username}" verknüpft.', 'success')
+    return redirect(url_for('admin.edit_team_member', member_id=member_id))
+
+
+@bp.route('/teammembers/<int:member_id>/unlink-user', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def unlink_member_from_user(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    member_linking.unlink_member_user(member)
+    db.session.commit()
+    flash('Benutzer-Verknüpfung entfernt (Mitglied bleibt für Importe/KPIs erhalten).', 'info')
+    return redirect(url_for('admin.edit_team_member', member_id=member_id))
+
+
+@bp.route('/teammembers/<int:member_id>/create-user', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def create_user_for_member(member_id):
+    member = TeamMember.query.get_or_404(member_id)
+    try:
+        user, created = member_linking.create_user_for_member(member)
+        db.session.commit()
+        if created:
+            flash(
+                f'Benutzerkonto „{user.username}" erstellt und verknüpft (Startpasswort: Start123).',
+                'success',
+            )
+        else:
+            flash('Mitglied war bereits verknüpft.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Benutzerkonto konnte nicht erstellt werden: {e}', 'danger')
+    return redirect(url_for('admin.edit_team_member', member_id=member_id))
+
+
+@bp.route('/teammembers/auto-link', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def auto_link_team_members():
+    try:
+        n = member_linking.auto_link_all_unlinked(min_score=50)
+        db.session.commit()
+        flash(f'{n} Teammitglied(er) automatisch mit Benutzerkonten verknüpft.', 'success' if n else 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Auto-Verknüpfung fehlgeschlagen: {e}', 'danger')
+    return redirect(url_for('admin.panel'))
 
 
 @bp.route('/teammembers/<int:member_id>/move-to-archiv', methods=['POST'])

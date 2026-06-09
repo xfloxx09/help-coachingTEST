@@ -7,6 +7,43 @@
         {{ form.hidden_tag() }}
 
         <h4>Benutzerkonto</h4>
+        {% if linked_members|default([]) %}
+        <div class="alert alert-light border small py-2 mb-3">
+            <strong>Verknüpfte Teammitglied-Zeilen:</strong>
+            {% for lm in linked_members %}
+            <div class="mt-1">
+                <a href="{{ url_for('admin.edit_team_member', member_id=lm.id) }}">{{ lm.name }}</a>
+                · {{ lm.team.name if lm.team else '–' }}
+                {% if lm.ma_kennung %} · MA: <code>{{ lm.ma_kennung }}</code>{% endif %}
+                {% if lm.dag_id %} · DAG: <code>{{ lm.dag_id }}</code>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning small py-2 mb-3">
+            Kein Teammitglied verknüpft – KPI/Produktivität brauchen die Stammdaten unten oder eine Verknüpfung.
+        </div>
+        {% endif %}
+        {% if unlinked_member_candidates|default([]) %}
+        <div class="card mb-3 border-info">
+            <div class="card-body py-2">
+                <strong class="small">Passende Import-Mitglieder ohne Login:</strong>
+                {% for c in unlinked_member_candidates %}
+                <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                    <div class="small">
+                        <a href="{{ url_for('admin.edit_team_member', member_id=c.member_id) }}">{{ c.name }}</a>
+                        · {{ c.team_name }}
+                        {% if c.ma_kennung %} · MA: <code>{{ c.ma_kennung }}</code>{% endif %}
+                        <span class="text-muted d-block">{{ c.reasons|join(' · ') }}</span>
+                    </div>
+                    <form method="POST" action="{{ url_for('admin.link_member_to_user', member_id=c.member_id, user_id=user.id) }}">
+                        <button type="submit" class="btn btn-xs btn-outline-primary">Verknüpfen</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <div class="form-group">
             {{ form.username.label }} {{ form.username(class="form-control") }}
         </div>
@@ -49,6 +86,7 @@
 
         <hr>
         <h4>Teammitglied-Daten</h4>
+        <p class="small text-muted">Gilt für verknüpfte Teammitglied-Zeile(n). Import-IDs hier pflegen.</p>
         <div class="form-group">
             {{ form.first_name.label }} {{ form.first_name(class="form-control") }}
         </div>

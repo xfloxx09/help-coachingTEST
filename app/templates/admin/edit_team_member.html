@@ -1,38 +1,116 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
-    <h2>Teammitglied bearbeiten</h2>
-    <form method="POST">
-        {{ form.hidden_tag() }}
-        <div class="form-group">
-            {{ form.first_name.label }} {{ form.first_name(class="form-control") }}
+<div class="container" style="max-width: 720px;">
+    <h2 class="mb-1">Person / Teammitglied</h2>
+    <p class="text-muted small mb-4">
+        Teammitglied-Daten (KPI, Produktivität, Coachings) und optional ein Login-Konto.
+    </p>
+
+    {% if link_status.state == 'linked' %}
+    <div class="alert alert-success py-2">
+        <i class="fas fa-link mr-1"></i>
+        <strong>Mit Login verknüpft:</strong>
+        <a href="{{ url_for('admin.edit_user', user_id=link_status.user_id) }}">{{ link_status.username }}</a>
+        {% if link_status.email %} · {{ link_status.email }}{% endif %}
+        · Rolle: {{ link_status.role_name }}
+        <form method="POST" action="{{ url_for('admin.unlink_member_from_user', member_id=member.id) }}" class="d-inline ml-2"
+              onsubmit="return confirm('Verknüpfung zum Benutzerkonto wirklich entfernen?');">
+            <button type="submit" class="btn btn-xs btn-outline-secondary">Verknüpfung lösen</button>
+        </form>
+    </div>
+    {% else %}
+    <div class="alert alert-warning py-2">
+        <i class="fas fa-file-import mr-1"></i>
+        <strong>Nur Teamliste / Import</strong> – kein Benutzerkonto verknüpft.
+        KPI- und Produktivitäts-Importe nutzen MA-Kennung, DAG-ID und Name.
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header"><strong>Stammdaten (Teammitglied)</strong></div>
+        <div class="card-body">
+            <form method="POST">
+                {{ form.hidden_tag() }}
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        {{ form.first_name.label }} {{ form.first_name(class="form-control") }}
+                    </div>
+                    <div class="form-group col-md-6">
+                        {{ form.last_name.label }} {{ form.last_name(class="form-control") }}
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        {{ form.pylon.label }} {{ form.pylon(class="form-control") }}
+                    </div>
+                    <div class="form-group col-md-6">
+                        {{ form.plt_id.label }} {{ form.plt_id(class="form-control") }}
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        {{ form.ma_kennung.label }} {{ form.ma_kennung(class="form-control") }}
+                        <small class="text-muted">Wird für KPI-Import (Qualität) genutzt.</small>
+                    </div>
+                    <div class="form-group col-md-6">
+                        {{ form.dag_id.label }} {{ form.dag_id(class="form-control") }}
+                        <small class="text-muted">Wird für Produktivitäts-Import genutzt.</small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    {{ form.team_id.label }} {{ form.team_id(class="form-control") }}
+                </div>
+                <div class="form-check mb-3">
+                    {{ form.active(class="form-check-input") }}
+                    {{ form.active.label(class="form-check-label") }}
+                    <small class="form-text text-muted">Wenn deaktiviert, wird das Mitglied ins ARCHIV verschoben.</small>
+                </div>
+                {{ form.submit(class="btn telekom-button", value='Speichern') }}
+                <a href="{{ url_for('admin.panel') }}" class="btn btn-secondary">Abbrechen</a>
+            </form>
         </div>
-        <div class="form-group">
-            {{ form.last_name.label }} {{ form.last_name(class="form-control") }}
+    </div>
+
+    {% if link_status.state != 'linked' %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Benutzerkonto verknüpfen</strong></div>
+        <div class="card-body">
+            {% if user_candidates %}
+            <p class="small text-muted mb-2">Vorschläge (Name, MA-Kennung, DAG-ID, Pylon, Benutzername):</p>
+            {% for c in user_candidates %}
+            <div class="d-flex justify-content-between align-items-start border rounded p-2 mb-2">
+                <div>
+                    <strong>{{ c.username }}</strong>
+                    {% if c.email %}<span class="text-muted small"> · {{ c.email }}</span>{% endif %}
+                    <span class="badge badge-secondary ml-1">{{ c.role_name }}</span>
+                    <div class="small text-muted mt-1">{{ c.reasons|join(' · ') }}</div>
+                </div>
+                <form method="POST" action="{{ url_for('admin.link_member_to_user', member_id=member.id, user_id=c.user_id) }}">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Verknüpfen</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted small mb-3">Kein passendes Benutzerkonto gefunden.</p>
+            {% endif %}
+            <form method="POST" action="{{ url_for('admin.create_user_for_member', member_id=member.id) }}"
+                  onsubmit="return confirm('Neues Benutzerkonto (Rolle Mitarbeiter, Passwort Start123) erstellen?');">
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="fas fa-user-plus mr-1"></i> Neues Login-Konto erstellen
+                </button>
+            </form>
+            <p class="small text-muted mt-2 mb-0">
+                Oder zuerst unter <a href="{{ url_for('admin.create_user') }}">Benutzer erstellen</a>
+                und danach hier verknüpfen.
+            </p>
         </div>
-        <div class="form-group">
-            {{ form.pylon.label }} {{ form.pylon(class="form-control") }}
-        </div>
-        <div class="form-group">
-            {{ form.plt_id.label }} {{ form.plt_id(class="form-control") }}
-        </div>
-        <div class="form-group">
-            {{ form.ma_kennung.label }} {{ form.ma_kennung(class="form-control") }}
-        </div>
-        <div class="form-group">
-            {{ form.dag_id.label }} {{ form.dag_id(class="form-control") }}
-        </div>
-        <div class="form-group">
-            {{ form.team_id.label }} {{ form.team_id(class="form-control") }}
-        </div>
-        <div class="form-check">
-            {{ form.active(class="form-check-input") }}
-            {{ form.active.label(class="form-check-label") }}
-            <small class="form-text text-muted">Wenn deaktiviert, wird das Mitglied ins ARCHIV verschoben.</small>
-        </div>
-        {{ form.submit(class="btn telekom-button") }}
-        <a href="{{ url_for('admin.panel') }}" class="btn btn-secondary">Abbrechen</a>
-    </form>
+    </div>
+    {% endif %}
+
+    <p class="small text-muted">
+        ID {{ member.id }}
+        {% if member.team %} · Team: {{ member.team.name }}{% endif %}
+    </p>
 </div>
 {% endblock %}

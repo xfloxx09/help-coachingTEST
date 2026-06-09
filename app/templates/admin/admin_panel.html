@@ -4,6 +4,14 @@
 <h1>{{ title }}</h1>
 <p>Willkommen im Admin-Bereich. Hier können Sie Benutzer, Teams und Projekte verwalten.</p>
 
+<form method="POST" action="{{ url_for('admin.auto_link_team_members') }}" class="mb-3"
+      onsubmit="return confirm('Alle Teammitglieder ohne Login automatisch mit passenden Benutzerkonten verknüpfen?');">
+    <button type="submit" class="btn btn-sm btn-outline-info">
+        <i class="fas fa-link mr-1"></i> Import-Mitglieder auto-verknüpfen
+    </button>
+    <span class="small text-muted ml-2">Match über Name, MA-Kennung, DAG-ID, Pylon, Benutzername</span>
+</form>
+
 <!-- Benutzerverwaltung mit Filter und Paginierung -->
 <div class="card mb-4">
     <div class="card-header telekom-bg-magenta text-white d-flex justify-content-between align-items-center">

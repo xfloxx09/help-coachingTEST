@@ -58,13 +58,30 @@
                     <thead>
                         <tr>
                             <th>Name</th>
+                            <th>Login</th>
                             <th class="text-right">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for member in team.members|sort(attribute='name') %}
                         <tr>
-                            <td>{{ member.name }}</td>
+                            <td>
+                                {{ member.name }}
+                                {% if member.ma_kennung or member.dag_id %}
+                                <div class="small text-muted">
+                                    {% if member.ma_kennung %}MA: <code>{{ member.ma_kennung }}</code>{% endif %}
+                                    {% if member.dag_id %} · DAG: <code>{{ member.dag_id }}</code>{% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if member.user_id and member.user %}
+                                <span class="badge badge-success">Login</span>
+                                <a href="{{ url_for('admin.edit_user', user_id=member.user_id) }}" class="small">{{ member.user.username }}</a>
+                                {% else %}
+                                <span class="badge badge-secondary">Import only</span>
+                                {% endif %}
+                            </td>
                             <td class="text-right">
                                 <a href="{{ url_for('admin.edit_team_member', member_id=member.id) }}" class="btn btn-sm btn-secondary">Bearbeiten</a>
                                 <form action="{{ url_for('admin.move_to_archiv', member_id=member.id) }}" method="POST" style="display: inline-block; margin-left: 5px;">

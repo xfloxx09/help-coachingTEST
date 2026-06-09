@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container" style="max-width: 720px;">
     <h2>Teammitglied erstellen</h2>
+    <p class="text-muted small">
+        Nur für die Teamliste (Import/KPI). Mit Login:
+        <a href="{{ url_for('admin.create_team_member_with_user') }}">Mitglied + Benutzerkonto</a>
+        oder <a href="{{ url_for('admin.create_user') }}">Benutzer erstellen</a> (legt beides an).
+    </p>
     <form method="POST">
         {{ form.hidden_tag() }}
         <div class="form-group">
