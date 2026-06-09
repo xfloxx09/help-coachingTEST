@@ -537,98 +537,37 @@
         gap: 0.75rem 1rem;
     }
     .ci-wz-header .close { margin-left: auto; }
-    .ci-wz-presets-wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 0.45rem;
-        margin-left: auto;
-        margin-right: 0.5rem;
+    .ci-wz-controls {
+        background: #25252b;
+        border: 1px solid #34343c;
+        border-radius: 10px;
+        padding: 0.75rem 0.85rem 0.35rem;
+        margin-bottom: 0.85rem;
     }
-    .ci-wz-preset-group { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
-    .ci-wz-preset-label {
-        font-size: 0.65rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+    .ci-wz-ctrl-label {
+        font-size: 0.72rem;
+        text-transform: lowercase;
         color: #9a9aa3;
-        min-width: 4.5rem;
-        text-align: right;
+        margin-bottom: 0.35rem;
     }
-    .ci-wz-preset-btns .btn {
+    .ci-wz-controls .form-control {
+        background: #1f1f24;
+        border-color: #4a4a55;
+        color: #e8e8ec;
+    }
+    .ci-wz-preset-btns .btn,
+    .ci-wz-window-btns .btn {
         border-color: #4a4a55;
         color: #d6d6dd;
-        font-size: 0.72rem;
-        padding: 0.2rem 0.45rem;
+        background: #2a2a31;
+        font-size: 0.78rem;
     }
-    .ci-wz-preset-btns .btn.active {
+    .ci-wz-preset-btns .btn.active,
+    .ci-wz-window-btns .btn.active {
         background: #e20074;
         border-color: #e20074;
         color: #fff;
     }
-    .ci-wz-help { margin: 0; line-height: 1.45; }
-    .ci-wz-step-tip {
-        position: relative;
-        display: flex;
-        align-items: flex-start;
-        gap: 0.65rem;
-        margin-bottom: 0.65rem;
-        padding: 0.65rem 2rem 0.65rem 0.75rem;
-        border-radius: 10px;
-        border: 1px solid #4aa3ff;
-        background: linear-gradient(135deg, rgba(74, 163, 255, 0.14) 0%, rgba(74, 163, 255, 0.06) 100%);
-        font-size: 0.82rem;
-        color: #d6d6dd;
-        line-height: 1.45;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-    }
-    .ci-wz-step-tip--impact {
-        border-color: #e20074;
-        background: linear-gradient(135deg, rgba(226, 0, 116, 0.14) 0%, rgba(226, 0, 116, 0.06) 100%);
-    }
-    .ci-wz-step-tip-icon {
-        flex-shrink: 0;
-        width: 2rem;
-        height: 2rem;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #4aa3ff;
-        color: #fff;
-        font-size: 0.85rem;
-    }
-    .ci-wz-step-tip-icon--impact { background: #e20074; }
-    .ci-wz-step-tip-body strong {
-        display: block;
-        color: #e8e8ec;
-        font-size: 0.88rem;
-        margin-bottom: 0.25rem;
-    }
-    .ci-wz-step-tip-body p { margin-bottom: 0.35rem; }
-    .ci-wz-step-tip-body ul { font-size: 0.8rem; color: #b9b9c2; }
-    .ci-wz-step-tip-body ul li { margin-bottom: 0.15rem; }
-    .ci-wz-step-tip-close {
-        position: absolute;
-        top: 0.35rem;
-        right: 0.45rem;
-        border: none;
-        background: transparent;
-        color: #9a9aa3;
-        font-size: 1.15rem;
-        line-height: 1;
-        padding: 0;
-        cursor: pointer;
-    }
-    .ci-wz-step-tip-close:hover { color: #e8e8ec; }
-    .ci-wz-tip-mark {
-        display: inline-block;
-        padding: 0 0.3rem;
-        border-radius: 3px;
-        font-weight: 600;
-        font-size: 0.78rem;
-    }
-    .ci-wz-tip-mark--coach { background: rgba(226, 0, 116, 0.25); color: #ffb8dc; }
-    .ci-wz-tip-mark--data { background: rgba(226, 0, 116, 0.2); color: #ff8fc7; }
     .ci-wz-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.78rem; color: #b9b9c2; }
     .ci-wz-legend-coach { color: #ff8fc7; }
     .ci-wz-legend-survey { color: #9ed0ff; }
@@ -638,7 +577,7 @@
     .ci-wz-legend-sel span { background: rgba(74, 163, 255, 0.45); border: 1px solid #4aa3ff; }
     .ci-wz-legend-impact span { background: rgba(226, 0, 116, 0.15); border: 1px dashed #e20074; }
     .ci-wz-scroll {
-        overflow-x: auto;
+        overflow-x: hidden;
         overflow-y: hidden;
         border: 1px solid #34343c;
         border-radius: 10px;
@@ -852,6 +791,7 @@
     .ci-wz-handle-start { left: -12px; }
     .ci-wz-handle-end { right: -12px; }
     .ci-wz-handles--single .ci-wz-handle { background: linear-gradient(180deg, #36c6a0 0%, #2a9d7a 100%); box-shadow: 0 0 10px rgba(54,198,160,0.55); }
+    .ci-wz-scroll.is-scrollable { overflow-x: auto; }
     .ci-wz-scroll.is-dragging { cursor: ew-resize; }
     .ci-wz-scroll.is-dragging .ci-wz-day { cursor: ew-resize; }
     .ci-wz-summary-box {
@@ -860,33 +800,7 @@
     .ci-wz-summary-lbl { font-size: 0.72rem; color: #9a9aa3; text-transform: uppercase; letter-spacing: 0.03em; }
     .ci-wz-summary-val { font-size: 0.92rem; font-weight: 600; color: #e8e8ec; margin-top: 0.2rem; }
     .ci-wz-hint-box .ci-wz-summary-val { font-weight: 400; color: #b9b9c2; }
-    .ci-wz-steps {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-    .ci-wz-step {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        font-size: 0.82rem;
-        color: #9a9aa3;
-    }
-    .ci-wz-step.active { color: #e8e8ec; font-weight: 600; }
-    .ci-wz-step.done { color: #36c6a0; }
-    .ci-wz-step-num {
-        width: 1.35rem; height: 1.35rem; border-radius: 50%;
-        display: inline-flex; align-items: center; justify-content: center;
-        font-size: 0.72rem; font-weight: 700;
-        background: #34343c; color: #b9b9c2;
-    }
-    .ci-wz-step.active .ci-wz-step-num { background: #e20074; color: #fff; }
-    .ci-wz-step.done .ci-wz-step-num { background: #36c6a0; color: #fff; }
-    .ci-wz-step-sep { color: #666; font-size: 0.65rem; }
     .ci-wz-legend-muted { color: #7a7a85; font-size: 0.78rem; }
-    .ci-wz-legend-impact--step2 { opacity: 0.45; }
-    body.ci-wz-on-step2 .ci-wz-legend-impact--step2 { opacity: 1; }
     .ci-wz-day--coach-muted { opacity: 0.45; }
     .ci-wz-day--coach-actionable .ci-wz-day-row--coach { color: #ff8fc7; font-weight: 600; }
     .ci-wz-day-row--coach-muted { opacity: 0.55; }
@@ -1380,17 +1294,15 @@
         var dateFromInput = document.getElementById('ciDateFrom');
         var dateToInput = document.getElementById('ciDateTo');
         var windowInput = document.getElementById('ciWindow');
-        var presetsWrap = document.getElementById('ciWzPresetsWrap');
         var periodPresets = document.getElementById('ciWzPeriodPresets');
-        var wzSubtitleEl = document.getElementById('ciWzSubtitle');
+        var windowPresets = document.getElementById('ciWzWindowPresets');
+        var wzDateFrom = document.getElementById('ciWzDateFrom');
+        var wzDateTo = document.getElementById('ciWzDateTo');
+        var scrollHint = document.getElementById('ciWzScrollHint');
         var wzEmptyDefault = 'Keine auswertbaren Coachings in dieser Auswahl.';
-        var backBtn = document.getElementById('ciWzBack');
-        var nextBtn = document.getElementById('ciWzNext');
-        var stepsEl = document.getElementById('ciWzSteps');
         var step1Panel = document.getElementById('ciWzStep1Panel');
-        var step2Panel = document.getElementById('ciWzStep2Panel');
-        var stepTip1 = document.getElementById('ciWzStepTip1');
-        var stepTip2 = document.getElementById('ciWzStepTip2');
+        var MIN_DAY_W = 8;
+        var MAX_DAY_W = 48;
 
         var state = {
             days: [],
@@ -1405,14 +1317,12 @@
             pointer: null,
             showSurveys: {{ (can_view_kpi_qualitaet or false)|tojson }},
             showProductivity: false,
-            wizardStep: 1,
-            freeMode: false,
             surveyDatesByMember: {},
             prodDatesByMember: {},
             coachingEvents: [],
             zones: null,
             impactDragOrigWindow: 14,
-            tipsDismissed: { 1: false, 2: false },
+            syncingDates: false,
         };
 
         function syncWizardVisibility() {
@@ -1422,23 +1332,70 @@
             if (prodLegend) prodLegend.classList.toggle('d-none', !state.showProductivity);
         }
 
-        function updateStepTips() {
-            if (!stepTip1 || !stepTip2) return;
-            if (state.freeMode) {
-                stepTip1.classList.add('d-none');
-                stepTip2.classList.add('d-none');
-                return;
-            }
-            var show1 = state.wizardStep === 1 && !state.tipsDismissed[1];
-            var show2 = state.wizardStep === 2 && !state.tipsDismissed[2];
-            stepTip1.classList.toggle('d-none', !show1);
-            stepTip2.classList.toggle('d-none', !show2);
-            stepTip2.classList.toggle('ci-wz-step-tip--impact', show2);
+        function showImpactPreview() {
+            return true;
         }
 
-        function resetStepTips() {
-            state.tipsDismissed = { 1: false, 2: false };
-            updateStepTips();
+        function fitTimelineToViewport() {
+            if (!scrollEl || !trackEl || !state.days.length) return;
+            var count = state.days.length;
+            var avail = scrollEl.clientWidth - 8;
+            if (avail < 80) return;
+            var dayW = Math.max(MIN_DAY_W, Math.min(MAX_DAY_W, Math.floor(avail / count)));
+            trackEl.style.setProperty('--ci-wz-day-w', dayW + 'px');
+            trackEl.style.width = (count * dayW) + 'px';
+            var needsScroll = count * dayW > avail + 2;
+            scrollEl.classList.toggle('is-scrollable', needsScroll);
+            if (!needsScroll) scrollEl.scrollLeft = 0;
+            if (scrollHint) {
+                scrollHint.textContent = needsScroll
+                    ? 'Timeline komprimiert — bei Bedarf horizontal scrollen oder Datumsfelder oben nutzen.'
+                    : 'Vorschau der Aktivität — Zeitraum bequem über Datumsfelder oder Schnellauswahl setzen.';
+            }
+        }
+
+        function syncDateInputsFromState() {
+            if (!wzDateFrom || !wzDateTo || !state.days.length) return;
+            state.syncingDates = true;
+            var d0 = state.days[state.startIdx];
+            var d1 = state.days[state.endIdx];
+            wzDateFrom.min = state.days[0].date;
+            wzDateTo.max = state.days[state.days.length - 1].date;
+            wzDateFrom.max = d1 ? d1.date : '';
+            wzDateTo.min = d0 ? d0.date : '';
+            if (d0) wzDateFrom.value = d0.date;
+            if (d1) wzDateTo.value = d1.date;
+            state.syncingDates = false;
+        }
+
+        function applyDateInputsToState() {
+            if (state.syncingDates || !wzDateFrom || !wzDateTo) return;
+            var si = idxFromIso(wzDateFrom.value);
+            var ei = idxFromIso(wzDateTo.value);
+            if (si < 0 || ei < 0) return;
+            if (ei < si) {
+                var t = si; si = ei; ei = t;
+            }
+            state.startIdx = si;
+            state.endIdx = ei;
+            state.anchorIdx = ei;
+            updateUI();
+        }
+
+        function updateWindowButtons() {
+            if (!windowPresets) return;
+            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
+                var w = parseInt(btn.getAttribute('data-window'), 10);
+                btn.classList.toggle('active', w === state.windowDays);
+            });
+        }
+
+        function applyWindowPreset(days) {
+            state.windowDays = clampWindowDays(days);
+            if (windowInput) windowInput.value = state.windowDays;
+            recomputeActionableForWindow();
+            renderDays();
+            updateUI();
         }
 
         function fallbackRowZones() {
@@ -1498,6 +1455,7 @@
         function scheduleWizardLayout() {
             requestAnimationFrame(function () {
                 requestAnimationFrame(function () {
+                    fitTimelineToViewport();
                     updateUI();
                 });
             });
@@ -1598,6 +1556,7 @@
         }
 
         function scrollToIdx(idx) {
+            if (!scrollEl.classList.contains('is-scrollable')) return;
             var dayW = readDayWidth();
             scrollEl.scrollLeft = Math.max(0, idx * dayW - scrollEl.clientWidth / 2 + dayW / 2);
         }
@@ -1632,73 +1591,6 @@
             state.anchorIdx = state.endIdx;
             updateUI();
             scrollToIdx(state.startIdx);
-        }
-
-        function updateStepIndicators(activeStep) {
-            if (!stepsEl) return;
-            stepsEl.querySelectorAll('.ci-wz-step').forEach(function (el) {
-                var s = parseInt(el.getAttribute('data-step'), 10);
-                el.classList.toggle('active', !state.freeMode && s === activeStep);
-                el.classList.toggle('done', state.freeMode || s < activeStep);
-            });
-        }
-
-        function updateFooterButtons() {
-            if (state.freeMode) {
-                if (backBtn) backBtn.classList.add('d-none');
-                if (nextBtn) nextBtn.classList.add('d-none');
-                if (applyBtn) applyBtn.classList.remove('d-none');
-            } else if (state.wizardStep === 1) {
-                if (backBtn) backBtn.classList.add('d-none');
-                if (nextBtn) nextBtn.classList.remove('d-none');
-                if (applyBtn) applyBtn.classList.add('d-none');
-            } else {
-                if (backBtn) backBtn.classList.remove('d-none');
-                if (nextBtn) nextBtn.classList.add('d-none');
-                if (applyBtn) applyBtn.classList.remove('d-none');
-            }
-            var periodWrap = document.getElementById('ciWzPeriodPresetsWrap');
-            if (periodWrap) {
-                periodWrap.classList.toggle('d-none', !state.freeMode && state.wizardStep !== 1);
-            }
-        }
-
-        function setWizardStep(step) {
-            state.wizardStep = step;
-            document.body.classList.toggle('ci-wz-free-mode', state.freeMode);
-            if (state.freeMode) {
-                if (step1Panel) step1Panel.classList.remove('d-none');
-                if (step2Panel) step2Panel.classList.remove('d-none');
-                if (stepsEl) stepsEl.classList.remove('d-none');
-                document.body.classList.add('ci-wz-on-step2');
-                updateStepIndicators(2);
-            } else if (step === 1) {
-                if (step1Panel) step1Panel.classList.remove('d-none');
-                if (step2Panel) step2Panel.classList.add('d-none');
-                if (stepsEl) stepsEl.classList.remove('d-none');
-                document.body.classList.remove('ci-wz-on-step2');
-                updateStepIndicators(1);
-            } else {
-                if (step1Panel) step1Panel.classList.remove('d-none');
-                if (step2Panel) step2Panel.classList.remove('d-none');
-                if (stepsEl) stepsEl.classList.remove('d-none');
-                document.body.classList.add('ci-wz-on-step2');
-                updateStepIndicators(2);
-            }
-            updateFooterButtons();
-            if (wzSubtitleEl && !state.freeMode) {
-                wzSubtitleEl.textContent = step === 1
-                    ? 'Schritt 1: Zeitraum wählen — nur Coachings mit Vorher/Nachher-Daten'
-                    : 'Schritt 2: Wirkungsfenster in der Timeline (B/P-Zeilen) ziehen';
-            } else if (wzSubtitleEl && state.freeMode) {
-                wzSubtitleEl.textContent = 'Zeitraum und Wirkungsfenster anpassen';
-            }
-            updateStepTips();
-            scheduleWizardLayout();
-        }
-
-        function showImpactPreview() {
-            return state.freeMode || state.wizardStep >= 2;
         }
 
         function parseIso(s) {
@@ -1803,7 +1695,7 @@
                 });
                 daysEl.appendChild(el);
             });
-            trackEl.style.width = (state.days.length * readDayWidth()) + 'px';
+            fitTimelineToViewport();
         }
 
         function coachingIndicesInRange() {
@@ -1911,9 +1803,9 @@
             }
             countsLabelEl.textContent = countParts.join(' · ');
             applyBtn.disabled = !d0 || !d1 || actCoach === 0;
-            if (nextBtn) nextBtn.disabled = !d0 || !d1 || actCoach === 0;
             updatePresetButtons();
-            updateFooterButtons();
+            updateWindowButtons();
+            syncDateInputsFromState();
             var single = rangeDays() === 1;
             if (selectionBgEl) selectionBgEl.classList.toggle('ci-wz-selection-bg--single', single);
             if (handlesEl) handlesEl.classList.toggle('ci-wz-handles--single', single);
@@ -2083,27 +1975,6 @@
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);
 
-        if (nextBtn) {
-            nextBtn.addEventListener('click', function () {
-                if (nextBtn.disabled) return;
-                setWizardStep(2);
-                scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
-            });
-        }
-        if (backBtn) {
-            backBtn.addEventListener('click', function () {
-                setWizardStep(1);
-            });
-        }
-
-        document.querySelectorAll('.ci-wz-step-tip-close').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var tip = btn.getAttribute('data-tip');
-                if (tip) state.tipsDismissed[tip] = true;
-                updateStepTips();
-            });
-        });
-
         if (periodPresets) {
             periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -2111,6 +1982,28 @@
                 });
             });
         }
+
+        if (windowPresets) {
+            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    applyWindowPreset(parseInt(btn.getAttribute('data-window'), 10));
+                });
+            });
+        }
+
+        if (wzDateFrom) {
+            wzDateFrom.addEventListener('change', applyDateInputsToState);
+        }
+        if (wzDateTo) {
+            wzDateTo.addEventListener('change', applyDateInputsToState);
+        }
+
+        window.addEventListener('resize', function () {
+            if (state.days.length && !workspaceEl.classList.contains('d-none')) {
+                fitTimelineToViewport();
+                updateUI();
+            }
+        });
 
         function pickDefaultRange() {
             var fromIso = dateFromInput.value;
@@ -2145,12 +2038,7 @@
             loadingEl.classList.remove('d-none');
             emptyEl.classList.add('d-none');
             workspaceEl.classList.add('d-none');
-            if (presetsWrap) presetsWrap.classList.add('d-none');
             applyBtn.disabled = true;
-            if (nextBtn) nextBtn.disabled = true;
-
-            state.freeMode = !!(dateFromInput.value && dateToInput.value);
-            resetStepTips();
 
             var q = new URLSearchParams(new FormData(form));
             q.delete('period');
@@ -2186,28 +2074,13 @@
                         emptyEl.classList.remove('d-none');
                         return;
                     }
-                    if (data.empty_message && !data.actionable_coaching_count && stepTip2) {
-                        var tipBody = stepTip2.querySelector('.ci-wz-step-tip-body');
-                        var extra = stepTip2.querySelector('.ci-wz-step-tip-extra');
-                        if (tipBody && !extra) {
-                            extra = document.createElement('p');
-                            extra.className = 'ci-wz-step-tip-extra mb-0 mt-2';
-                            extra.style.color = '#ffb648';
-                            tipBody.appendChild(extra);
-                        }
-                        if (extra) extra.textContent = data.empty_message;
-                    }
                     pickDefaultRange();
                     renderDays();
                     workspaceEl.classList.remove('d-none');
-                    if (presetsWrap) presetsWrap.classList.remove('d-none');
-                    if (state.freeMode) {
-                        setWizardStep(2);
-                    } else {
-                        setWizardStep(data.actionable_coaching_count ? 1 : 2);
-                    }
+                    updateWindowButtons();
+                    syncDateInputsFromState();
+                    updateUI();
                     scheduleWizardLayout();
-                    scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
                 })
                 .catch(function () {
                     loadingEl.classList.add('d-none');

@@ -1,28 +1,11 @@
-{# Step wizard: Zeitraum then Wirkungsfenster (Coaching VS KPI) #}
+{# Zeitraum & Wirkungsfenster (Coaching VS KPI) #}
 <div class="modal fade" id="ciRangeWizardModal" tabindex="-1" role="dialog" aria-labelledby="ciRangeWizardTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered ci-wz-modal-dialog" role="document">
         <div class="modal-content ci-wz-modal">
             <div class="modal-header border-0 pb-0 ci-wz-header">
                 <div class="flex-grow-1">
                     <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Zeitraum &amp; Wirkungsfenster</h5>
-                    <p class="text-muted small mb-2" id="ciWzSubtitle">Nur Coachings mit Vorher/Nachher-Daten</p>
-                    <div class="ci-wz-steps d-none" id="ciWzSteps">
-                        <span class="ci-wz-step active" data-step="1"><span class="ci-wz-step-num">1</span> Zeitraum</span>
-                        <span class="ci-wz-step-sep"><i class="fas fa-chevron-right"></i></span>
-                        <span class="ci-wz-step" data-step="2"><span class="ci-wz-step-num">2</span> Wirkungsfenster</span>
-                    </div>
-                </div>
-                <div class="ci-wz-presets-wrap d-none" id="ciWzPresetsWrap">
-                    <div class="ci-wz-preset-group" id="ciWzPeriodPresetsWrap">
-                        <span class="ci-wz-preset-label">Zeitraum</span>
-                        <div class="btn-group btn-group-sm ci-wz-preset-btns" id="ciWzPeriodPresets">
-                            <button type="button" class="btn btn-outline-light" data-period="7">7 Tage</button>
-                            <button type="button" class="btn btn-outline-light" data-period="14">14 Tage</button>
-                            <button type="button" class="btn btn-outline-light" data-period="30">30 Tage</button>
-                            <button type="button" class="btn btn-outline-light" data-period="90">90 Tage</button>
-                            <button type="button" class="btn btn-outline-light" data-period="all">Alle</button>
-                        </div>
-                    </div>
+                    <p class="text-muted small mb-0" id="ciWzSubtitle">Zeitraum und Wirkungsfenster festlegen — nur auswertbare Coachings</p>
                 </div>
                 <button type="button" class="close ml-2" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
             </div>
@@ -31,9 +14,9 @@
                     <span><i class="fas fa-chalkboard-teacher ci-wz-legend-coach"></i> C = auswertbare Coachings</span>
                     <span class="ci-wz-legend-muted"><i class="fas fa-chalkboard-teacher"></i> grau = ohne Vorher/Nachher</span>
                     <span class="ci-wz-legend-survey-wrap"><i class="fas fa-star ci-wz-legend-survey"></i> B = Bewertungen</span>
-                    <span class="ci-wz-legend-prod-wrap"><i class="fas fa-chart-line ci-wz-legend-prod"></i> P = Prod. Rohdaten</span>
-                    <span class="ci-wz-legend-sel"><span></span> Zeitraum (C-Zeile)</span>
-                    <span class="ci-wz-legend-impact ci-wz-legend-impact--step2"><span></span> Wirkungsfenster (B/P)</span>
+                    <span class="ci-wz-legend-prod-wrap"><i class="fas fa-chart-line ci-wz-legend-prod"></i> P = Prod.-Rohdaten</span>
+                    <span class="ci-wz-legend-sel"><span></span> Zeitraum</span>
+                    <span class="ci-wz-legend-impact"><span></span> Wirkungsfenster</span>
                 </div>
 
                 <div class="ci-wz-loading text-center py-5 text-muted" id="ciWzLoading">
@@ -44,30 +27,35 @@
                 </div>
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
-                    <div class="ci-wz-step-tip d-none" id="ciWzStepTip1" role="status">
-                        <button type="button" class="ci-wz-step-tip-close" data-tip="1" aria-label="Hinweis schließen">&times;</button>
-                        <div class="ci-wz-step-tip-icon"><i class="fas fa-hand-pointer"></i></div>
-                        <div class="ci-wz-step-tip-body">
-                            <strong>Schritt 1 — Zeitraum wählen</strong>
-                            <p>In der <span class="ci-wz-tip-mark ci-wz-tip-mark--coach">C-Zeile</span> (Coachings) den blauen Bereich setzen:</p>
-                            <ul class="mb-0 pl-3">
-                                <li>Über die <strong>Coaching-Zeile ziehen</strong> oder blaue Ränder/Griff nutzen</li>
-                                <li>Oben rechts: Schnellauswahl (7 / 14 / 30 Tage …)</li>
-                                <li>Nur <strong>auswertbare Coachings</strong> (nicht grau) zählen für Vorher/Nachher</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="ci-wz-step-tip d-none" id="ciWzStepTip2" role="status">
-                        <button type="button" class="ci-wz-step-tip-close" data-tip="2" aria-label="Hinweis schließen">&times;</button>
-                        <div class="ci-wz-step-tip-icon ci-wz-step-tip-icon--impact"><i class="fas fa-arrows-alt-h"></i></div>
-                        <div class="ci-wz-step-tip-body">
-                            <strong>Schritt 2 — Wirkungsfenster festlegen</strong>
-                            <p>Am <span class="ci-wz-tip-mark ci-wz-tip-mark--data">B/P-Zeilen</span> (Bewertungen &amp; Prod.-Rohdaten) die pinken Ränder ziehen:</p>
-                            <ul class="mb-0 pl-3">
-                                <li>Fenster wächst <strong>symmetrisch</strong> — gleiche Tage vor und nach jedem Coaching</li>
-                                <li>Legt fest, welcher KPI-Zeitraum für den Vorher/Nachher-Vergleich gilt</li>
-                                <li>Danach auf <strong>Übernehmen &amp; anzeigen</strong> klicken</li>
-                            </ul>
+                    <div class="ci-wz-controls" id="ciWzControls">
+                        <div class="form-row align-items-end">
+                            <div class="col-lg-2 col-md-3 col-6 mb-2">
+                                <div class="ci-wz-ctrl-label">von</div>
+                                <input type="date" class="form-control form-control-sm" id="ciWzDateFrom">
+                            </div>
+                            <div class="col-lg-2 col-md-3 col-6 mb-2">
+                                <div class="ci-wz-ctrl-label">bis</div>
+                                <input type="date" class="form-control form-control-sm" id="ciWzDateTo">
+                            </div>
+                            <div class="col-lg-4 col-md-6 mb-2">
+                                <div class="ci-wz-ctrl-label">zeitraum schnellwahl</div>
+                                <div class="btn-group btn-group-sm ci-wz-preset-btns flex-wrap" id="ciWzPeriodPresets">
+                                    <button type="button" class="btn btn-outline-light" data-period="7">7 Tage</button>
+                                    <button type="button" class="btn btn-outline-light" data-period="14">14 Tage</button>
+                                    <button type="button" class="btn btn-outline-light" data-period="30">30 Tage</button>
+                                    <button type="button" class="btn btn-outline-light" data-period="90">90 Tage</button>
+                                    <button type="button" class="btn btn-outline-light" data-period="all">Alle</button>
+                                </div>
+                            </div>
+                            <div class="col-lg-4 col-12 mb-2">
+                                <div class="ci-wz-ctrl-label">wirkungsfenster (Tage vor/nach Coaching)</div>
+                                <div class="btn-group btn-group-sm ci-wz-window-btns" id="ciWzWindowPresets">
+                                    <button type="button" class="btn btn-outline-light" data-window="7">7</button>
+                                    <button type="button" class="btn btn-outline-light" data-window="14">14</button>
+                                    <button type="button" class="btn btn-outline-light" data-window="21">21</button>
+                                    <button type="button" class="btn btn-outline-light" data-window="30">30</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -85,9 +73,8 @@
                                 </div>
                             </div>
                         </div>
+                        <p class="ci-wz-scroll-hint text-muted small mb-0 mt-2" id="ciWzScrollHint"></p>
                     </div>
-
-                    <div class="ci-wz-step-panel d-none" id="ciWzStep2Panel"></div>
 
                     <div class="ci-wz-summary row mt-3">
                         <div class="col-md-4">
@@ -113,8 +100,6 @@
             </div>
             <div class="modal-footer border-0 pt-0 flex-wrap" style="gap:0.5rem;">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Abbrechen</button>
-                <button type="button" class="btn btn-outline-light btn-sm d-none" id="ciWzBack">Zurück</button>
-                <button type="button" class="btn telekom-button btn-sm d-none" id="ciWzNext" disabled>Weiter</button>
                 <button type="button" class="btn telekom-button btn-sm" id="ciWzApply" disabled>Übernehmen &amp; anzeigen</button>
             </div>
         </div>
