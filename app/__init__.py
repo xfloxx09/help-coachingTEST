@@ -1048,6 +1048,11 @@ def create_app(config_class=Config):
         from app.kpi import metric_status
         return metric_status(value, target_green, target_yellow)
 
+    @app.template_filter('kpi_status_max')
+    def kpi_status_max(value, target_green, target_yellow):
+        from app.kpi import metric_status_max
+        return metric_status_max(value, target_green, target_yellow)
+
     @app.template_filter('kpi_bar_class')
     def kpi_bar_class(value, target_green, target_yellow):
         from app.kpi import metric_bar_class

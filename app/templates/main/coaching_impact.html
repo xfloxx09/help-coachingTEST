@@ -740,6 +740,8 @@
             {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
             {% for key, label, cls, unit in prod_parts %}
             {% set ba = before_after_prod[key] %}
+            {% set delta_good = (ba.delta < 0) if ba.lower_is_better else (ba.delta > 0) %}
+            {% set delta_bad = (ba.delta > 0) if ba.lower_is_better else (ba.delta < 0) %}
             <div class="ci-ba-card-wrap">
                 <div class="ci-card {{ cls }}">
                     <div class="ci-label">{{ label }}</div>
@@ -749,7 +751,7 @@
                         <i class="fas fa-arrow-right ci-arrow"></i>
                         <span class="ci-ba-val">{{ ba.after|de_decimal }}{{ unit }}</span>
                     </div>
-                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                    <div class="ci-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
                         {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
                     </div>
                     <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>

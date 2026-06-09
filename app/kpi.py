@@ -290,6 +290,23 @@ def metric_status(value, target_green, target_yellow):
     return 'bad'
 
 
+def metric_status_max(value, target_green, target_yellow):
+    """Like metric_status but lower values are better (e.g. Nacharbeit, Idle)."""
+    if value is None:
+        return 'na'
+    try:
+        v = float(value)
+        tg = float(target_green)
+        ty = float(target_yellow)
+    except (TypeError, ValueError):
+        return 'na'
+    if v <= tg:
+        return 'ok'
+    if v <= ty:
+        return 'warn'
+    return 'bad'
+
+
 DEFAULT_TEAM_VIEW_CARD = {
     'show_nps': True,
     'show_loesung': True,

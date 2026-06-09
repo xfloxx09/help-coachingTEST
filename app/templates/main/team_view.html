@@ -556,7 +556,7 @@
                             <div class="stat-group text-center">
                                 <div class="stat-label">{{ prod_labels.nach }}</div>
                                 {% if member_stat.nach_per_call is not none %}
-                                <span class="kpi-chip kpi-chip-{% if member_stat.nach_per_call <= prod_tgt.target_nach_per_call %}ok{% elif member_stat.nach_per_call <= prod_tgt.target_nach_per_call * 1.5 %}warn{% else %}bad{% endif %}"
+                                <span class="kpi-chip kpi-chip-{{ member_stat.nach_per_call|kpi_status_max(prod_tgt.target_nach_per_call, prod_tgt.target_nach_per_call * 1.5) }}"
                                       title="s/Call · {{ member_stat.prod_intervals }} Intervalle">
                                     {{ member_stat.nach_per_call|de_decimal(1) }}s
                                 </span>
@@ -571,7 +571,7 @@
                             <div class="stat-group text-center">
                                 <div class="stat-label">{{ prod_labels.idle }}</div>
                                 {% if member_stat.idle_pct is not none %}
-                                <span class="kpi-chip kpi-chip-{% if member_stat.idle_pct <= prod_tgt.target_idle_max %}ok{% elif member_stat.idle_pct <= prod_tgt.target_idle_max * 1.5 %}warn{% else %}bad{% endif %}"
+                                <span class="kpi-chip kpi-chip-{{ member_stat.idle_pct|kpi_status_max(prod_tgt.target_idle_max, prod_tgt.target_idle_max * 1.5) }}"
                                       title="{{ member_stat.prod_intervals }} Intervalle">
                                     {{ member_stat.idle_pct|de_decimal }}%
                                 </span>

@@ -213,7 +213,7 @@
             <div class="kpi-card kpi-nach">
                 <div class="kpi-label">{{ prod_labels.nach }}</div>
                 <div class="kpi-value">{% if summary.nach_per_call is not none %}{{ summary.nach_per_call|de_decimal(1) }}s{% else %}–{% endif %}</div>
-                <div class="kpi-sub">Ø pro Call</div>
+                <div class="kpi-sub">Ø pro Call · Ziel ≤ {{ targets.target_nach_per_call|de_decimal(1) }}s</div>
             </div>
         </div>
         {% endif %}
@@ -222,7 +222,7 @@
             <div class="kpi-card kpi-idle">
                 <div class="kpi-label">{{ prod_labels.idle }}</div>
                 <div class="kpi-value">{% if summary.idle_pct is not none %}{{ summary.idle_pct|de_decimal }}%{% else %}–{% endif %}</div>
-                <div class="kpi-sub">netto (ohne Pause)</div>
+                <div class="kpi-sub">netto (ohne Pause) · Ziel ≤ {{ targets.target_idle_max|de_decimal }}%</div>
             </div>
         </div>
         {% endif %}

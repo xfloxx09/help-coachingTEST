@@ -6145,15 +6145,28 @@ def _impact_before_after_prod(events, intervals_by_member, window):
             acc['idle']['after'].append(_impact_avg(a_idle))
             acc['idle']['pairs'] += 1
 
+    lower_is_better = {'nach', 'idle'}
     out = {}
     for key, bucket in acc.items():
         n = bucket['pairs']
         if n:
             before = round(sum(bucket['before']) / n, 2)
             after = round(sum(bucket['after']) / n, 2)
-            out[key] = {'before': before, 'after': after, 'delta': round(after - before, 2), 'pairs': n}
+            out[key] = {
+                'before': before,
+                'after': after,
+                'delta': round(after - before, 2),
+                'pairs': n,
+                'lower_is_better': key in lower_is_better,
+            }
         else:
-            out[key] = {'before': None, 'after': None, 'delta': None, 'pairs': 0}
+            out[key] = {
+                'before': None,
+                'after': None,
+                'delta': None,
+                'pairs': 0,
+                'lower_is_better': key in lower_is_better,
+            }
     return out
 
 
