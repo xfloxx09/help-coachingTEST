@@ -1,0 +1,445 @@
+{# Center modal period picker for KPI Qualität & Produktivität #}
+<style>
+    .kpi-period-setup { margin-bottom: 0; }
+    .kpi-period-setup-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.65rem 0.85rem;
+        border-radius: 10px;
+        border: 1px solid #34343c;
+        background: #25252b;
+        color: #e8e8ec;
+        text-align: left;
+        transition: background 0.15s ease;
+    }
+    .kpi-period-setup-btn:not(:disabled):hover { background: rgba(226, 0, 116, 0.08); }
+    .kpi-period-setup-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .kpi-period-setup-icon {
+        width: 2.25rem; height: 2.25rem; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(0, 169, 224, 0.15); color: #4aa3ff; flex-shrink: 0;
+    }
+    .kpi-period-setup-text { flex: 1; min-width: 0; }
+    .kpi-period-setup-text strong { display: block; font-size: 0.82rem; color: #b9b9c2; font-weight: 600; }
+    .kpi-period-setup-value { display: block; font-size: 0.95rem; font-weight: 600; color: #fff; margin-top: 0.1rem; }
+    .kpi-period-setup-action { font-size: 0.8rem; color: #e20074; white-space: nowrap; }
+    .kpi-pp-modal .modal-content { background: #25252b; border-color: #34343c; color: #e8e8ec; }
+    .kpi-pp-modal .modal-header, .kpi-pp-modal .modal-footer { border-color: #34343c; }
+    .kpi-pp-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+    .kpi-pp-tabs .btn {
+        border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
+        font-size: 0.8125rem; padding: 0.28rem 0.65rem;
+    }
+    .kpi-pp-tabs .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-pp-panel { display: none; }
+    .kpi-pp-panel.active { display: block; }
+    .kpi-pp-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; margin-bottom: 0.35rem; }
+    .kpi-pp-month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+    .kpi-pp-month-grid .btn {
+        border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
+        font-size: 0.78rem; padding: 0.35rem 0.25rem;
+    }
+    .kpi-pp-month-grid .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-pp-quarter-grid { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .kpi-pp-quarter-grid .btn {
+        min-width: 3.5rem; border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
+    }
+    .kpi-pp-quarter-grid .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-pp-summary {
+        margin-top: 1rem; padding: 0.65rem 0.85rem; border-radius: 8px;
+        background: #1f1f24; border: 1px solid #34343c; font-size: 0.88rem;
+    }
+    .kpi-pp-summary strong { color: #fff; }
+</style>
+
+<div class="kpi-period-setup">
+    <button type="button" class="kpi-period-setup-btn" id="kpiOpenPeriodPicker"
+            {% if not selection_made %}disabled title="Zuerst Projekt, Team oder Agent wählen"{% endif %}>
+        <span class="kpi-period-setup-icon"><i class="fas fa-calendar-alt"></i></span>
+        <span class="kpi-period-setup-text">
+            <strong>Zeitraum</strong>
+            <span class="kpi-period-setup-value" id="kpiPeriodSetupValue">{{ period_label|default('Noch nicht festgelegt') }}</span>
+        </span>
+        <span class="kpi-period-setup-action">Auswählen <i class="fas fa-chevron-right"></i></span>
+    </button>
+</div>
+
+<input type="hidden" name="period" id="kpiPeriod" value="{{ period if period_confirmed else '' }}">
+<input type="hidden" name="date_from" id="kpiDateFrom" value="{{ date_from if period_confirmed else '' }}">
+<input type="hidden" name="date_to" id="kpiDateTo" value="{{ date_to if period_confirmed else '' }}">
+<input type="hidden" name="period_year" id="kpiPeriodYear" value="{{ period_year if period_year is not none else '' }}">
+<input type="hidden" name="period_month" id="kpiPeriodMonth" value="{{ period_month if period_month is not none else '' }}">
+<input type="hidden" name="period_week" id="kpiPeriodWeek" value="{{ period_week if period_week is not none else '' }}">
+<input type="hidden" name="period_quarter" id="kpiPeriodQuarter" value="{{ period_quarter if period_quarter is not none else '' }}">
+
+<div class="modal fade" id="kpiPeriodPickerModal" tabindex="-1" role="dialog" aria-labelledby="kpiPeriodPickerTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content kpi-pp-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="kpiPeriodPickerTitle"><i class="fas fa-calendar-alt text-info mr-1"></i> Zeitraum wählen</h5>
+                <button type="button" class="close text-light" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="kpi-pp-tabs btn-group btn-group-sm flex-wrap" role="group" id="kpiPpTabs">
+                    <button type="button" class="btn" data-pp-type="free">Frei</button>
+                    <button type="button" class="btn" data-pp-type="month">Monat</button>
+                    <button type="button" class="btn" data-pp-type="week">Woche</button>
+                    <button type="button" class="btn" data-pp-type="quarter">Quartal</button>
+                    <button type="button" class="btn" data-pp-type="year">Jahr</button>
+                    <button type="button" class="btn" data-pp-type="all">Gesamt</button>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="free">
+                    <div class="form-row">
+                        <div class="col-6 mb-2">
+                            <div class="kpi-pp-label">von</div>
+                            <input type="date" class="form-control form-control-sm" id="kpiPpFreeFrom">
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="kpi-pp-label">bis</div>
+                            <input type="date" class="form-control form-control-sm" id="kpiPpFreeTo">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="month">
+                    <div class="mb-2">
+                        <div class="kpi-pp-label">jahr</div>
+                        <select class="form-control form-control-sm" id="kpiPpMonthYear"></select>
+                    </div>
+                    <div class="kpi-pp-label">monat</div>
+                    <div class="kpi-pp-month-grid" id="kpiPpMonthGrid"></div>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="week">
+                    <div class="form-row">
+                        <div class="col-6 mb-2">
+                            <div class="kpi-pp-label">jahr</div>
+                            <select class="form-control form-control-sm" id="kpiPpWeekYear"></select>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="kpi-pp-label">kalenderwoche</div>
+                            <input type="number" class="form-control form-control-sm" id="kpiPpWeekNum" min="1" max="53" placeholder="z. B. 12">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="quarter">
+                    <div class="mb-2">
+                        <div class="kpi-pp-label">jahr</div>
+                        <select class="form-control form-control-sm" id="kpiPpQuarterYear"></select>
+                    </div>
+                    <div class="kpi-pp-label">quartal</div>
+                    <div class="kpi-pp-quarter-grid" id="kpiPpQuarterGrid">
+                        <button type="button" class="btn btn-sm" data-q="1">Q1</button>
+                        <button type="button" class="btn btn-sm" data-q="2">Q2</button>
+                        <button type="button" class="btn btn-sm" data-q="3">Q3</button>
+                        <button type="button" class="btn btn-sm" data-q="4">Q4</button>
+                    </div>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="year">
+                    <div class="kpi-pp-label">jahr</div>
+                    <select class="form-control form-control-sm" id="kpiPpYearOnly"></select>
+                </div>
+
+                <div class="kpi-pp-panel" data-pp-panel="all">
+                    <p class="text-muted small mb-0">Alle verfügbaren Daten im gewählten Projekt/Team/Agent — ohne Datumsbegrenzung.</p>
+                </div>
+
+                <div class="kpi-pp-summary">Auswahl: <strong id="kpiPpPreview">–</strong></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn telekom-button btn-sm" id="kpiPpApply" disabled>Übernehmen &amp; anzeigen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.initKpiPeriodPicker = function (form) {
+    if (!form || form.dataset.kpiPeriodPickerInit === '1') return;
+    form.dataset.kpiPeriodPickerInit = '1';
+
+    var openBtn = document.getElementById('kpiOpenPeriodPicker');
+    var modal = document.getElementById('kpiPeriodPickerModal');
+    var applyBtn = document.getElementById('kpiPpApply');
+    var previewEl = document.getElementById('kpiPpPreview');
+    var setupValue = document.getElementById('kpiPeriodSetupValue');
+    var periodInput = document.getElementById('kpiPeriod');
+    var dateFromInput = document.getElementById('kpiDateFrom');
+    var dateToInput = document.getElementById('kpiDateTo');
+    var yearInput = document.getElementById('kpiPeriodYear');
+    var monthInput = document.getElementById('kpiPeriodMonth');
+    var weekInput = document.getElementById('kpiPeriodWeek');
+    var quarterInput = document.getElementById('kpiPeriodQuarter');
+    if (!openBtn || !modal || !applyBtn) return;
+
+    var MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    var MONTHS_LONG = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    var today = new Date();
+    var currentYear = today.getFullYear();
+    var currentMonth = today.getMonth() + 1;
+
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function fmtDe(iso) {
+        if (!iso) return '';
+        var p = iso.split('-');
+        return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso;
+    }
+    function isoWeekOneMonday(year) {
+        var jan4 = new Date(year, 0, 4);
+        var day = jan4.getDay() || 7;
+        jan4.setDate(jan4.getDate() - day + 1);
+        return jan4;
+    }
+    function weekRange(year, week) {
+        var start = isoWeekOneMonday(year);
+        start.setDate(start.getDate() + (week - 1) * 7);
+        var end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        return {
+            from: start.getFullYear() + '-' + pad2(start.getMonth() + 1) + '-' + pad2(start.getDate()),
+            to: end.getFullYear() + '-' + pad2(end.getMonth() + 1) + '-' + pad2(end.getDate()),
+        };
+    }
+    function quarterRange(year, q) {
+        var sm = (q - 1) * 3 + 1;
+        var em = sm + 2;
+        var lastDay = new Date(year, em, 0).getDate();
+        return {
+            from: year + '-' + pad2(sm) + '-01',
+            to: year + '-' + pad2(em) + '-' + pad2(lastDay),
+        };
+    }
+
+    var state = {
+        type: (periodInput && periodInput.value) || 'month',
+        year: currentYear,
+        month: currentMonth,
+        week: 1,
+        quarter: Math.ceil(currentMonth / 3),
+        freeFrom: '',
+        freeTo: '',
+    };
+
+    function fillYearSelect(sel, selected) {
+        if (!sel) return;
+        sel.innerHTML = '';
+        for (var y = currentYear + 1; y >= currentYear - 8; y--) {
+            var opt = document.createElement('option');
+            opt.value = String(y);
+            opt.textContent = String(y);
+            if (y === selected) opt.selected = true;
+            sel.appendChild(opt);
+        }
+    }
+
+    function buildMonthGrid() {
+        var grid = document.getElementById('kpiPpMonthGrid');
+        if (!grid || grid.childElementCount) return;
+        MONTHS.forEach(function (label, idx) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm';
+            btn.textContent = label;
+            btn.setAttribute('data-m', String(idx + 1));
+            btn.addEventListener('click', function () {
+                state.month = idx + 1;
+                syncMonthGrid();
+                updatePreview();
+            });
+            grid.appendChild(btn);
+        });
+    }
+
+    function syncMonthGrid() {
+        document.querySelectorAll('#kpiPpMonthGrid .btn').forEach(function (btn) {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-m'), 10) === state.month);
+        });
+    }
+
+    function syncQuarterGrid() {
+        document.querySelectorAll('#kpiPpQuarterGrid .btn').forEach(function (btn) {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-q'), 10) === state.quarter);
+        });
+    }
+
+    function setActiveType(type) {
+        state.type = type;
+        document.querySelectorAll('#kpiPpTabs .btn').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-pp-type') === type);
+        });
+        document.querySelectorAll('.kpi-pp-panel').forEach(function (panel) {
+            panel.classList.toggle('active', panel.getAttribute('data-pp-panel') === type);
+        });
+        updatePreview();
+    }
+
+    function loadFromHidden() {
+        var p = periodInput ? periodInput.value : '';
+        if (p) state.type = p;
+        if (state.type === 'free') {
+            state.freeFrom = dateFromInput ? dateFromInput.value : '';
+            state.freeTo = dateToInput ? dateToInput.value : '';
+        }
+        if (yearInput && yearInput.value) state.year = parseInt(yearInput.value, 10) || currentYear;
+        if (monthInput && monthInput.value) state.month = parseInt(monthInput.value, 10) || currentMonth;
+        if (weekInput && weekInput.value) state.week = parseInt(weekInput.value, 10) || 1;
+        if (quarterInput && quarterInput.value) state.quarter = parseInt(quarterInput.value, 10) || 1;
+    }
+
+    function syncControlsFromState() {
+        fillYearSelect(document.getElementById('kpiPpMonthYear'), state.year);
+        fillYearSelect(document.getElementById('kpiPpWeekYear'), state.year);
+        fillYearSelect(document.getElementById('kpiPpQuarterYear'), state.year);
+        fillYearSelect(document.getElementById('kpiPpYearOnly'), state.year);
+        var ff = document.getElementById('kpiPpFreeFrom');
+        var ft = document.getElementById('kpiPpFreeTo');
+        var wn = document.getElementById('kpiPpWeekNum');
+        if (ff) ff.value = state.freeFrom;
+        if (ft) ft.value = state.freeTo;
+        if (wn) wn.value = state.week || '';
+        syncMonthGrid();
+        syncQuarterGrid();
+    }
+
+    function computePreview() {
+        var t = state.type;
+        if (t === 'all') return 'Gesamt';
+        if (t === 'free') {
+            if (state.freeFrom && state.freeTo && state.freeFrom <= state.freeTo) {
+                return fmtDe(state.freeFrom) + ' – ' + fmtDe(state.freeTo);
+            }
+            return '';
+        }
+        if (t === 'month') return (MONTHS_LONG[state.month] || state.month) + ' ' + state.year;
+        if (t === 'week') return 'KW ' + pad2(state.week) + '/' + String(state.year).slice(-2);
+        if (t === 'quarter') return 'Q' + state.quarter + ' ' + state.year;
+        if (t === 'year') return String(state.year);
+        return '';
+    }
+
+    function isValid() {
+        var t = state.type;
+        if (t === 'all') return true;
+        if (t === 'free') return state.freeFrom && state.freeTo && state.freeFrom <= state.freeTo;
+        if (t === 'month') return state.year && state.month >= 1 && state.month <= 12;
+        if (t === 'week') return state.year && state.week >= 1 && state.week <= 53;
+        if (t === 'quarter') return state.year && state.quarter >= 1 && state.quarter <= 4;
+        if (t === 'year') return !!state.year;
+        return false;
+    }
+
+    function updatePreview() {
+        var label = computePreview();
+        if (previewEl) previewEl.textContent = label || '–';
+        applyBtn.disabled = !isValid();
+    }
+
+    function readControlsIntoState() {
+        var my = document.getElementById('kpiPpMonthYear');
+        var wy = document.getElementById('kpiPpWeekYear');
+        var qy = document.getElementById('kpiPpQuarterYear');
+        var yo = document.getElementById('kpiPpYearOnly');
+        var ff = document.getElementById('kpiPpFreeFrom');
+        var ft = document.getElementById('kpiPpFreeTo');
+        var wn = document.getElementById('kpiPpWeekNum');
+        if (state.type === 'month' && my) state.year = parseInt(my.value, 10);
+        if (state.type === 'week' && wy) state.year = parseInt(wy.value, 10);
+        if (state.type === 'quarter' && qy) state.year = parseInt(qy.value, 10);
+        if (state.type === 'year' && yo) state.year = parseInt(yo.value, 10);
+        if (ff) state.freeFrom = ff.value;
+        if (ft) state.freeTo = ft.value;
+        if (wn && wn.value) state.week = parseInt(wn.value, 10);
+    }
+
+    function writeHiddenAndSubmit() {
+        readControlsIntoState();
+        if (!isValid()) return;
+        if (periodInput) periodInput.value = state.type;
+        if (yearInput) yearInput.value = '';
+        if (monthInput) monthInput.value = '';
+        if (weekInput) weekInput.value = '';
+        if (quarterInput) quarterInput.value = '';
+        if (dateFromInput) dateFromInput.value = '';
+        if (dateToInput) dateToInput.value = '';
+
+        if (state.type === 'free') {
+            if (dateFromInput) dateFromInput.value = state.freeFrom;
+            if (dateToInput) dateToInput.value = state.freeTo;
+        } else if (state.type === 'month') {
+            if (yearInput) yearInput.value = state.year;
+            if (monthInput) monthInput.value = state.month;
+        } else if (state.type === 'week') {
+            if (yearInput) yearInput.value = state.year;
+            if (weekInput) weekInput.value = state.week;
+        } else if (state.type === 'quarter') {
+            if (yearInput) yearInput.value = state.year;
+            if (quarterInput) quarterInput.value = state.quarter;
+        } else if (state.type === 'year') {
+            if (yearInput) yearInput.value = state.year;
+        }
+
+        var label = computePreview();
+        if (setupValue) setupValue.textContent = label;
+        if (typeof $ !== 'undefined') $('#kpiPeriodPickerModal').modal('hide');
+        form.submit();
+    }
+
+    window.kpiClearPeriod = function () {
+        if (periodInput) periodInput.value = '';
+        if (dateFromInput) dateFromInput.value = '';
+        if (dateToInput) dateToInput.value = '';
+        if (yearInput) yearInput.value = '';
+        if (monthInput) monthInput.value = '';
+        if (weekInput) weekInput.value = '';
+        if (quarterInput) quarterInput.value = '';
+        if (setupValue) setupValue.textContent = 'Noch nicht festgelegt';
+    };
+
+    buildMonthGrid();
+    document.querySelectorAll('#kpiPpTabs .btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { setActiveType(btn.getAttribute('data-pp-type')); });
+    });
+    document.querySelectorAll('#kpiPpQuarterGrid .btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            state.quarter = parseInt(btn.getAttribute('data-q'), 10);
+            syncQuarterGrid();
+            updatePreview();
+        });
+    });
+    ['kpiPpMonthYear', 'kpiPpWeekYear', 'kpiPpQuarterYear', 'kpiPpYearOnly', 'kpiPpFreeFrom', 'kpiPpFreeTo', 'kpiPpWeekNum'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', function () { readControlsIntoState(); updatePreview(); });
+        if (el) el.addEventListener('change', function () { readControlsIntoState(); updatePreview(); });
+    });
+
+    openBtn.addEventListener('click', function () {
+        loadFromHidden();
+        if (!periodInput || !periodInput.value) {
+            state.type = 'month';
+            state.year = currentYear;
+            state.month = currentMonth;
+        }
+        setActiveType(state.type);
+        syncControlsFromState();
+        updatePreview();
+        if (typeof $ !== 'undefined') $('#kpiPeriodPickerModal').modal('show');
+    });
+
+    applyBtn.addEventListener('click', writeHiddenAndSubmit);
+
+    if (new URLSearchParams(window.location.search).get('open_period') === '1') {
+        var cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('open_period');
+        history.replaceState({}, '', cleanUrl.toString());
+        if (openBtn && !openBtn.disabled && !(periodInput && periodInput.value)) {
+            openBtn.click();
+        }
+    }
+};
+</script>

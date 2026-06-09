@@ -40,31 +40,27 @@
     adjustBtn.addEventListener('click', function () {
         $(modal).modal('hide');
         var vonbisUrl = new URL({{ granularity_notice.vonbis_url|tojson }});
-        var periodSel = document.getElementById('kpiPeriod') || document.getElementById('ciPeriod');
-        if (periodSel) {
-            periodSel.value = 'vonbis';
-            periodSel.dispatchEvent(new Event('change', { bubbles: true }));
+        var fromVal = vonbisUrl.searchParams.get('date_from') || '';
+        var toVal = vonbisUrl.searchParams.get('date_to') || '';
+        var openPicker = document.getElementById('kpiOpenPeriodPicker');
+        if (openPicker && typeof window.initKpiPeriodPicker === 'function') {
+            var periodInput = document.getElementById('kpiPeriod');
+            var dateFromInput = document.getElementById('kpiDateFrom');
+            var dateToInput = document.getElementById('kpiDateTo');
+            if (periodInput) periodInput.value = 'free';
+            if (dateFromInput) dateFromInput.value = fromVal;
+            if (dateToInput) dateToInput.value = toVal;
+            openPicker.click();
+            setTimeout(function () {
+                var ff = document.getElementById('kpiPpFreeFrom');
+                var ft = document.getElementById('kpiPpFreeTo');
+                if (ff) ff.value = fromVal;
+                if (ft) ft.value = toVal;
+            }, 200);
+            return;
         }
-        document.querySelectorAll('.kpi-vonbis-field, .ci-vonbis-field').forEach(function (el) {
-            el.style.display = '';
-        });
-        var fromInput = document.querySelector('input[name="date_from"]');
-        var toInput = document.querySelector('input[name="date_to"]');
-        if (fromInput) fromInput.value = vonbisUrl.searchParams.get('date_from') || '';
-        if (toInput) toInput.value = vonbisUrl.searchParams.get('date_to') || '';
         var form = document.getElementById('kpiFilterForm') || document.getElementById('ciFilterForm');
-        if (form) {
-            var granInput = form.querySelector('input[name="granularity"]');
-            if (!granInput) {
-                granInput = document.createElement('input');
-                granInput.type = 'hidden';
-                granInput.name = 'granularity';
-                form.appendChild(granInput);
-            }
-            granInput.value = 'day';
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        if (fromInput) fromInput.focus();
+        if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 })();
 </script>

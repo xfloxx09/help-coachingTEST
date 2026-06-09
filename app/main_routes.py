@@ -4904,6 +4904,44 @@ def _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str):
     return kpi_time.dashboard_date_range(period_arg, date_from_str, date_to_str)
 
 
+def _kpi_dashboard_period_from_request(req):
+    """Parse period picker params; no implicit default period."""
+    period_arg = (req.args.get('period') or '').strip()
+    date_from_str = (req.args.get('date_from') or '').strip()
+    date_to_str = (req.args.get('date_to') or '').strip()
+    confirmed, start_date, end_date, period_norm, meta = kpi_time.parse_dashboard_period(
+        period_arg,
+        date_from_str,
+        date_to_str,
+        period_year=req.args.get('period_year', type=int),
+        period_month=req.args.get('period_month', type=int),
+        period_week=req.args.get('period_week', type=int),
+        period_quarter=req.args.get('period_quarter', type=int),
+    )
+    label = kpi_time.dashboard_period_label(
+        period_norm,
+        start_date,
+        end_date,
+        meta.get('period_year'),
+        meta.get('period_month'),
+        meta.get('period_week'),
+        meta.get('period_quarter'),
+    )
+    return {
+        'confirmed': confirmed,
+        'start_date': start_date,
+        'end_date': end_date,
+        'period': period_norm,
+        'label': label,
+        'date_from_str': meta.get('date_from_str') or '',
+        'date_to_str': meta.get('date_to_str') or '',
+        'period_year': meta.get('period_year'),
+        'period_month': meta.get('period_month'),
+        'period_week': meta.get('period_week'),
+        'period_quarter': meta.get('period_quarter'),
+    }
+
+
 def _kpi_scope():
     """Returns (accessible_project_ids_or_None, sees_all_teams, my_team_ids)."""
     accessible = get_accessible_project_ids()
@@ -5195,7 +5233,7 @@ def _resolve_dashboard_granularities(
         continue_args.pop('day_page', None)
 
         vonbis_args = dict(args)
-        vonbis_args['period'] = 'vonbis'
+        vonbis_args['period'] = 'free'
         vonbis_args['granularity'] = 'day'
         vonbis_args.pop('granularity_confirm', None)
         vonbis_args.pop('day_page', None)
@@ -5585,15 +5623,19 @@ def kpi_dashboard_qualitaet():
     if sel_member and sel_member not in valid_member_ids:
         sel_member = None
 
-    # --- Date range ---
-    period_arg = (request.args.get('period') or '30days').strip()
-    date_from_str = (request.args.get('date_from') or '').strip()
-    date_to_str = (request.args.get('date_to') or '').strip()
+    # --- Date range (modal picker; no default until user confirms) ---
+    period_ctx = _kpi_dashboard_period_from_request(request)
+    period_arg = period_ctx['period']
+    date_from_str = period_ctx['date_from_str']
+    date_to_str = period_ctx['date_to_str']
+    period_confirmed = period_ctx['confirmed']
+    start_date = period_ctx['start_date']
+    end_date = period_ctx['end_date']
+    period_label = period_ctx['label']
     granularity_arg = (request.args.get('granularity') or '').strip()
-    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
     chart_granularity = kpi_time.resolve_granularity(
         granularity_arg, period_arg, start_date, end_date, None,
-    )
+    ) if period_confirmed else 'day'
 
     # --- Build the active query filters from scope + mode + date ---
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
@@ -5627,6 +5669,13 @@ def kpi_dashboard_qualitaet():
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
+        if mode == 'agent' and sel_member:
+            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+        elif mode == 'team' and sel_team:
+            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+        elif mode == 'project' and sel_project:
+            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+    if selection_made and period_confirmed:
         rows = (
             db.session.query(
                 KpiSurvey.info_positive,
@@ -5650,13 +5699,6 @@ def kpi_dashboard_qualitaet():
         )
         targets = _team_view_card_settings(active_project_id)
 
-        if mode == 'agent' and sel_member:
-            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
-        elif mode == 'team' and sel_team:
-            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
-        elif mode == 'project' and sel_project:
-            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
-
     daily, daily_month_nav = _paginate_daily_table_rows(
         daily, table_granularity, 'main.kpi_dashboard_qualitaet',
     )
@@ -5673,6 +5715,12 @@ def kpi_dashboard_qualitaet():
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
+        period_confirmed=period_confirmed,
+        period_label=period_label,
+        period_year=period_ctx['period_year'],
+        period_month=period_ctx['period_month'],
+        period_week=period_ctx['period_week'],
+        period_quarter=period_ctx['period_quarter'],
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
         table_granularity=table_granularity,
@@ -5749,14 +5797,18 @@ def kpi_dashboard_produktivitaet():
     if sel_member and sel_member not in valid_member_ids:
         sel_member = None
 
-    period_arg = (request.args.get('period') or '30days').strip()
-    date_from_str = (request.args.get('date_from') or '').strip()
-    date_to_str = (request.args.get('date_to') or '').strip()
+    period_ctx = _kpi_dashboard_period_from_request(request)
+    period_arg = period_ctx['period']
+    date_from_str = period_ctx['date_from_str']
+    date_to_str = period_ctx['date_to_str']
+    period_confirmed = period_ctx['confirmed']
+    start_date = period_ctx['start_date']
+    end_date = period_ctx['end_date']
+    period_label = period_ctx['label']
     granularity_arg = (request.args.get('granularity') or '').strip()
-    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
     chart_granularity = kpi_time.resolve_granularity(
         granularity_arg, period_arg, start_date, end_date, None,
-    )
+    ) if period_confirmed else 'day'
 
     active_project_id = _active_project_id(mode, sel_project, sel_team, sel_member)
     visible = _prod_dashboard_visibility(active_project_id)
@@ -5790,6 +5842,13 @@ def kpi_dashboard_produktivitaet():
     scope_label = ''
     has_any_data = bool(projects)
     if selection_made:
+        if mode == 'agent' and sel_member:
+            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
+        elif mode == 'team' and sel_team:
+            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
+        elif mode == 'project' and sel_project:
+            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
+    if selection_made and period_confirmed:
         daily_buckets = productivity_logic.query_daily_buckets_sql(filters)
         summary = productivity_logic.query_interval_summary_sql(filters)
         data_dates = [b['day'] for b in daily_buckets]
@@ -5803,13 +5862,6 @@ def kpi_dashboard_produktivitaet():
             daily_buckets, start_date, end_date,
             chart_granularity, table_granularity, kpi_time.bucket_ranges,
         )
-
-        if mode == 'agent' and sel_member:
-            scope_label = next((m['name'] for m in members if m['id'] == sel_member), 'Agent')
-        elif mode == 'team' and sel_team:
-            scope_label = next((t['name'] for t in teams if t['id'] == sel_team), 'Team')
-        elif mode == 'project' and sel_project:
-            scope_label = next((p['name'] for p in projects if p['id'] == sel_project), 'Projekt')
 
     prod_formula_hint = productivity_logic.prod_formula_hint(targets)
     daily, daily_month_nav = _paginate_daily_table_rows(
@@ -5828,6 +5880,12 @@ def kpi_dashboard_produktivitaet():
         period=period_arg,
         date_from=date_from_str,
         date_to=date_to_str,
+        period_confirmed=period_confirmed,
+        period_label=period_label,
+        period_year=period_ctx['period_year'],
+        period_month=period_ctx['period_month'],
+        period_week=period_ctx['period_week'],
+        period_quarter=period_ctx['period_quarter'],
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
         table_granularity=table_granularity,

@@ -133,16 +133,15 @@
 
         <hr style="border-color:#34343c;">
 
-        <div class="form-row align-items-end">
-            {% include 'main/_kpi_period_filter.html' %}
-            <div class="col-12 col-md-2 mb-2">
-                <button type="submit" class="btn btn-sm telekom-button btn-block">Anzeigen</button>
+        <div class="form-row">
+            <div class="col-12 mb-2">
+                {% include 'main/_kpi_period_picker.html' %}
             </div>
         </div>
     </form>
     {% include 'main/_kpi_granularity_notice.html' %}
 
-    {% if selection_made and kpi %}
+    {% if selection_made and period_confirmed and kpi %}
     <div class="mb-3">
         <h4 class="mb-0">{{ scope_label }}</h4>
     </div>
@@ -297,6 +296,15 @@
     <div class="alert alert-secondary">Keine Befragungen im gewählten Zeitraum.</div>
     {% endif %}
 
+    {% elif selection_made %}
+    <div class="alert alert-info">
+        <i class="fas fa-calendar-alt mr-1"></i>
+        <strong>{{ scope_label }}</strong> ist ausgewählt.
+        Bitte legen Sie oben den <strong>Zeitraum</strong> fest, um die KPIs anzuzeigen.
+        <button type="button" class="btn btn-sm telekom-button ml-2 mt-2 mt-md-0" onclick="document.getElementById('kpiOpenPeriodPicker').click();">
+            Zeitraum wählen
+        </button>
+    </div>
     {% elif has_any_data %}
     <div class="alert alert-secondary">
         <i class="fas fa-hand-pointer mr-1"></i>
@@ -360,21 +368,30 @@
         });
     });
 
-    // von-bis toggle
-    var periodSel = document.getElementById('kpiPeriod');
-    if (periodSel) {
-        periodSel.addEventListener('change', function () {
-            var show = periodSel.value === 'vonbis';
-            document.querySelectorAll('.kpi-vonbis-field').forEach(function (el) {
-                el.style.display = show ? '' : 'none';
-            });
-        });
-    }
-
-    // Auto-submit on dropdown change for snappy filtering.
+    // Auto-submit on scope dropdown change; clear period and open picker.
     document.querySelectorAll('.kpi-auto').forEach(function (sel) {
-        sel.addEventListener('change', function () { form.submit(); });
+        sel.addEventListener('change', function () {
+            if (typeof window.kpiClearPeriod === 'function') window.kpiClearPeriod();
+            var url = new URL(form.action, window.location.origin);
+            new FormData(form).forEach(function (value, key) {
+                if (value !== '') url.searchParams.set(key, value);
+            });
+            url.searchParams.delete('period');
+            url.searchParams.delete('date_from');
+            url.searchParams.delete('date_to');
+            url.searchParams.delete('period_year');
+            url.searchParams.delete('period_month');
+            url.searchParams.delete('period_week');
+            url.searchParams.delete('period_quarter');
+            url.searchParams.delete('day_page');
+            if (sel.name === 'project_id' || sel.name === 'team_id' || sel.name === 'member_id') {
+                url.searchParams.set('open_period', '1');
+            }
+            window.location.href = url.toString();
+        });
     });
+
+    if (typeof window.initKpiPeriodPicker === 'function') window.initKpiPeriodPicker(form);
 
     // One chart per KPI (cumulative trend + Ziel)
     var chartDaily = {{ chart_daily|tojson }};
