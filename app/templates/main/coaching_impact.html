@@ -527,8 +527,23 @@
     }
     /* Range wizard */
     .ci-wz-modal { background: #1f1f24; border: 1px solid #34343c; color: #e8e8ec; }
-    .ci-wz-modal-dialog { max-width: min(1320px, 96vw); width: 96vw; margin: 1rem auto; }
-    .ci-wz-modal .modal-body { padding: 1rem 1.25rem 1.25rem; }
+    .ci-wz-modal-dialog {
+        max-width: min(1680px, 98vw);
+        width: 98vw;
+        margin: 0.5rem auto;
+    }
+    .ci-wz-modal .modal-content {
+        min-height: min(780px, 92vh);
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .ci-wz-modal .modal-body {
+        padding: 1rem 1.35rem 1.35rem;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
     .ci-wz-modal .modal-header .close { color: #e8e8ec; }
     .ci-wz-header {
         display: flex;
@@ -577,18 +592,19 @@
     .ci-wz-legend-sel span { background: rgba(74, 163, 255, 0.45); border: 1px solid #4aa3ff; }
     .ci-wz-legend-impact span { background: rgba(226, 0, 116, 0.15); border: 1px dashed #e20074; }
     .ci-wz-scroll {
-        overflow-x: hidden;
+        overflow-x: auto;
         overflow-y: hidden;
         border: 1px solid #34343c;
         border-radius: 10px;
         background: #18181c;
-        padding: 0.75rem 0.5rem 0.65rem;
+        padding: 0.85rem 0.65rem 0.75rem;
+        min-height: 228px;
         -webkit-overflow-scrolling: touch;
     }
     .ci-wz-track {
         position: relative;
-        --ci-wz-track-h: 124px;
-        --ci-wz-day-w: 48px;
+        --ci-wz-track-h: 188px;
+        --ci-wz-day-w: 58px;
         height: var(--ci-wz-track-h);
         min-width: 100%;
     }
@@ -605,14 +621,14 @@
         width: var(--ci-wz-day-w);
         height: 100%;
         position: relative;
-        border-right: 1px solid rgba(255,255,255,0.05);
+        border-right: 1px solid rgba(255,255,255,0.06);
         cursor: pointer;
         display: flex;
         flex-direction: column;
         align-items: stretch;
         justify-content: flex-start;
-        padding: 3px 2px;
-        font-size: 0.55rem;
+        padding: 4px 3px;
+        font-size: 0.65rem;
         color: #7a7a85;
         touch-action: none;
         user-select: none;
@@ -634,17 +650,17 @@
     }
     .ci-wz-day--coach-day { box-shadow: inset 0 -2px 0 #e20074; }
     .ci-wz-day-date {
-        font-size: 0.5rem;
+        font-size: 0.62rem;
         text-align: center;
         color: #9a9aa3;
-        margin-bottom: 3px;
-        line-height: 1;
+        margin-bottom: 4px;
+        line-height: 1.1;
         flex-shrink: 0;
     }
     .ci-wz-day-rows {
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 4px;
         flex: 1;
         min-height: 0;
     }
@@ -653,17 +669,17 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1px;
-        font-size: 0.5rem;
-        line-height: 1;
-        padding: 2px 1px;
-        border-radius: 4px;
-        flex: 1;
-        min-height: 0;
+        gap: 2px;
+        font-size: 0.62rem;
+        line-height: 1.1;
+        padding: 4px 2px;
+        border-radius: 5px;
+        flex: 0 0 auto;
+        min-height: 2.4rem;
         text-align: center;
     }
-    .ci-wz-day-row i { font-size: 0.5rem; flex-shrink: 0; }
-    .ci-wz-day-row-val { font-weight: 700; font-size: 0.52rem; line-height: 1.1; }
+    .ci-wz-day-row i { font-size: 0.62rem; flex-shrink: 0; }
+    .ci-wz-day-row-val { font-weight: 700; font-size: 0.68rem; line-height: 1.15; }
     .ci-wz-day-row--coach { background: rgba(226, 0, 116, 0.18); color: #ffb8dc; }
     .ci-wz-day-row--coach.ci-wz-day-row--empty { background: rgba(255,255,255,0.03); color: #5a5a65; }
     .ci-wz-day-row--survey { background: rgba(74, 163, 255, 0.15); color: #b3d9ff; }
@@ -1260,7 +1276,7 @@
 
     /* ---- Range wizard ---- */
     (function initRangeWizard() {
-        var DAY_W = 48;
+        var DAY_W = 58;
 
         function readDayWidth() {
             if (!trackEl) return DAY_W;
@@ -1269,9 +1285,9 @@
         }
 
         function readTrackHeight() {
-            if (!trackEl) return 124;
+            if (!trackEl) return 188;
             var h = parseInt(getComputedStyle(trackEl).height, 10);
-            return h > 0 ? h : 124;
+            return h > 0 ? h : 188;
         }
         var openBtn = document.getElementById('ciOpenRangeWizard');
         var modal = document.getElementById('ciRangeWizardModal');
@@ -1301,8 +1317,9 @@
         var scrollHint = document.getElementById('ciWzScrollHint');
         var wzEmptyDefault = 'Keine auswertbaren Coachings in dieser Auswahl.';
         var step1Panel = document.getElementById('ciWzStep1Panel');
-        var MIN_DAY_W = 8;
-        var MAX_DAY_W = 48;
+        var PREFERRED_DAY_W = 58;
+        var MIN_DAY_W = 48;
+        var MAX_DAY_W = 72;
 
         var state = {
             days: [],
@@ -1339,19 +1356,26 @@
         function fitTimelineToViewport() {
             if (!scrollEl || !trackEl || !state.days.length) return;
             var count = state.days.length;
-            var avail = scrollEl.clientWidth - 8;
+            var avail = scrollEl.clientWidth - 12;
             if (avail < 80) return;
-            var dayW = Math.max(MIN_DAY_W, Math.min(MAX_DAY_W, Math.floor(avail / count)));
+            var dayW = PREFERRED_DAY_W;
+            if (count * PREFERRED_DAY_W <= avail) {
+                dayW = Math.min(MAX_DAY_W, Math.max(PREFERRED_DAY_W, Math.floor(avail / count)));
+            }
             trackEl.style.setProperty('--ci-wz-day-w', dayW + 'px');
             trackEl.style.width = (count * dayW) + 'px';
             var needsScroll = count * dayW > avail + 2;
             scrollEl.classList.toggle('is-scrollable', needsScroll);
-            if (!needsScroll) scrollEl.scrollLeft = 0;
             if (scrollHint) {
                 scrollHint.textContent = needsScroll
-                    ? 'Timeline komprimiert — bei Bedarf horizontal scrollen oder Datumsfelder oben nutzen.'
-                    : 'Vorschau der Aktivität — Zeitraum bequem über Datumsfelder oder Schnellauswahl setzen.';
+                    ? 'Horizontal scrollen für den gesamten Verlauf — Zeitraum oben per Datum oder Schnellauswahl setzen.'
+                    : 'Aktivitätsvorschau — Zeitraum oben per Datum oder Schnellauswahl setzen.';
             }
+        }
+
+        function scrollSelectionIntoView() {
+            if (!scrollEl || !state.days.length) return;
+            scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
         }
 
         function syncDateInputsFromState() {
@@ -1457,6 +1481,7 @@
                 requestAnimationFrame(function () {
                     fitTimelineToViewport();
                     updateUI();
+                    scrollSelectionIntoView();
                 });
             });
         }
@@ -1556,7 +1581,7 @@
         }
 
         function scrollToIdx(idx) {
-            if (!scrollEl.classList.contains('is-scrollable')) return;
+            if (!scrollEl || scrollEl.scrollWidth <= scrollEl.clientWidth + 2) return;
             var dayW = readDayWidth();
             scrollEl.scrollLeft = Math.max(0, idx * dayW - scrollEl.clientWidth / 2 + dayW / 2);
         }
