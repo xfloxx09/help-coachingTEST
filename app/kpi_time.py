@@ -164,7 +164,7 @@ def span_days(start_date, end_date, data_dates=None):
     return 0
 
 
-MAX_TAG_VIEW_DAYS = 62
+MAX_TAG_VIEW_DAYS = 90
 
 
 def tag_view_exceeds_limit(start_date, end_date, data_dates=None):
