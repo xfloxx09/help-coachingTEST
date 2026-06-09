@@ -230,6 +230,116 @@
         background: rgba(226, 0, 116, 0.28);
         color: #fff;
     }
+    .ci-coaching-day-table .btn-icon-circle {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: transparent;
+        border: 1px solid #888;
+        color: #aaa;
+        transition: all 0.2s;
+    }
+    .ci-coaching-day-table .btn-icon-circle:hover,
+    .ci-coaching-day-table .btn-icon-circle[aria-expanded="true"] {
+        background-color: #e20074;
+        border-color: #e20074;
+        color: #fff;
+    }
+    .ci-coaching-detail-row > td {
+        padding: 0 0.5rem 0.75rem !important;
+        border-top: none !important;
+        background: #1a1a1f;
+    }
+    .ci-coaching-day-table .detail-card {
+        background-color: #2a2a31;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-top: 4px;
+    }
+    .ci-coaching-day-table .detail-section { margin-bottom: 14px; }
+    .ci-coaching-day-table .detail-section:last-child { margin-bottom: 0; }
+    .ci-coaching-day-table .detail-section-title {
+        color: #e20074;
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #444;
+        padding-bottom: 4px;
+    }
+    .ci-coaching-day-table .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+        gap: 8px;
+    }
+    .ci-coaching-day-table .detail-item {
+        background-color: #22222a;
+        border: 1px solid #3d3d3d;
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .ci-coaching-day-table .detail-item-label {
+        color: #9a9aa3;
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .ci-coaching-day-table .detail-item-value {
+        color: #e8e8ec;
+        font-size: 0.88rem;
+        word-break: break-word;
+    }
+    .ci-coaching-day-table .detail-item-leitfaden { grid-column: 1 / -1; }
+    .ci-coaching-day-table .detail-leitfaden-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px;
+    }
+    .ci-coaching-day-table .detail-leitfaden-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: #1a1a1a;
+        overflow: hidden;
+        width: 100%;
+    }
+    .ci-coaching-day-table .detail-leitfaden-bar-fill {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #b80a5a 0%, #e20074 100%);
+    }
+    .ci-coaching-day-table .leitfaden-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .ci-coaching-day-table .badge-leitfaden {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+    .ci-coaching-day-table .badge-ja { background-color: #28a745; color: #fff; }
+    .ci-coaching-day-table .badge-nein { background-color: #dc3545; color: #fff; }
+    .ci-coaching-day-table .badge-ka { background-color: #6c757d; color: #fff; }
+    .ci-coaching-day-table .notes-box {
+        background-color: #22222a;
+        border-left: 3px solid #e20074;
+        padding: 12px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        font-style: italic;
+        color: #ccc;
+    }
     .ci-rohdaten-btn:disabled {
         opacity: 0.38;
         cursor: not-allowed;
@@ -447,9 +557,16 @@
     }
     .ci-wz-day:hover { background: rgba(255,255,255,0.06); }
     .ci-wz-day--hover { outline: 1px solid rgba(74, 163, 255, 0.6); outline-offset: -1px; z-index: 2; }
-    .ci-wz-day--dragging { background: rgba(74, 163, 255, 0.18); }
-    .ci-wz-day--in-range { background: rgba(74, 163, 255, 0.08); }
-    .ci-wz-day--impact { background: rgba(226, 0, 116, 0.07); }
+    .ci-wz-day--dragging .ci-wz-day-row--coach { background: rgba(74, 163, 255, 0.28) !important; }
+    .ci-wz-day-row--coach { cursor: ew-resize; }
+    .ci-wz-day-row--coach-in-range {
+        box-shadow: inset 0 0 0 2px #4aa3ff;
+        background: rgba(74, 163, 255, 0.22) !important;
+    }
+    .ci-wz-day-row--data-impact {
+        box-shadow: inset 0 0 0 1px rgba(226, 0, 116, 0.45);
+        background: rgba(226, 0, 116, 0.14) !important;
+    }
     .ci-wz-day--coach-day { box-shadow: inset 0 -2px 0 #e20074; }
     .ci-wz-day-date {
         font-size: 0.5rem;
@@ -491,26 +608,78 @@
     .ci-wz-legend-prod { color: #36c6a0; }
     .ci-wz-day-label { display: none; }
     .ci-wz-impact-layer {
-        position: absolute; top: 0; left: 0; right: 0; height: 108px; pointer-events: none; z-index: 0;
+        position: absolute; top: 0; left: 0; right: 0; height: 108px; pointer-events: none; z-index: 1;
     }
     .ci-wz-impact-band {
-        position: absolute; top: 0; height: 100%;
-        background: rgba(226, 0, 116, 0.06);
-        border-top: 1px dashed rgba(226, 0, 116, 0.35);
-        border-bottom: 1px dashed rgba(226, 0, 116, 0.35);
-    }
-    .ci-wz-selection-bg {
-        position: absolute; top: 0; height: 108px; z-index: 1;
-        border: 2px solid #4aa3ff;
+        position: absolute;
+        background: rgba(226, 0, 116, 0.08);
+        border: 1px dashed rgba(226, 0, 116, 0.45);
         border-radius: 4px;
-        background: rgba(74, 163, 255, 0.14);
-        box-shadow: 0 0 0 1px rgba(74, 163, 255, 0.25);
+        box-sizing: border-box;
+    }
+    .ci-wz-impact-handles {
+        position: absolute; top: 0; left: 0; right: 0; height: 108px;
+        pointer-events: none; z-index: 9;
+    }
+    .ci-wz-impact-handles-inner {
+        position: absolute;
         pointer-events: none;
         min-width: 30px;
     }
+    .ci-wz-impact-grip {
+        position: absolute;
+        top: -13px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 36px;
+        height: 18px;
+        border-radius: 4px;
+        background: #e20074;
+        color: #fff;
+        font-size: 0.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: grab;
+        pointer-events: auto;
+        touch-action: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .ci-wz-impact-grip:active { cursor: grabbing; }
+    .ci-wz-impact-handle {
+        position: absolute;
+        top: 0;
+        width: 20px;
+        height: 100%;
+        background: linear-gradient(180deg, #e20074 0%, #b8005c 100%);
+        pointer-events: auto;
+        cursor: ew-resize;
+        touch-action: none;
+        border-radius: 4px;
+        box-shadow: 0 0 10px rgba(226, 0, 116, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.55rem;
+        user-select: none;
+    }
+    .ci-wz-impact-handle span { pointer-events: none; opacity: 0.9; }
+    .ci-wz-impact-handle-start { left: -10px; }
+    .ci-wz-impact-handle-end { right: -10px; }
+    .ci-wz-selection-bg {
+        position: absolute; z-index: 3;
+        border: 2px solid #4aa3ff;
+        border-radius: 4px;
+        background: rgba(74, 163, 255, 0.12);
+        box-shadow: 0 0 0 1px rgba(74, 163, 255, 0.25);
+        pointer-events: none;
+        min-width: 30px;
+        box-sizing: border-box;
+    }
     .ci-wz-selection-bg--single { border-color: #36c6a0; background: rgba(54, 198, 160, 0.14); }
     .ci-wz-handles {
-        position: absolute; top: 0; height: 108px; z-index: 10;
+        position: absolute; z-index: 10;
         pointer-events: none;
         min-width: 30px;
     }
@@ -539,7 +708,7 @@
         position: absolute;
         top: 0;
         width: 22px;
-        height: 108px;
+        height: 100%;
         background: linear-gradient(180deg, #4aa3ff 0%, #2d7fd4 100%);
         pointer-events: auto;
         cursor: ew-resize;
@@ -1007,6 +1176,7 @@
         var selectionBgEl = document.getElementById('ciWzSelectionBg');
         var handlesEl = document.getElementById('ciWzHandles');
         var impactLayerEl = document.getElementById('ciWzImpactLayer');
+        var impactHandlesEl = document.getElementById('ciWzImpactHandles');
         var windowSlider = document.getElementById('ciWzWindowSlider');
         var windowValEl = document.getElementById('ciWzWindowVal');
         var rangeLabelEl = document.getElementById('ciWzRangeLabel');
@@ -1046,6 +1216,8 @@
             surveyDatesByMember: {},
             prodDatesByMember: {},
             coachingEvents: [],
+            zones: null,
+            impactDragOrigWindow: 14,
         };
 
         function syncWizardVisibility() {
@@ -1067,10 +1239,48 @@
                 wzSubtitleEl.textContent = 'Pro Tag: ' + subtitleBits.join(' · ') + ' — Timeline ziehen oder Schnellauswahl';
             }
             if (wzHelpEl) {
-                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> Nur <strong>auswertbare Coachings</strong> '
-                    + '(Bewertungen oder Prod.-Rohdaten vor <em>und</em> nach dem Termin) zählen für Vorher/Nachher. '
-                    + dayBits.join(', ') + '. Timeline <strong>ziehen</strong> = Zeitraum wählen.';
+                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> '
+                    + '<strong>Oben (C):</strong> Zeitraum ziehen · '
+                    + '<strong>Unten (B/P):</strong> Wirkungsfenster (symmetrisch vor &amp; nach Coaching). '
+                    + dayBits.join(', ') + '.';
             }
+        }
+
+        function measureRowZones() {
+            var day = daysEl.querySelector('.ci-wz-day');
+            if (!day || !trackEl) return;
+            var trackRect = trackEl.getBoundingClientRect();
+            var coachRow = day.querySelector('.ci-wz-day-row--coach');
+            if (!coachRow) return;
+            var coachRect = coachRow.getBoundingClientRect();
+            var dataRows = day.querySelectorAll('.ci-wz-day-row--survey, .ci-wz-day-row--prod');
+            var dataTop = coachRect.bottom - trackRect.top + 3;
+            var dataH = 28;
+            if (dataRows.length) {
+                var first = dataRows[0].getBoundingClientRect();
+                var last = dataRows[dataRows.length - 1].getBoundingClientRect();
+                dataTop = first.top - trackRect.top;
+                dataH = last.bottom - first.top;
+            }
+            state.zones = {
+                coachTop: coachRect.top - trackRect.top,
+                coachH: coachRect.height,
+                dataTop: dataTop,
+                dataH: Math.max(dataH, 24),
+            };
+        }
+
+        function impactSpanIndices() {
+            var coaches = coachingIndicesInRange();
+            if (!coaches.length) return null;
+            var w = state.windowDays;
+            var lo = Math.max(0, Math.min.apply(null, coaches.map(function (ci) { return ci - w; })));
+            var hi = Math.min(state.days.length - 1, Math.max.apply(null, coaches.map(function (ci) { return ci + w; })));
+            return { lo: lo, hi: hi, coaches: coaches };
+        }
+
+        function clampWindowDays(w) {
+            return Math.max(1, Math.min(90, w));
         }
 
         function parseIsoDate(iso) {
@@ -1355,6 +1565,7 @@
                 });
                 el.addEventListener('click', function (e) {
                     if (state.pointer && state.pointer.moved) return;
+                    if (!e.target.closest('.ci-wz-day-row--coach')) return;
                     if (e.shiftKey && state.anchorIdx >= 0) {
                         state.startIdx = Math.min(state.anchorIdx, idx);
                         state.endIdx = Math.max(state.anchorIdx, idx);
@@ -1380,21 +1591,51 @@
 
         function renderImpactBands() {
             impactLayerEl.innerHTML = '';
-            if (!showImpactPreview()) return;
-            var w = state.windowDays;
-            var seen = {};
-            coachingIndicesInRange().forEach(function (ci) {
-                var lo = Math.max(0, ci - w);
-                var hi = Math.min(state.days.length - 1, ci + w);
-                var key = lo + '-' + hi;
-                if (seen[key]) return;
-                seen[key] = true;
-                var band = document.createElement('div');
-                band.className = 'ci-wz-impact-band';
-                band.style.left = (lo * DAY_W) + 'px';
-                band.style.width = ((hi - lo + 1) * DAY_W) + 'px';
-                impactLayerEl.appendChild(band);
+            if (!showImpactPreview() || !state.zones) return;
+            var span = impactSpanIndices();
+            if (!span) return;
+            var band = document.createElement('div');
+            band.className = 'ci-wz-impact-band';
+            band.style.left = (span.lo * DAY_W) + 'px';
+            band.style.width = ((span.hi - span.lo + 1) * DAY_W) + 'px';
+            band.style.top = state.zones.dataTop + 'px';
+            band.style.height = state.zones.dataH + 'px';
+            impactLayerEl.appendChild(band);
+        }
+
+        function renderImpactHandles() {
+            if (!impactHandlesEl) return;
+            impactHandlesEl.innerHTML = '';
+            if (!showImpactPreview() || !state.zones) return;
+            var span = impactSpanIndices();
+            if (!span) return;
+            var wrap = document.createElement('div');
+            wrap.className = 'ci-wz-impact-handles-inner';
+            wrap.style.left = (span.lo * DAY_W) + 'px';
+            wrap.style.width = ((span.hi - span.lo + 1) * DAY_W) + 'px';
+            wrap.style.top = state.zones.dataTop + 'px';
+            wrap.style.height = state.zones.dataH + 'px';
+
+            var hStart = document.createElement('div');
+            hStart.className = 'ci-wz-impact-handle ci-wz-impact-handle-start';
+            hStart.setAttribute('data-handle', 'impact-start');
+            hStart.title = 'Fenster vergrößern/verkleinern (symmetrisch)';
+            hStart.innerHTML = '<span>◀</span>';
+            wrap.appendChild(hStart);
+
+            var hEnd = document.createElement('div');
+            hEnd.className = 'ci-wz-impact-handle ci-wz-impact-handle-end';
+            hEnd.setAttribute('data-handle', 'impact-end');
+            hEnd.title = 'Fenster vergrößern/verkleinern (symmetrisch)';
+            hEnd.innerHTML = '<span>▶</span>';
+            wrap.appendChild(hEnd);
+
+            wrap.querySelectorAll('[data-handle]').forEach(function (el) {
+                el.addEventListener('pointerdown', function (e) {
+                    startHandleDrag(e, el.getAttribute('data-handle'));
+                });
             });
+            impactHandlesEl.appendChild(wrap);
         }
 
         function updateDayClasses() {
@@ -1409,8 +1650,12 @@
             }
             daysEl.querySelectorAll('.ci-wz-day').forEach(function (el) {
                 var idx = +el.dataset.idx;
-                el.classList.toggle('ci-wz-day--in-range', idx >= state.startIdx && idx <= state.endIdx);
-                el.classList.toggle('ci-wz-day--impact', !!impactSet[idx] && (idx < state.startIdx || idx > state.endIdx));
+                var inRange = idx >= state.startIdx && idx <= state.endIdx;
+                var coachRow = el.querySelector('.ci-wz-day-row--coach');
+                if (coachRow) coachRow.classList.toggle('ci-wz-day-row--coach-in-range', inRange);
+                el.querySelectorAll('.ci-wz-day-row--survey, .ci-wz-day-row--prod').forEach(function (row) {
+                    row.classList.toggle('ci-wz-day-row--data-impact', !!impactSet[idx]);
+                });
             });
         }
 
@@ -1446,24 +1691,31 @@
             if (handlesEl) handlesEl.classList.toggle('ci-wz-handles--single', single);
         }
 
+        function applyZoneStyles(el, left, width, zone) {
+            if (!el || !zone) return;
+            el.style.left = left + 'px';
+            el.style.width = width + 'px';
+            el.style.top = zone.top + 'px';
+            el.style.height = zone.height + 'px';
+        }
+
         function updateSelectionBox() {
             var left = state.startIdx * DAY_W;
             var width = Math.max(1, rangeDays()) * DAY_W;
-            if (selectionBgEl) {
-                selectionBgEl.style.left = left + 'px';
-                selectionBgEl.style.width = width + 'px';
-            }
-            if (handlesEl) {
-                handlesEl.style.left = left + 'px';
-                handlesEl.style.width = width + 'px';
-            }
+            var coachZone = state.zones
+                ? { top: state.zones.coachTop, height: state.zones.coachH }
+                : { top: 17, height: 28 };
+            applyZoneStyles(selectionBgEl, left, width, coachZone);
+            applyZoneStyles(handlesEl, left, width, coachZone);
         }
 
         function updateUI() {
             if (state.endIdx < state.startIdx) state.endIdx = state.startIdx;
+            measureRowZones();
             updateSelectionBox();
             updateDayClasses();
             renderImpactBands();
+            renderImpactHandles();
             updateSummary();
         }
 
@@ -1508,12 +1760,29 @@
                 newStart = Math.max(0, Math.min(state.days.length - 1 - len, newStart));
                 state.startIdx = newStart;
                 state.endIdx = newStart + len;
+            } else if (state.dragging === 'impact-start' || state.dragging === 'impact-end') {
+                var span = impactSpanIndices();
+                if (!span) return;
+                var anchor = state.dragging === 'impact-start'
+                    ? Math.min.apply(null, span.coaches)
+                    : Math.max.apply(null, span.coaches);
+                var newW = state.dragging === 'impact-start' ? (anchor - idx) : (idx - anchor);
+                state.windowDays = clampWindowDays(newW);
+                measureRowZones();
+                updateDayClasses();
+                renderImpactBands();
+                renderImpactHandles();
+                if (windowValEl) windowValEl.textContent = state.windowDays;
+                if (windowSlider) windowSlider.value = state.windowDays;
+                updatePresetButtons();
+                return;
             }
             state.anchorIdx = state.endIdx;
             updateUI();
         }
 
         function onPointerUp(e) {
+            var wasImpactDrag = state.dragging && state.dragging.indexOf('impact-') === 0;
             if (state.pointer && e.pointerId === state.pointer.id) {
                 if (state.pointer.mode === 'paint' && !state.pointer.moved) {
                     state.startIdx = state.endIdx = state.pointer.idx;
@@ -1522,18 +1791,28 @@
                 }
                 endPointerDrag();
             }
-            if (state.dragging) endPointerDrag();
+            if (state.dragging) {
+                if (wasImpactDrag) {
+                    recomputeActionableForWindow();
+                    renderDays();
+                    updateUI();
+                }
+                endPointerDrag();
+            }
         }
 
         function startHandleDrag(e, handleType) {
             e.preventDefault();
             e.stopPropagation();
             state.pointer = null;
+            if (handleType.indexOf('impact-') === 0 && !showImpactPreview()) return;
             state.dragging = handleType;
             if (handleType === 'range') {
                 state.dragAnchorIdx = idxFromClientX(e.clientX) - state.startIdx;
                 state.dragOrigStart = state.startIdx;
                 state.dragOrigEnd = state.endIdx;
+            } else if (handleType.indexOf('impact-') === 0) {
+                state.impactDragOrigWindow = state.windowDays;
             }
             scrollEl.classList.add('is-dragging');
             if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
@@ -1541,6 +1820,8 @@
 
         function startPaintDrag(e, dayEl, idx) {
             if (e.button !== 0) return;
+            if (!e.target.closest('.ci-wz-day-row--coach')) return;
+            if (showImpactPreview() && e.target.closest('.ci-wz-impact-handle, .ci-wz-impact-grip')) return;
             e.preventDefault();
             state.pointer = { mode: 'paint', idx: idx, x: e.clientX, id: e.pointerId, moved: false };
             state.startIdx = idx;
@@ -1562,7 +1843,9 @@
         if (daysEl) {
             daysEl.addEventListener('pointerdown', function (e) {
                 if (e.target.closest('[data-handle]')) return;
-                var dayEl = e.target.closest('.ci-wz-day');
+                var coachRow = e.target.closest('.ci-wz-day-row--coach');
+                if (!coachRow) return;
+                var dayEl = coachRow.closest('.ci-wz-day');
                 if (!dayEl) return;
                 startPaintDrag(e, dayEl, +dayEl.dataset.idx);
             });
@@ -2177,6 +2460,82 @@
         return html + '</div>';
     }
 
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function leitfadenBadgeClass(value) {
+        var v = String(value || '').trim().toLowerCase();
+        if (v === 'ja' || v === 'yes' || v === '1' || v === 'true') return 'badge-ja';
+        if (v === 'nein' || v === 'no' || v === '0' || v === 'false') return 'badge-nein';
+        return 'badge-ka';
+    }
+
+    function leitfadenBadgeSymbol(value) {
+        var cls = leitfadenBadgeClass(value);
+        if (cls === 'badge-ja') return '✓';
+        if (cls === 'badge-nein') return '✗';
+        return '?';
+    }
+
+    function renderCoachingDetailCard(c) {
+        var html = '<div class="detail-card">';
+        html += '<div class="detail-section"><div class="detail-section-title">Basis-Informationen</div><div class="detail-grid">';
+        html += '<div class="detail-item"><span class="detail-item-label">Stil</span><span class="detail-item-value">' + escapeHtml(c.style) + '</span></div>';
+        if (c.style === 'TCAP' && c.tcap_id) {
+            html += '<div class="detail-item"><span class="detail-item-label">T-CAP ID</span><span class="detail-item-value">' + escapeHtml(c.tcap_id) + '</span></div>';
+        }
+        html += '<div class="detail-item"><span class="detail-item-label">Thema</span><span class="detail-item-value">' + escapeHtml(c.subject) + '</span></div>';
+        html += '<div class="detail-item"><span class="detail-item-label">Performance</span><span class="detail-item-value">' + (c.performance_mark != null ? c.performance_mark + '/10' : '–') + '</span></div>';
+        html += '<div class="detail-item"><span class="detail-item-label">Zeitaufwand</span><span class="detail-item-value">' + c.time_spent + ' Min.</span></div>';
+        html += '<div class="detail-item detail-item-leitfaden"><span class="detail-item-label">Leitfaden</span>';
+        if (c.leitfaden_stats) {
+            html += '<div class="detail-leitfaden-wrap"><div class="detail-leitfaden-line"><strong>' + c.leitfaden_stats.percent + '%</strong>'
+                + '<span class="text-muted small">' + c.leitfaden_stats.positive + '/' + c.leitfaden_stats.total + ' erfüllt</span></div>'
+                + '<div class="detail-leitfaden-bar" title="' + c.leitfaden_stats.percent + '%"><span class="detail-leitfaden-bar-fill" style="width:' + c.leitfaden_stats.percent + '%;"></span></div></div>';
+        } else {
+            html += '<span class="detail-item-value text-muted">k. A.</span>';
+        }
+        html += '</div></div></div>';
+        if (c.leitfaden_fields && c.leitfaden_fields.length) {
+            html += '<div class="detail-section"><div class="detail-section-title">Leitfaden-Checkmarks</div><div class="leitfaden-list">';
+            c.leitfaden_fields.forEach(function (f) {
+                html += '<span class="badge-leitfaden ' + leitfadenBadgeClass(f.value) + '">'
+                    + escapeHtml(f.name) + ': ' + leitfadenBadgeSymbol(f.value) + '</span>';
+            });
+            html += '</div></div>';
+        }
+        if (c.coach_notes) {
+            html += '<div class="detail-section"><div class="detail-section-title">Notizen des Coaches</div>'
+                + '<div class="notes-box">' + escapeHtml(c.coach_notes) + '</div></div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function renderCoachingDayBody(coachings) {
+        var colCount = 7;
+        var html = '<table class="table table-sm table-striped ci-coaching-day-table mb-0"><thead><tr>'
+            + '<th>Agent</th><th>Coach</th><th>Thema</th><th>Stil</th>'
+            + '<th class="text-right">Performance</th><th class="text-right">Dauer</th><th class="text-center">Details</th></tr></thead><tbody>';
+        coachings.forEach(function (c) {
+            var detailId = 'ciCoachingDetail' + c.id;
+            html += '<tr><td>' + escapeHtml(c.agent) + '</td><td>' + escapeHtml(c.coach) + '</td>'
+                + '<td>' + escapeHtml(c.subject) + '</td><td>' + escapeHtml(c.style) + '</td>'
+                + '<td class="text-right">' + (c.performance !== null ? c.performance + '%' : '–') + '</td>'
+                + '<td class="text-right">' + c.time_spent + ' Min.</td>'
+                + '<td class="text-center">'
+                + '<button type="button" class="btn-icon-circle" data-toggle="collapse" data-target="#' + detailId + '" '
+                + 'aria-expanded="false" aria-controls="' + detailId + '" title="Leitfaden &amp; Notizen">'
+                + '<i class="fas fa-info"></i></button></td></tr>';
+            html += '<tr class="collapse ci-coaching-detail-row" id="' + detailId + '"><td colspan="' + colCount + '">'
+                + renderCoachingDetailCard(c) + '</td></tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
     window.openCiCoachingDay = function (dateStr) {
         var q = new URLSearchParams();
         q.set('date', dateStr);
@@ -2199,17 +2558,7 @@
                 if (data.error) { body.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>'; return; }
                 document.getElementById('ciDayModalDate').textContent = '— ' + data.date + ' (' + data.count + ' Coaching' + (data.count === 1 ? '' : 's') + ')';
                 if (!data.coachings.length) { body.innerHTML = '<div class="text-muted">Keine Coachings an diesem Tag.</div>'; return; }
-                var html = '<table class="table table-sm table-striped"><thead><tr>'
-                    + '<th>Agent</th><th>Coach</th><th>Thema</th><th>Stil</th>'
-                    + '<th class="text-right">Performance</th><th class="text-right">Dauer</th></tr></thead><tbody>';
-                data.coachings.forEach(function (c) {
-                    html += '<tr><td>' + escapeHtml(c.agent) + '</td><td>' + escapeHtml(c.coach) + '</td>'
-                        + '<td>' + escapeHtml(c.subject) + '</td><td>' + escapeHtml(c.style) + '</td>'
-                        + '<td class="text-right">' + (c.performance !== null ? c.performance + '%' : '–') + '</td>'
-                        + '<td class="text-right">' + c.time_spent + ' Min.</td></tr>';
-                });
-                html += '</tbody></table>';
-                body.innerHTML = html;
+                body.innerHTML = renderCoachingDayBody(data.coachings);
             })
             .catch(function () {
                 body.innerHTML = '<div class="alert alert-danger">Daten konnten nicht geladen werden.</div>';
@@ -2230,11 +2579,6 @@
         });
     });
 
-    function escapeHtml(str) {
-        return String(str)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
 })();
 </script>
 {% endblock %}

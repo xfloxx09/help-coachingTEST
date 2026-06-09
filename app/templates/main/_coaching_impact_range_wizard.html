@@ -32,8 +32,8 @@
                     <span class="ci-wz-legend-muted"><i class="fas fa-chalkboard-teacher"></i> grau = ohne Vorher/Nachher</span>
                     <span class="ci-wz-legend-survey-wrap"><i class="fas fa-star ci-wz-legend-survey"></i> B = Bewertungen</span>
                     <span class="ci-wz-legend-prod-wrap"><i class="fas fa-chart-line ci-wz-legend-prod"></i> P = Prod. Rohdaten</span>
-                    <span class="ci-wz-legend-sel"><span></span> Zeitraum</span>
-                    <span class="ci-wz-legend-impact ci-wz-legend-impact--step2"><span></span> Wirkungsfenster</span>
+                    <span class="ci-wz-legend-sel"><span></span> Zeitraum (C-Zeile)</span>
+                    <span class="ci-wz-legend-impact ci-wz-legend-impact--step2"><span></span> Wirkungsfenster (B/P)</span>
                 </div>
 
                 <div class="ci-wz-loading text-center py-5 text-muted" id="ciWzLoading">
@@ -51,6 +51,7 @@
                             <div class="ci-wz-track" id="ciWzTrack">
                                 <div class="ci-wz-days" id="ciWzDays"></div>
                                 <div class="ci-wz-impact-layer" id="ciWzImpactLayer"></div>
+                                <div class="ci-wz-impact-handles" id="ciWzImpactHandles"></div>
                                 <div class="ci-wz-selection-bg" id="ciWzSelectionBg"></div>
                                 <div class="ci-wz-handles" id="ciWzHandles">
                                     <div class="ci-wz-selection-grip" data-handle="range" title="Zeitraum verschieben"><i class="fas fa-grip-lines"></i></div>
@@ -63,7 +64,8 @@
 
                     <div class="ci-wz-step-panel d-none" id="ciWzStep2Panel">
                         <p class="small text-muted mb-2">
-                            Das Wirkungsfenster legt fest, wie viele Tage vor und nach jedem Coaching für den Vorher/Nachher-Vergleich gezählt werden.
+                            Das Wirkungsfenster gilt für Bewertungen und Prod.-Rohdaten (untere Zeilen).
+                            Am Timeline-Rand ziehen — das Fenster wächst symmetrisch vor und nach jedem Coaching.
                         </p>
                         <div class="ci-wz-preset-group mb-3" id="ciWzWindowPresetsWrap">
                             <span class="ci-wz-preset-label">Schnellauswahl Fenster</span>

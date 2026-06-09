@@ -6829,11 +6829,34 @@ def coaching_impact():
     )
 
 
+def _serialize_coaching_impact_day_item(c):
+    """JSON payload for one coaching in the Coaching VS KPI day modal."""
+    lf = c.leitfaden_erfuellung_stats
+    return {
+        'id': c.id,
+        'agent': c.team_member.name if c.team_member else '-',
+        'coach': c.coach.coach_display_name if c.coach else '-',
+        'subject': c.coaching_subject or '-',
+        'style': c.coaching_style or '-',
+        'tcap_id': c.tcap_id or '',
+        'performance': _coaching_performance_pct(c.performance_mark),
+        'performance_mark': c.performance_mark,
+        'time_spent': c.time_spent or 0,
+        'coach_notes': (c.coach_notes or '').strip(),
+        'leitfaden_stats': (
+            {'percent': lf[0], 'positive': lf[1], 'total': lf[2]} if lf else None
+        ),
+        'leitfaden_fields': [
+            {'name': name, 'value': value} for name, value in c.leitfaden_fields_list
+        ],
+    }
+
+
 @bp.route('/coaching-impact/day')
 @login_required
 @permission_required('view_coaching_impact')
 def coaching_impact_day():
-    """Coachings on a single day within the current scope (modal for the yellow badge)."""
+    """Coachings on a single day within the current scope (modal for the coaching badge)."""
     if not kpi_logic.kpi_features_enabled():
         return jsonify({'coachings': []})
     accessible, sees_all_teams, my_team_ids = _kpi_scope()
@@ -6865,6 +6888,7 @@ def coaching_impact_day():
         Coaching.query.options(
             joinedload(Coaching.team_member),
             selectinload(Coaching.coach).selectinload(User.team_members),
+            selectinload(Coaching.leitfaden_responses).joinedload(CoachingLeitfadenResponse.item),
         )
         .filter(*filters)
         .order_by(Coaching.team_member_id)
@@ -6872,14 +6896,5 @@ def coaching_impact_day():
         .all()
     )
 
-    out = []
-    for c in coachings:
-        out.append({
-            'agent': c.team_member.name if c.team_member else '-',
-            'coach': c.coach.coach_display_name if c.coach else '-',
-            'subject': c.coaching_subject or '-',
-            'style': c.coaching_style or '-',
-            'performance': _coaching_performance_pct(c.performance_mark),
-            'time_spent': c.time_spent or 0,
-        })
+    out = [_serialize_coaching_impact_day_item(c) for c in coachings]
     return jsonify({'date': day.strftime('%d.%m.%Y'), 'count': len(out), 'coachings': out})
