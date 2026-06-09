@@ -19,7 +19,7 @@ from app import member_linking
 from app.forms import RegistrationForm, TeamForm, TeamMemberForm, CoachingForm, WorkshopForm, ProjectForm, RoleForm, AdminAssignedCoachingForm, TeamMemberWithUserForm, LeitfadenItemForm, TeamsCoachingBulkForm, AbteilungForm, CoachingThemaItemForm, CoachingBogenLayoutForm
 from app.utils import role_required, permission_required, ROLE_ADMIN, ROLE_BETRIEBSLEITER, ROLE_TEAMLEITER, ROLE_ABTEILUNGSLEITER, get_or_create_archiv_team, ARCHIV_TEAM_NAME, get_or_create_role, workshop_individual_rating_from_request, projects_in_abteilung, leitfaden_items_for_coaching_edit, bogen_layout_for_project
 from app.main_routes import calculate_date_range, get_month_name_german, _sync_assigned_coaching_status_from_progress
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, date, timedelta
 import csv
 import json
 import tempfile
@@ -3657,14 +3657,45 @@ def _spawn_prod_import_worker(job_id, user_id, intervals_path, filename, overwri
 
 
 def _kpi_parse_date(value):
+    """Parse KPI export dates (German, ISO, with optional time, Excel serial)."""
     s = (value or '').strip()
     if not s:
         return None
-    for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d.%m.%y'):
+    if re.fullmatch(r'\d{5,6}', s):
+        try:
+            serial = int(s)
+            if 30000 <= serial <= 60000:
+                return (date(1899, 12, 30) + timedelta(days=serial))
+        except (ValueError, OverflowError):
+            pass
+    if ' ' in s:
+        parsed = _kpi_parse_date(s.split(' ', 1)[0])
+        if parsed:
+            return parsed
+    if 'T' in s:
+        parsed = _kpi_parse_date(s.split('T', 1)[0])
+        if parsed:
+            return parsed
+    for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%d.%m.%y', '%d/%m/%Y', '%m/%d/%Y'):
+        try:
+            return datetime.strptime(s[:10] if len(s) > 10 else s, fmt).date()
+        except ValueError:
+            continue
+    for fmt in ('%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
             continue
+    return None
+
+
+def _kpi_row_date(row, *keys):
+    for key in keys:
+        if not key:
+            continue
+        parsed = _kpi_parse_date(row.get(key))
+        if parsed:
+            return parsed
     return None
 
 
@@ -3701,12 +3732,16 @@ def _kpi_read_surveys(temp_path):
             if not dsid:
                 continue
             s = surveys.get(dsid)
+            row_antwort = _kpi_row_date(
+                row, 'antwortdatum', 'antwort_datum', 'antwort-datum', 'datum',
+            )
+            row_kontakt = _kpi_row_date(row, 'kontaktdatum', 'kontakt_datum', 'kontakt-datum')
             if s is None:
                 s = {
                     'datensatz_id': dsid[:64],
                     'interviewnummer': (row.get('interviewnummer') or '').strip()[:64],
-                    'antwort_date': _kpi_parse_date(row.get('antwortdatum')),
-                    'kontakt_date': _kpi_parse_date(row.get('kontaktdatum')),
+                    'antwort_date': row_antwort or row_kontakt,
+                    'kontakt_date': row_kontakt or row_antwort,
                     'be4': kpi_logic.normalize_text(row.get('be4')),
                     'ma_kenner': kpi_logic.normalize_text(row.get('ma_kenner')),
                     'ospname': kpi_logic.normalize_text(row.get('ospname'))[:100],
@@ -3725,6 +3760,11 @@ def _kpi_read_surveys(temp_path):
                 }
                 surveys[dsid] = s
                 order.append(dsid)
+            else:
+                if not s['antwort_date'] and row_antwort:
+                    s['antwort_date'] = row_antwort
+                if not s['kontakt_date'] and row_kontakt:
+                    s['kontakt_date'] = row_kontakt
             frage = row.get('frage') or ''
             antwort = row.get('antwort') or ''
             code = kpi_logic.question_code(frage)
@@ -3736,6 +3776,10 @@ def _kpi_read_surveys(temp_path):
     # Default flags via auto-detection (no per-project mapping yet).
     result = [surveys[d] for d in order]
     for s in result:
+        if not s['antwort_date'] and s['kontakt_date']:
+            s['antwort_date'] = s['kontakt_date']
+        elif not s['kontakt_date'] and s['antwort_date']:
+            s['kontakt_date'] = s['antwort_date']
         s['answers'] = _kpi_dedupe_answers_by_code(s['answers'])
         nps_v, loes_a, info_p, loes_p, fach_s, vert_p = kpi_logic.compute_survey_flags(s['answers'])
         s['nps_value'] = nps_v

@@ -21,8 +21,11 @@
                     <input type="file" class="form-control-file" id="kpi_csv_file" name="kpi_csv_file" accept=".csv" required>
                     <small class="form-text text-muted">
                         Erwartete Spalten u. a.: <code>datensatz_id</code>, <code>frage</code>, <code>antwort</code>,
-                        <code>be4</code> (Teamname), <code>ma_kenner</code> (MA-Kennung), <code>antwortdatum</code>.
+                        <code>be4</code> (Teamname), <code>ma_kenner</code> (MA-Kennung), <code>antwortdatum</code>
+                        (auch mit Uhrzeit, z.&nbsp;B. <code>01.05.2025 14:30:00</code>).
                         Zeilen mit identischer <code>datensatz_id</code> bilden eine Befragung.
+                        Fehlt das Datum in der Vorschau: Zeitraum prüfen; bei Korrektur CSV mit
+                        <strong>Überschreiben</strong> erneut importieren.
                         <strong>Tipp:</strong> CSV nicht in Excel öffnen/speichern – sonst können Zellen wie
                         <code>#NAME?</code> entstehen.
                     </small>
