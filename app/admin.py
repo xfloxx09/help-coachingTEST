@@ -27,7 +27,6 @@ import os
 import re
 import subprocess
 import sys
-import threading
 import time
 import uuid
 
@@ -3656,6 +3655,23 @@ def _spawn_prod_import_worker(job_id, user_id, intervals_path, filename, overwri
     )
 
 
+def _spawn_kpi_import_worker(job_id, user_id, csv_path, filename, overwrite):
+    """Run KPI import commit in a separate OS process (never blocks gunicorn)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen(
+        [
+            sys.executable, '-m', 'app.import_worker', 'kpi_import',
+            job_id, str(user_id), csv_path, filename, '1' if overwrite else '0',
+        ],
+        cwd=root,
+        env=os.environ.copy(),
+        start_new_session=True,
+        close_fds=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def _kpi_parse_date(value):
     """Parse KPI export dates (German, ISO, with optional time, Excel serial)."""
     s = (value or '').strip()
@@ -4427,45 +4443,6 @@ def _kpi_format_commit_flash(batch, commit_result):
     )
 
 
-def _kpi_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
-    with app.app_context():
-        try:
-            _import_job_write(job_id, user_id, {
-                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
-            })
-            surveys = _kpi_read_surveys(temp_path)
-            stats = _kpi_resolve_links(surveys)
-            _kpi_apply_mappings(surveys)
-
-            def progress(done, total, message):
-                pct = 5 + int((done / max(total, 1)) * 90)
-                _import_job_write(job_id, user_id, {
-                    'status': 'running', 'pct': pct, 'message': message,
-                })
-
-            batch, _df, _dt, commit_result = _kpi_commit(
-                filename, surveys, stats, overwrite=overwrite, progress_cb=progress,
-                imported_by_id=user_id,
-            )
-            category, message = _kpi_format_commit_flash(batch, commit_result)
-            _import_job_write(job_id, user_id, {
-                'status': 'done',
-                'pct': 100,
-                'message': 'Import abgeschlossen.',
-                'done_url': url_for('admin.import_kpi_csv_done', job_id=job_id),
-                'flash_category': category,
-                'flash_message': message,
-            })
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.exception('KPI import job failed')
-            _import_job_write(job_id, user_id, {
-                'status': 'error', 'pct': 0, 'message': str(e),
-            })
-        finally:
-            db.session.remove()
-
-
 @bp.route('/import_kpi_csv', methods=['GET', 'POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
@@ -4634,13 +4611,7 @@ def import_kpi_csv_job_start():
     _import_job_write(job_id, current_user.id, {
         'status': 'pending', 'pct': 0, 'message': 'Import wird gestartet…',
     })
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_kpi_run_import_job,
-        args=(app, job_id, current_user.id, temp_path, filename, overwrite),
-        daemon=True,
-    )
-    thread.start()
+    _spawn_kpi_import_worker(job_id, current_user.id, temp_path, filename, overwrite)
     return jsonify({'job_id': job_id})
 
 
@@ -4656,6 +4627,7 @@ def import_kpi_csv_job_status(job_id):
         'pct': job.get('pct', 0),
         'message': job.get('message', ''),
         'done_url': job.get('done_url'),
+        'updated_at': job.get('updated_at'),
         'error': job.get('message') if job.get('status') == 'error' else None,
     })
 

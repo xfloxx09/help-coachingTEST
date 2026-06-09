@@ -228,6 +228,60 @@ def run_prod_import(job_id, user_id, intervals_path, filename, overwrite_flag):
             db.session.remove()
 
 
+def run_kpi_import(job_id, user_id, csv_path, filename, overwrite_flag):
+    _job_write(job_id, user_id, {
+        'status': 'running', 'pct': 2, 'message': 'Import-Prozess gestartet…',
+    })
+    from app import create_app, db
+
+    app = create_app()
+    with app.app_context():
+        try:
+            from app.admin import (
+                _kpi_apply_mappings,
+                _kpi_commit,
+                _kpi_format_commit_flash,
+                _kpi_read_surveys,
+                _kpi_resolve_links,
+            )
+
+            _job_write(job_id, user_id, {
+                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
+            })
+            surveys = _kpi_read_surveys(csv_path)
+            stats = _kpi_resolve_links(surveys)
+            _kpi_apply_mappings(surveys)
+
+            def progress(done, total, message):
+                pct = 5 + int((done / max(total, 1)) * 90)
+                _job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            batch, _df, _dt, commit_result = _kpi_commit(
+                filename,
+                surveys,
+                stats,
+                overwrite=(overwrite_flag == '1'),
+                progress_cb=progress,
+                imported_by_id=int(user_id),
+            )
+            category, message = _kpi_format_commit_flash(batch, commit_result)
+            _job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import abgeschlossen.',
+                'done_url': f'/admin/import_kpi_csv/done/{job_id}',
+                'flash_category': category,
+                'flash_message': message,
+            })
+        except Exception as e:
+            db.session.rollback()
+            _job_write(job_id, user_id, {'status': 'error', 'pct': 0, 'message': str(e)})
+        finally:
+            db.session.remove()
+
+
 def main(argv=None):
     argv = argv or sys.argv[1:]
     if not argv:
@@ -235,6 +289,8 @@ def main(argv=None):
     cmd = argv[0]
     if cmd == 'kpi_revert':
         run_kpi_revert(int(argv[1]), argv[2], int(argv[3]))
+    elif cmd == 'kpi_import':
+        run_kpi_import(argv[1], int(argv[2]), argv[3], argv[4], argv[5])
     elif cmd == 'prod_revert':
         run_prod_revert(int(argv[1]), argv[2], int(argv[3]))
     elif cmd == 'prod_import':

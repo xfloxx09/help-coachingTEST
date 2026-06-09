@@ -132,10 +132,17 @@
                 }
                 var jobId = res.json.job_id;
                 var statusUrl = statusTpl.replace('__JOB__', jobId);
+                var pollFailures = 0;
                 var poll = setInterval(function () {
                     fetch(statusUrl, { credentials: 'same-origin' })
-                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r.ok) {
+                                throw new Error('HTTP ' + r.status);
+                            }
+                            return r.json();
+                        })
                         .then(function (st) {
+                            pollFailures = 0;
                             if (st.status === 'running' || st.status === 'pending') {
                                 setProgress(st.pct || 0, st.message || (label + ' läuft…'));
                                 if (st.updated_at && (st.pct || 0) < 20) {
@@ -163,9 +170,12 @@
                             }
                         })
                         .catch(function () {
-                            clearInterval(poll);
-                            showProgressError('Status konnte nicht abgefragt werden.');
-                            if (btn) btn.disabled = false;
+                            pollFailures += 1;
+                            if (pollFailures >= 8) {
+                                clearInterval(poll);
+                                showProgressError('Status konnte nicht abgefragt werden.');
+                                if (btn) btn.disabled = false;
+                            }
                         });
                 }, 600);
             })
