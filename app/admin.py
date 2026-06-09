@@ -3622,6 +3622,13 @@ def _import_json_temp(data):
     return path
 
 
+def _worker_subprocess_env():
+    """Env for background import/revert workers (skip heavy startup migrations)."""
+    env = os.environ.copy()
+    env["COACHING_SKIP_STARTUP_MIGRATIONS"] = "1"
+    return env
+
+
 def _spawn_revert_worker(command, batch_id, job_id, user_id):
     """Run revert in a separate OS process so gunicorn workers stay free."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -3631,7 +3638,7 @@ def _spawn_revert_worker(command, batch_id, job_id, user_id):
             str(batch_id), job_id, str(user_id),
         ],
         cwd=root,
-        env=os.environ.copy(),
+        env=_worker_subprocess_env(),
         start_new_session=True,
         close_fds=True,
         stdout=subprocess.DEVNULL,
@@ -3648,7 +3655,7 @@ def _spawn_prod_import_worker(job_id, user_id, intervals_path, filename, overwri
             job_id, str(user_id), intervals_path, filename, '1' if overwrite else '0',
         ],
         cwd=root,
-        env=os.environ.copy(),
+        env=_worker_subprocess_env(),
         start_new_session=True,
         close_fds=True,
         stdout=subprocess.DEVNULL,
@@ -3665,7 +3672,7 @@ def _spawn_kpi_import_worker(job_id, user_id, csv_path, filename, overwrite):
             job_id, str(user_id), csv_path, filename, '1' if overwrite else '0',
         ],
         cwd=root,
-        env=os.environ.copy(),
+        env=_worker_subprocess_env(),
         start_new_session=True,
         close_fds=True,
         stdout=subprocess.DEVNULL,
