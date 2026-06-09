@@ -100,14 +100,6 @@
     </div>
     {% include 'main/_kpi_subnav.html' %}
 
-    {% if not has_any_data %}
-    <div class="alert alert-secondary">
-        <i class="fas fa-info-circle mr-1"></i>
-        Es sind noch keine KPI-Daten in Ihrem Sichtbereich vorhanden. Ein Administrator muss zunächst
-        Rohdaten über den <strong>KPI-Import (Demo)</strong> hochladen.
-    </div>
-    {% endif %}
-
     <form method="GET" action="{{ url_for('main.kpi_dashboard_qualitaet') }}" id="kpiFilterForm" class="kpi-toolbar">
         <input type="hidden" name="mode" id="kpiMode" value="{{ mode }}">
 
