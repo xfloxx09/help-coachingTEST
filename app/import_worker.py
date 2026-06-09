@@ -233,40 +233,36 @@ def run_kpi_import(job_id, user_id, csv_path, filename, overwrite_flag):
         'status': 'running', 'pct': 2, 'message': 'Import-Prozess gestartet…',
     })
     from app import create_app, db
+    from app import kpi_import
 
     app = create_app()
     with app.app_context():
         try:
-            from app.admin import (
-                _kpi_apply_mappings,
-                _kpi_commit,
-                _kpi_format_commit_flash,
-                _kpi_read_surveys,
-                _kpi_resolve_links,
-            )
-
             _job_write(job_id, user_id, {
-                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
+                'status': 'running', 'pct': 5, 'message': 'Vorschau-Daten laden…',
             })
-            surveys = _kpi_read_surveys(csv_path)
-            stats = _kpi_resolve_links(surveys)
-            _kpi_apply_mappings(surveys)
+            surveys, stats = kpi_import.read_prepared_sidecar(csv_path)
+            if not surveys or stats is None:
+                raise FileNotFoundError(
+                    'Vorschau-Daten fehlen. Bitte CSV erneut hochladen und Import bestätigen.'
+                )
 
             def progress(done, total, message):
-                pct = 5 + int((done / max(total, 1)) * 90)
+                pct = 8 + int((done / max(total, 1)) * 87)
                 _job_write(job_id, user_id, {
                     'status': 'running', 'pct': pct, 'message': message,
                 })
 
-            batch, _df, _dt, commit_result = _kpi_commit(
+            batch, _df, _dt, commit_result = kpi_import.commit_surveys(
                 filename,
                 surveys,
                 stats,
                 overwrite=(overwrite_flag == '1'),
                 progress_cb=progress,
                 imported_by_id=int(user_id),
+                analyze_conflicts=False,
             )
-            category, message = _kpi_format_commit_flash(batch, commit_result)
+            category, message = kpi_import.format_commit_flash(batch, commit_result)
             _job_write(job_id, user_id, {
                 'status': 'done',
                 'pct': 100,
