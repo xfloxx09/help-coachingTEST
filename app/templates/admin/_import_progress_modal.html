@@ -1,0 +1,181 @@
+<div id="importUploadOverlay" class="import-overlay" style="display: none;" role="status" aria-live="polite" aria-busy="true">
+    <div class="import-overlay-inner bg-dark text-light p-4 rounded border border-secondary shadow-lg">
+        <div class="progress mb-3" style="height: 26px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info w-100" role="progressbar"></div>
+        </div>
+        <p id="importUploadMessage" class="mb-1 font-weight-bold small">Datei wird verarbeitet…</p>
+        <p class="mb-0 text-muted small"><span id="importUploadElapsed">0</span> s</p>
+    </div>
+</div>
+
+<div class="modal fade" id="importProgressModal" tabindex="-1" role="dialog" aria-labelledby="importProgressTitle" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importProgressTitle"><i class="fas fa-spinner fa-spin mr-2"></i>Import läuft…</h5>
+            </div>
+            <div class="modal-body">
+                <div class="progress mb-3" style="height: 28px;">
+                    <div id="importProgressBar" class="progress-bar progress-bar-striped progress-bar-animated telekom-progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                </div>
+                <p id="importProgressMessage" class="mb-0 small text-muted">Import wird gestartet…</p>
+                <p id="importProgressError" class="mb-0 small text-danger mt-2" style="display: none;"></p>
+            </div>
+            <div class="modal-footer" id="importProgressFooter" style="display: none;">
+                <button type="button" class="btn btn-secondary" id="importProgressCloseBtn">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.import-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10050;
+    display: none; align-items: center; justify-content: center;
+}
+.import-overlay-inner { min-width: 300px; max-width: 92vw; }
+</style>
+
+<script>
+(function () {
+    function showUploadOverlay(message) {
+        var overlay = document.getElementById('importUploadOverlay');
+        var msgEl = document.getElementById('importUploadMessage');
+        var elapsedEl = document.getElementById('importUploadElapsed');
+        if (!overlay) return;
+        if (msgEl) msgEl.textContent = message || 'Datei wird hochgeladen und analysiert…';
+        overlay.style.display = 'flex';
+        var t0 = Date.now();
+        var iv = setInterval(function () {
+            if (elapsedEl) elapsedEl.textContent = String(Math.floor((Date.now() - t0) / 1000));
+        }, 400);
+        overlay.setAttribute('data-timer', String(iv));
+    }
+
+    function showProgressModal() {
+        var modalEl = document.getElementById('importProgressModal');
+        if (!modalEl) return;
+        if (window.jQuery && typeof window.jQuery(modalEl).modal === 'function') {
+            window.jQuery(modalEl).modal({ backdrop: 'static', keyboard: false, show: true });
+        } else {
+            modalEl.classList.add('show');
+            modalEl.style.display = 'block';
+            document.body.classList.add('modal-open');
+        }
+    }
+
+    function hideProgressModal() {
+        var modalEl = document.getElementById('importProgressModal');
+        if (window.jQuery && modalEl) {
+            window.jQuery(modalEl).modal('hide');
+        } else if (modalEl) {
+            modalEl.classList.remove('show');
+            modalEl.style.display = 'none';
+            document.body.classList.remove('modal-open');
+        }
+    }
+
+    function setProgress(pct, message) {
+        var bar = document.getElementById('importProgressBar');
+        var msg = document.getElementById('importProgressMessage');
+        var p = Math.max(0, Math.min(100, pct || 0));
+        if (bar) {
+            bar.style.width = p + '%';
+            bar.setAttribute('aria-valuenow', String(p));
+            bar.textContent = p + '%';
+        }
+        if (msg && message) msg.textContent = message;
+    }
+
+    function showProgressError(text) {
+        var err = document.getElementById('importProgressError');
+        var footer = document.getElementById('importProgressFooter');
+        var title = document.getElementById('importProgressTitle');
+        if (err) { err.textContent = text; err.style.display = 'block'; }
+        if (footer) footer.style.display = 'flex';
+        if (title) title.innerHTML = '<i class="fas fa-exclamation-triangle mr-2 text-danger"></i>Import fehlgeschlagen';
+        var bar = document.getElementById('importProgressBar');
+        if (bar) {
+            bar.classList.remove('progress-bar-animated', 'telekom-progress-bar');
+            bar.classList.add('bg-danger');
+        }
+    }
+
+    function startAsyncImport(form) {
+        var startUrl = form.getAttribute('data-start-url');
+        var statusTpl = form.getAttribute('data-status-url');
+        if (!startUrl || !statusTpl) return;
+
+        showProgressModal();
+        setProgress(0, 'Import wird gestartet…');
+        document.getElementById('importProgressError').style.display = 'none';
+        document.getElementById('importProgressFooter').style.display = 'none';
+
+        var fd = new FormData(form);
+        var btn = form.querySelector('[type="submit"]');
+        if (btn) btn.disabled = true;
+
+        fetch(startUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
+            .then(function (res) {
+                if (!res.ok || !res.json.job_id) {
+                    throw new Error(res.json.error || 'Import konnte nicht gestartet werden.');
+                }
+                var jobId = res.json.job_id;
+                var statusUrl = statusTpl.replace('__JOB__', jobId);
+                var poll = setInterval(function () {
+                    fetch(statusUrl, { credentials: 'same-origin' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (st) {
+                            if (st.status === 'running' || st.status === 'pending') {
+                                setProgress(st.pct || 0, st.message || 'Import läuft…');
+                            } else if (st.status === 'done') {
+                                clearInterval(poll);
+                                setProgress(100, st.message || 'Fertig – Weiterleitung…');
+                                window.location.href = st.done_url;
+                            } else if (st.status === 'error') {
+                                clearInterval(poll);
+                                showProgressError(st.error || st.message || 'Unbekannter Fehler');
+                                if (btn) btn.disabled = false;
+                            } else if (st.status === 'missing') {
+                                clearInterval(poll);
+                                showProgressError('Import-Job nicht gefunden.');
+                                if (btn) btn.disabled = false;
+                            }
+                        })
+                        .catch(function () {
+                            clearInterval(poll);
+                            showProgressError('Status konnte nicht abgefragt werden.');
+                            if (btn) btn.disabled = false;
+                        });
+                }, 600);
+            })
+            .catch(function (err) {
+                showProgressError(err.message || String(err));
+                if (btn) btn.disabled = false;
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('form[data-import-upload]').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                showUploadOverlay(form.getAttribute('data-import-upload'));
+                var btn = form.querySelector('[type="submit"]');
+                if (btn) btn.disabled = true;
+            });
+        });
+
+        document.querySelectorAll('form[data-import-async]').forEach(function (form) {
+            form.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                startAsyncImport(form);
+            });
+        });
+
+        var closeBtn = document.getElementById('importProgressCloseBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', hideProgressModal);
+        }
+    });
+})();
+</script>

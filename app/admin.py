@@ -23,6 +23,9 @@ import json
 import tempfile
 import os
 import re
+import threading
+import time
+import uuid
 
 bp = Blueprint('admin', __name__)
 LEITFADEN_CHOICES = {'Ja', 'Nein', 'k.A.'}
@@ -3310,6 +3313,48 @@ def sync_from_csv():
 # KPI (Demo) raw-data import  — standalone flow (separate from member sync)
 # =====================================================================
 
+_IMPORT_JOB_DIR = os.path.join(tempfile.gettempdir(), 'coaching_import_jobs')
+
+
+def _import_job_path(job_id):
+    return os.path.join(_IMPORT_JOB_DIR, f'{job_id}.json')
+
+
+def _import_job_write(job_id, user_id, payload):
+    os.makedirs(_IMPORT_JOB_DIR, exist_ok=True)
+    data = {**payload, 'user_id': user_id, 'updated_at': time.time()}
+    with open(_import_job_path(job_id), 'w', encoding='utf-8') as fh:
+        json.dump(data, fh, ensure_ascii=False)
+
+
+def _import_job_read(job_id, user_id):
+    path = _import_job_path(job_id)
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'r', encoding='utf-8') as fh:
+        data = json.load(fh)
+    if data.get('user_id') != user_id:
+        return None
+    return data
+
+
+def _import_job_delete(job_id):
+    path = _import_job_path(job_id)
+    if os.path.isfile(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def _import_json_temp(data):
+    fd, path = tempfile.mkstemp(suffix='.json')
+    os.close(fd)
+    with open(path, 'w', encoding='utf-8') as fh:
+        json.dump(data, fh, ensure_ascii=False)
+    return path
+
+
 def _kpi_parse_date(value):
     s = (value or '').strip()
     if not s:
@@ -3871,8 +3916,15 @@ def _kpi_insert_survey(batch_id, s):
     return survey
 
 
-def _kpi_commit(filename, surveys, stats, overwrite=False):
+def _kpi_commit(filename, surveys, stats, overwrite=False, progress_cb=None):
     """Commit KPI import. overwrite=True replaces date range + updates existing datensatz_ids."""
+    total = len(surveys)
+
+    def _progress(done, message):
+        if progress_cb:
+            progress_cb(done, total, message)
+
+    _progress(0, 'Konflikte prüfen…')
     conflicts = _kpi_analyze_import_conflicts(surveys)
     dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
     date_from = min(dates) if dates else None
@@ -3920,9 +3972,11 @@ def _kpi_commit(filename, surveys, stats, overwrite=False):
             KpiAnswer.query.filter(KpiAnswer.survey_id.in_(ids_to_delete)).delete(synchronize_session=False)
             KpiSurvey.query.filter(KpiSurvey.id.in_(ids_to_delete)).delete(synchronize_session=False)
             result['deleted'] = len(ids_to_delete)
-        for s in surveys:
+        for i, s in enumerate(surveys):
             _kpi_insert_survey(batch.id, s)
             result['inserted'] += 1
+            if i and i % 200 == 0:
+                _progress(i, f'{i}/{total} Befragungen speichern…')
     else:
         existing_by_dsid = {}
         incoming_dsids = {s['datensatz_id'] for s in surveys}
@@ -3931,7 +3985,7 @@ def _kpi_commit(filename, surveys, stats, overwrite=False):
                 existing_by_dsid[sv.datensatz_id] = sv
         answers_by_id = _kpi_load_answers_by_survey_id([sv.id for sv in existing_by_dsid.values()])
         rich_by_id = _kpi_load_rich_answers_by_survey_id([sv.id for sv in existing_by_dsid.values()])
-        for s in surveys:
+        for i, s in enumerate(surveys):
             existing = existing_by_dsid.get(s['datensatz_id'])
             if existing:
                 in_snap = _kpi_survey_snapshot_from_dict(s)
@@ -3940,10 +3994,13 @@ def _kpi_commit(filename, surveys, stats, overwrite=False):
                     result['skipped_unchanged'] += 1
                 else:
                     result['skipped_changed'] += 1
-                continue
-            _kpi_insert_survey(batch.id, s)
-            result['inserted'] += 1
+            else:
+                _kpi_insert_survey(batch.id, s)
+                result['inserted'] += 1
+            if i and i % 200 == 0:
+                _progress(i, f'{i}/{total} Befragungen prüfen…')
 
+    _progress(total, 'Abschluss…')
     batch.surveys_total = result['inserted']
     _kpi_backfill_survey_links()
     db.session.commit()
@@ -3988,6 +4045,120 @@ def _kpi_cleanup_session_temp():
             pass
     session.pop('kpi_csv_temp_file', None)
     session.pop('kpi_csv_filename', None)
+    ma_path = session.pop('kpi_unknown_ma_path', None)
+    if ma_path and os.path.isfile(ma_path):
+        try:
+            os.unlink(ma_path)
+        except OSError:
+            pass
+
+
+def _kpi_format_commit_flash(batch, commit_result):
+    c = commit_result['conflicts']
+    parts = [f'{commit_result["inserted"]} Befragungen importiert']
+    if commit_result['skipped_unchanged']:
+        parts.append(f'{commit_result["skipped_unchanged"]} unverändert übersprungen')
+    if commit_result['skipped_changed']:
+        parts.append(
+            f'{commit_result["skipped_changed"]} geändert übersprungen '
+            f'(zum Überschreiben beim Import „Vorhandene ersetzen“ aktivieren)'
+        )
+    if commit_result['deleted']:
+        parts.append(f'{commit_result["deleted"]} vorhandene ersetzt/gelöscht')
+    if commit_result['inserted'] == 0 and (c['changed_count'] or c['unchanged_count']):
+        return (
+            'warning',
+            'Keine neuen Befragungen importiert. Alle Datensätze existieren bereits. '
+            'Aktivieren Sie „Vorhandene KPI-Daten überschreiben“, um geänderte oder '
+            'den Zeitraum zu ersetzen.',
+        )
+    return (
+        'success',
+        f'KPI-Import abgeschlossen: {", ".join(parts)}. '
+        f'{batch.surveys_matched_team} mit Team, {batch.surveys_matched_member} mit Agent, '
+        f'{batch.surveys_unassigned} ohne Team (unassigned).',
+    )
+
+
+def _kpi_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
+    with app.app_context():
+        try:
+            _import_job_write(job_id, user_id, {
+                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
+            })
+            surveys = _kpi_read_surveys(temp_path)
+            stats = _kpi_resolve_links(surveys)
+            _kpi_apply_mappings(surveys)
+
+            def progress(done, total, message):
+                pct = 5 + int((done / max(total, 1)) * 90)
+                _import_job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            batch, _df, _dt, commit_result = _kpi_commit(
+                filename, surveys, stats, overwrite=overwrite, progress_cb=progress,
+            )
+            category, message = _kpi_format_commit_flash(batch, commit_result)
+            _import_job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import abgeschlossen.',
+                'done_url': url_for('admin.import_kpi_csv_done', job_id=job_id),
+                'flash_category': category,
+                'flash_message': message,
+            })
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('KPI import job failed')
+            _import_job_write(job_id, user_id, {
+                'status': 'error', 'pct': 0, 'message': str(e),
+            })
+
+
+def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
+    with app.app_context():
+        try:
+            _import_job_write(job_id, user_id, {
+                'status': 'running', 'pct': 3, 'message': 'CSV lesen…',
+            })
+            _headers, rows = _prod_read_csv_rows(temp_path)
+            settings = productivity_logic.settings_dict(None)
+            team_map, dag_map, name_map = productivity_logic.build_link_maps(
+                Team.query.all(),
+                TeamMember.query.options(joinedload(TeamMember.team)).all(),
+            )
+            intervals, _m, _u, _unmatched = _prod_build_intervals(
+                rows, settings, team_map, dag_map, name_map,
+            )
+
+            def progress(done, total, message):
+                pct = 5 + int((done / max(total, 1)) * 90)
+                _import_job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            batch, deleted = _prod_commit_intervals(
+                filename, intervals, overwrite=overwrite, progress_cb=progress,
+            )
+            msg = f'{batch.intervals_stored} Intervalle importiert'
+            if deleted:
+                msg += f', {deleted} im Zeitraum ersetzt'
+            msg += f'. {batch.matched_member} mit Agent, {batch.unmatched_member} ohne Zuordnung.'
+            _import_job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import abgeschlossen.',
+                'done_url': url_for('admin.import_productivity_csv_done', job_id=job_id),
+                'flash_category': 'success',
+                'flash_message': msg,
+            })
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('Productivity import job failed')
+            _import_job_write(job_id, user_id, {
+                'status': 'error', 'pct': 0, 'message': str(e),
+            })
 
 
 @bp.route('/import_kpi_csv', methods=['GET', 'POST'])
@@ -4028,6 +4199,16 @@ def import_kpi_csv():
 
         dates = [s['antwort_date'] for s in surveys if s['antwort_date']]
         conflicts = _kpi_analyze_import_conflicts(surveys)
+        unknown_ma_path = None
+        if stats['unknown_ma_details']:
+            unknown_ma_path = _import_json_temp(stats['unknown_ma_details'])
+            session['kpi_unknown_ma_path'] = unknown_ma_path
+        else:
+            session.pop('kpi_unknown_ma_path', None)
+        ma_page = 1
+        ma_per_page = 50
+        ma_details_page = stats['unknown_ma_details'][:ma_per_page]
+        ma_total_pages = max(1, (len(stats['unknown_ma_details']) + ma_per_page - 1) // ma_per_page) if stats['unknown_ma_details'] else 1
         preview = {
             'total': len(surveys),
             'matched_team': stats['matched_team'],
@@ -4041,7 +4222,9 @@ def import_kpi_csv():
             'unknown_be4': stats['unknown_be4'][:30],
             'unknown_be4_count': len(stats['unknown_be4']),
             'unknown_ma_count': len(stats['unknown_ma']),
-            'unknown_ma_details': stats['unknown_ma_details'],
+            'unknown_ma_details': ma_details_page,
+            'unknown_ma_page': ma_page,
+            'unknown_ma_total_pages': ma_total_pages,
             'conflicts': conflicts,
         }
         return render_template(
@@ -4104,6 +4287,85 @@ def import_kpi_csv():
         recent_batches=recent_batches,
         config=current_app.config,
     )
+
+
+@bp.route('/import_kpi_csv/preview/ma')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_preview_ma_page():
+    """Paginated MA-Kennung list for KPI import preview."""
+    path = session.get('kpi_unknown_ma_path')
+    if not path or not os.path.isfile(path):
+        flash('Keine MA-Liste in der Session. Bitte CSV erneut hochladen.', 'warning')
+        return redirect(url_for('admin.import_kpi_csv'))
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    with open(path, 'r', encoding='utf-8') as fh:
+        all_rows = json.load(fh)
+    total_pages = max(1, (len(all_rows) + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    rows = all_rows[start:start + per_page]
+    return render_template(
+        'admin/import_kpi_preview_ma.html',
+        rows=rows,
+        page=page,
+        total_pages=total_pages,
+        total=len(all_rows),
+        config=current_app.config,
+    )
+
+
+@bp.route('/import_kpi_csv/job/start', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_csv_job_start():
+    temp_path = session.get('kpi_csv_temp_file')
+    filename = session.get('kpi_csv_filename', 'import.csv')
+    if not temp_path or not os.path.exists(temp_path):
+        return jsonify({'error': 'Keine KPI-CSV-Daten gefunden. Bitte erneut hochladen.'}), 400
+    overwrite = request.form.get('confirm_overwrite') == '1'
+    job_id = uuid.uuid4().hex
+    _import_job_write(job_id, current_user.id, {
+        'status': 'pending', 'pct': 0, 'message': 'Import wird gestartet…',
+    })
+    app = current_app._get_current_object()
+    thread = threading.Thread(
+        target=_kpi_run_import_job,
+        args=(app, job_id, current_user.id, temp_path, filename, overwrite),
+        daemon=True,
+    )
+    thread.start()
+    return jsonify({'job_id': job_id})
+
+
+@bp.route('/import_kpi_csv/job/<job_id>/status')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_csv_job_status(job_id):
+    job = _import_job_read(job_id, current_user.id)
+    if not job:
+        return jsonify({'status': 'missing'}), 404
+    return jsonify({
+        'status': job.get('status'),
+        'pct': job.get('pct', 0),
+        'message': job.get('message', ''),
+        'done_url': job.get('done_url'),
+        'error': job.get('message') if job.get('status') == 'error' else None,
+    })
+
+
+@bp.route('/import_kpi_csv/done/<job_id>')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_csv_done(job_id):
+    job = _import_job_read(job_id, current_user.id)
+    if job and job.get('flash_message'):
+        flash(job['flash_message'], job.get('flash_category', 'success'))
+    _import_job_delete(job_id)
+    _kpi_cleanup_session_temp()
+    session.pop('kpi_unknown_ma_path', None)
+    return redirect(url_for('admin.import_kpi_csv'))
 
 
 @bp.route('/import_kpi_csv/revert/<int:batch_id>', methods=['POST'])
@@ -4209,10 +4471,51 @@ def _prod_cleanup_session_temp():
     session.pop('prod_csv_temp_file', None)
     session.pop('prod_csv_filename', None)
     session.pop('prod_csv_headers', None)
+    pdata = session.pop('prod_preview', None)
+    if pdata:
+        for key in ('unmatched_path',):
+            p = pdata.get(key)
+            if p and os.path.isfile(p):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
 
 
 def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
     """Group rows by agent+slot, compute metrics, resolve links."""
+    archiv_team = get_or_create_archiv_team()
+    members_by_id = {
+        m.id: m for m in TeamMember.query.options(joinedload(TeamMember.team)).all()
+    }
+
+    def _member_candidates(agent_name, dag_id, team_id):
+        ids = set()
+        dag_key = (dag_id or '').strip()
+        agent_lower = (agent_name or '').strip().lower()
+        if dag_key and dag_key not in ('', '-1'):
+            for mid, _ in dag_map.get(dag_key, []):
+                ids.add(mid)
+        if agent_lower:
+            for mid, _ in name_map.get(agent_lower, []):
+                ids.add(mid)
+        out = []
+        for mid in ids:
+            m = members_by_id.get(mid)
+            if not m:
+                continue
+            out.append({
+                'id': m.id,
+                'name': m.name,
+                'team_name': m.team.name if m.team else '–',
+                'dag_id': m.dag_id or '',
+                'ma_kennung': m.ma_kennung or '',
+                'is_archiv': m.team_id == archiv_team.id,
+                'in_resolved_team': team_id is not None and m.team_id == team_id,
+            })
+        out.sort(key=lambda c: (not c['in_resolved_team'], c['is_archiv'], c['name']))
+        return out[:8]
+
     groups = {}
     for row in rows:
         slot_str = productivity_logic.combine_datum_zeit(row)
@@ -4223,6 +4526,7 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
 
     intervals = []
     matched = unmatched = 0
+    unmatched_details = {}
     for _key, grp in groups.items():
         slot = productivity_logic.merge_rows_to_slot(grp, settings)
         if not slot.get('slot_at'):
@@ -4235,15 +4539,42 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map):
             matched += 1
         else:
             unmatched += 1
+            ukey = (
+                (slot.get('be4') or '').strip(),
+                (slot.get('dag_id') or '').strip(),
+                (slot.get('agent_name') or '').strip(),
+            )
+            u = unmatched_details.get(ukey)
+            if u is None:
+                u = {
+                    'be4': slot.get('be4') or '–',
+                    'dag_id': slot.get('dag_id') or '–',
+                    'agent_name': slot.get('agent_name') or '–',
+                    'count': 0,
+                    'candidates': _member_candidates(
+                        slot.get('agent_name'), slot.get('dag_id'), tid,
+                    ),
+                }
+                unmatched_details[ukey] = u
+            u['count'] += 1
         intervals.append({**slot, 'team_id': tid, 'project_id': pid, 'team_member_id': mid})
-    return intervals, matched, unmatched
+    unmatched_list = sorted(
+        unmatched_details.values(), key=lambda d: (-d['count'], d['agent_name'], d['dag_id']),
+    )
+    return intervals, matched, unmatched, unmatched_list
 
 
-def _prod_commit_intervals(filename, intervals, overwrite=False):
+def _prod_commit_intervals(filename, intervals, overwrite=False, progress_cb=None):
     dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
     date_from = min(dates) if dates else None
     date_to = max(dates) if dates else None
+    total = len(intervals)
 
+    def _progress(stored, message):
+        if progress_cb:
+            progress_cb(stored, total, message)
+
+    _progress(0, 'Vorhandene Intervalle prüfen…')
     deleted = 0
     if overwrite and date_from and date_to:
         q = ProductivityInterval.query.filter(
@@ -4294,7 +4625,9 @@ def _prod_commit_intervals(filename, intervals, overwrite=False):
             ))
         db.session.bulk_save_objects(objs)
         stored += len(objs)
+        _progress(stored, f'{stored}/{total} Intervalle speichern…')
     batch.intervals_stored = stored
+    _progress(total, 'Abschluss…')
     db.session.commit()
     return batch, deleted
 
@@ -4323,7 +4656,7 @@ def import_productivity_csv():
             team_map, dag_map, name_map = productivity_logic.build_link_maps(
                 Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
             )
-            intervals, matched, unmatched = _prod_build_intervals(
+            intervals, matched, unmatched, unmatched_list = _prod_build_intervals(
                 rows, settings, team_map, dag_map, name_map,
             )
         except Exception as e:
@@ -4337,22 +4670,23 @@ def import_productivity_csv():
             return redirect(url_for('admin.import_productivity_csv'))
 
         dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
-        preview = {
-            'rows_total': len(rows),
-            'intervals': len(intervals),
-            'matched_member': matched,
-            'unmatched_member': unmatched,
-            'date_from': min(dates).strftime('%d.%m.%Y') if dates else '-',
-            'date_to': max(dates).strftime('%d.%m.%Y') if dates else '-',
-            'headers_count': len(headers),
-            'sample_headers': headers[:12],
+        unmatched_path = _import_json_temp(unmatched_list) if unmatched_list else None
+        session['prod_preview'] = {
+            'filename': file.filename,
+            'preview': {
+                'rows_total': len(rows),
+                'intervals': len(intervals),
+                'matched_member': matched,
+                'unmatched_member': unmatched,
+                'unmatched_groups': len(unmatched_list),
+                'date_from': min(dates).strftime('%d.%m.%Y') if dates else '-',
+                'date_to': max(dates).strftime('%d.%m.%Y') if dates else '-',
+                'headers_count': len(headers),
+                'sample_headers': headers[:12],
+            },
+            'unmatched_path': unmatched_path,
         }
-        return render_template(
-            'admin/import_productivity_preview.html',
-            preview=preview,
-            filename=file.filename,
-            config=current_app.config,
-        )
+        return redirect(url_for('admin.import_productivity_preview'))
 
     if request.method == 'POST' and request.form.get('action') == 'confirm':
         temp_path = session.get('prod_csv_temp_file')
@@ -4366,7 +4700,7 @@ def import_productivity_csv():
             team_map, dag_map, name_map = productivity_logic.build_link_maps(
                 Team.query.all(), TeamMember.query.options(joinedload(TeamMember.team)).all(),
             )
-            intervals, _, _ = _prod_build_intervals(rows, settings, team_map, dag_map, name_map)
+            intervals, _, _, _ = _prod_build_intervals(rows, settings, team_map, dag_map, name_map)
             overwrite = request.form.get('confirm_overwrite') == '1'
             batch, deleted = _prod_commit_intervals(filename, intervals, overwrite=overwrite)
         except Exception as e:
@@ -4390,6 +4724,92 @@ def import_productivity_csv():
         known_headers=known_headers,
         config=current_app.config,
     )
+
+
+@bp.route('/import_productivity_csv/preview')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_preview():
+    pdata = session.get('prod_preview')
+    if not pdata:
+        flash('Keine Vorschau-Daten. Bitte CSV erneut hochladen.', 'warning')
+        return redirect(url_for('admin.import_productivity_csv'))
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    unmatched_rows = []
+    total_pages = 1
+    unmatched_total = 0
+    path = pdata.get('unmatched_path')
+    if path and os.path.isfile(path):
+        with open(path, 'r', encoding='utf-8') as fh:
+            all_rows = json.load(fh)
+        unmatched_total = len(all_rows)
+        total_pages = max(1, (unmatched_total + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * per_page
+        unmatched_rows = all_rows[start:start + per_page]
+    return render_template(
+        'admin/import_productivity_preview.html',
+        preview=pdata['preview'],
+        filename=pdata['filename'],
+        unmatched_rows=unmatched_rows,
+        unmatched_total=unmatched_total,
+        page=page,
+        total_pages=total_pages,
+        config=current_app.config,
+    )
+
+
+@bp.route('/import_productivity_csv/job/start', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_job_start():
+    temp_path = session.get('prod_csv_temp_file')
+    filename = session.get('prod_csv_filename', 'import.csv')
+    if not temp_path or not os.path.exists(temp_path):
+        return jsonify({'error': 'Keine CSV-Daten gefunden. Bitte erneut hochladen.'}), 400
+    overwrite = request.form.get('confirm_overwrite') == '1'
+    job_id = uuid.uuid4().hex
+    _import_job_write(job_id, current_user.id, {
+        'status': 'pending', 'pct': 0, 'message': 'Import wird gestartet…',
+    })
+    app = current_app._get_current_object()
+    thread = threading.Thread(
+        target=_prod_run_import_job,
+        args=(app, job_id, current_user.id, temp_path, filename, overwrite),
+        daemon=True,
+    )
+    thread.start()
+    return jsonify({'job_id': job_id})
+
+
+@bp.route('/import_productivity_csv/job/<job_id>/status')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_job_status(job_id):
+    job = _import_job_read(job_id, current_user.id)
+    if not job:
+        return jsonify({'status': 'missing'}), 404
+    return jsonify({
+        'status': job.get('status'),
+        'pct': job.get('pct', 0),
+        'message': job.get('message', ''),
+        'done_url': job.get('done_url'),
+        'error': job.get('message') if job.get('status') == 'error' else None,
+    })
+
+
+@bp.route('/import_productivity_csv/done/<job_id>')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_done(job_id):
+    job = _import_job_read(job_id, current_user.id)
+    if job and job.get('flash_message'):
+        flash(job['flash_message'], job.get('flash_category', 'success'))
+    _import_job_delete(job_id)
+    _prod_cleanup_session_temp()
+    session.pop('prod_preview', None)
+    return redirect(url_for('admin.import_productivity_csv'))
 
 
 @bp.route('/import_productivity_csv/revert/<int:batch_id>', methods=['POST'])

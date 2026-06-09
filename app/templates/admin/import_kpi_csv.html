@@ -14,7 +14,8 @@
             <h2 class="mb-0" style="font-size: 1.15rem;">CSV hochladen</h2>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" enctype="multipart/form-data"
+                  data-import-upload="CSV wird hochgeladen und analysiert…">
                 <div class="form-group">
                     <label for="kpi_csv_file">KPI-Rohdaten (CSV)</label>
                     <input type="file" class="form-control-file" id="kpi_csv_file" name="kpi_csv_file" accept=".csv" required>
@@ -97,4 +98,6 @@
         </div>
     </div>
 </div>
+
+{% include 'admin/_import_progress_modal.html' %}
 {% endblock %}

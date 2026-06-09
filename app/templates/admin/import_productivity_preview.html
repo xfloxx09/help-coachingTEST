@@ -2,27 +2,143 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-3">Produktivitäts-Import — Vorschau</h1>
+    <h1 class="mb-3"><i class="fas fa-tachometer-alt text-info"></i> Produktivitäts-Import — Vorschau</h1>
     <p class="text-muted">Datei: <strong>{{ filename }}</strong></p>
 
     <div class="row mb-4">
-        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.rows_total }}</div><small class="text-muted">CSV-Zeilen</small></div></div></div>
-        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.intervals }}</div><small class="text-muted">Intervalle</small></div></div></div>
-        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.matched_member }}</div><small class="text-muted">mit Agent</small></div></div></div>
-        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ preview.unmatched_member }}</div><small class="text-muted">ohne Agent</small></div></div></div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card h-100"><div class="card-body text-center">
+                <div class="h4 mb-0">{{ preview.rows_total }}</div>
+                <small class="text-muted">CSV-Zeilen</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card h-100"><div class="card-body text-center">
+                <div class="h4 mb-0">{{ preview.intervals }}</div>
+                <small class="text-muted">Intervalle</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card h-100 border-success"><div class="card-body text-center">
+                <div class="h4 mb-0 text-success">{{ preview.matched_member }}</div>
+                <small class="text-muted">mit Agent</small>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="card h-100 {% if preview.unmatched_member %}border-warning{% endif %}"><div class="card-body text-center">
+                <div class="h4 mb-0 {% if preview.unmatched_member %}text-warning{% endif %}">{{ preview.unmatched_member }}</div>
+                <small class="text-muted">ohne Agent</small>
+            </div></div>
+        </div>
     </div>
 
     <p>Zeitraum: <strong>{{ preview.date_from }}</strong> bis <strong>{{ preview.date_to }}</strong></p>
-    <p class="text-muted small">{{ preview.headers_count }} Spalten erkannt.</p>
+    <p class="text-muted small mb-4">{{ preview.headers_count }} Spalten erkannt.</p>
 
-    <form method="POST" action="{{ url_for('admin.import_productivity_csv') }}">
+    {% if unmatched_total %}
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h2 class="mb-0" style="font-size: 1.1rem;">
+                Intervalle ohne Agent-Zuordnung ({{ unmatched_total }} Kombinationen)
+            </h2>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Diese BE4 / DAG_ID / Agent-Kombinationen aus der CSV konnten keinem Mitglied zugeordnet werden.
+                Prüfen Sie DAG-ID oder Name beim passenden Mitglied und importieren Sie anschließend erneut.
+                Die Bearbeiten-Links öffnen sich in einem neuen Tab.
+            </p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>BE4</th>
+                            <th>DAG_ID</th>
+                            <th>Agent (CSV)</th>
+                            <th class="text-right">Intervalle</th>
+                            <th>Passende Mitglieder</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for u in unmatched_rows %}
+                        <tr>
+                            <td>{{ u.be4 }}</td>
+                            <td><code>{{ u.dag_id }}</code></td>
+                            <td>{{ u.agent_name }}</td>
+                            <td class="text-right">{{ u.count }}</td>
+                            <td>
+                                {% if u.candidates %}
+                                    {% for c in u.candidates %}
+                                    <div class="mb-1">
+                                        <a href="{{ url_for('admin.edit_team_member', member_id=c.id) }}"
+                                           target="_blank" rel="noopener"
+                                           class="btn btn-xs btn-outline-primary">
+                                            <i class="fas fa-pen mr-1"></i>{{ c.name }}
+                                        </a>
+                                        <span class="small text-muted">
+                                            · {{ c.team_name }}{% if c.is_archiv %} (Archiv){% endif %}
+                                            {% if c.dag_id %} · DAG: <code>{{ c.dag_id }}</code>{% endif %}
+                                            {% if c.ma_kennung %} · MA: <code>{{ c.ma_kennung }}</code>{% endif %}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="small text-muted">Kein passendes Mitglied gefunden.
+                                    {% if u.agent_name and u.agent_name != '–' %}
+                                    <a href="{{ url_for('admin.panel', member_search=u.agent_name) }}" target="_blank" rel="noopener">In Mitgliederliste suchen</a>
+                                    {% endif %}
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+            <nav aria-label="Zuordnungen Seiten" class="mt-3">
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('admin.import_productivity_preview', page=page - 1) if page > 1 else '#' }}">Zurück</a>
+                    </li>
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page or (p <= 2) or (p > total_pages - 1) or (p >= page - 1 and p <= page + 1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('admin.import_productivity_preview', page=p) }}">{{ p }}</a>
+                    </li>
+                        {% elif p == 3 and page > 4 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% elif p == total_pages - 1 and page < total_pages - 3 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('admin.import_productivity_preview', page=page + 1) if page < total_pages else '#' }}">Weiter</a>
+                    </li>
+                </ul>
+                <p class="text-center text-muted small mt-2 mb-0">Seite {{ page }} von {{ total_pages }}</p>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin.import_productivity_csv') }}" id="prodImportConfirmForm"
+          data-import-async="1"
+          data-start-url="{{ url_for('admin.import_productivity_csv_job_start') }}"
+          data-status-url="{{ url_for('admin.import_productivity_csv_job_status', job_id='__JOB__') }}">
         <input type="hidden" name="action" value="confirm">
         <div class="custom-control custom-checkbox mb-3">
             <input type="checkbox" class="custom-control-input" id="confirm_overwrite" name="confirm_overwrite" value="1">
             <label class="custom-control-label" for="confirm_overwrite">Vorhandene Intervalle im Zeitraum ersetzen</label>
         </div>
-        <button type="submit" class="btn telekom-button mr-2"><i class="fas fa-check mr-1"></i> Import starten</button>
+        <button type="submit" class="btn telekom-button mr-2">
+            <i class="fas fa-check mr-1"></i> Import starten
+        </button>
         <a href="{{ url_for('admin.import_productivity_csv') }}" class="btn btn-secondary">Abbrechen</a>
     </form>
 </div>
+
+{% include 'admin/_import_progress_modal.html' %}
 {% endblock %}

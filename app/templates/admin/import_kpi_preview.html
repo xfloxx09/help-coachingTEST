@@ -184,6 +184,14 @@
                     </tbody>
                 </table>
             </div>
+            {% if preview.unknown_ma_total_pages and preview.unknown_ma_total_pages > 1 %}
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <span class="small text-muted">Seite 1 von {{ preview.unknown_ma_total_pages }} (50 pro Seite)</span>
+                <a href="{{ url_for('admin.import_kpi_preview_ma_page', page=2) }}" class="btn btn-sm btn-outline-secondary">
+                    Weitere MA-Kennungen anzeigen <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -373,7 +381,10 @@
     </div>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" id="kpiImportConfirmForm">
+    <form method="POST" action="{{ url_for('admin.import_kpi_csv') }}" id="kpiImportConfirmForm"
+          data-import-async="1"
+          data-start-url="{{ url_for('admin.import_kpi_csv_job_start') }}"
+          data-status-url="{{ url_for('admin.import_kpi_csv_job_status', job_id='__JOB__') }}">
         <input type="hidden" name="action" value="confirm">
         {% if conflicts and conflicts.needs_overwrite_choice %}
         <div class="form-check mb-3">
@@ -395,4 +406,6 @@
         <a href="{{ url_for('admin.import_kpi_csv') }}" class="btn btn-outline-secondary">Abbrechen</a>
     </form>
 </div>
+
+{% include 'admin/_import_progress_modal.html' %}
 {% endblock %}

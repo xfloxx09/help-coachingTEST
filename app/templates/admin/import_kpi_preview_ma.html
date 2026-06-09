@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3"><i class="fas fa-chart-line text-info"></i> KPI-Import – MA-Kennungen ohne Zuordnung</h1>
+    <p class="text-muted">
+        <strong>{{ total }}</strong> MA-Kennungen ohne passendes Mitglied.
+        Tragen Sie die Kennung beim passenden Mitglied ein und importieren Sie anschließend erneut.
+    </p>
+    <p>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left mr-1"></i> Zurück zur Import-Vorschau
+        </a>
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>MA-Kennung</th>
+                            <th>Name (aus CSV)</th>
+                            <th>Team (be4)</th>
+                            <th class="text-right">Befragungen</th>
+                            <th>Passende Mitglieder</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for u in rows %}
+                        <tr>
+                            <td><code>{{ u.ma_kenner }}</code></td>
+                            <td>{{ u.name }}</td>
+                            <td>{{ u.be4 }}</td>
+                            <td class="text-right">{{ u.count }}</td>
+                            <td>
+                                {% if u.candidates %}
+                                    {% for c in u.candidates %}
+                                    <div class="mb-1">
+                                        <a href="{{ url_for('admin.edit_team_member', member_id=c.id) }}"
+                                           target="_blank" rel="noopener"
+                                           class="btn btn-xs btn-outline-primary">
+                                            <i class="fas fa-pen mr-1"></i>{{ c.name }}
+                                        </a>
+                                        <span class="small text-muted">
+                                            · {{ c.team_name }}{% if c.is_archiv %} (Archiv){% endif %}
+                                            {% if c.has_kennung %} · aktuell: <code>{{ c.ma_kennung }}</code>{% else %} · <span class="text-warning">keine Kennung</span>{% endif %}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="small text-muted">Kein Mitglied mit diesem Namen gefunden.
+                                    <a href="{{ url_for('admin.panel', member_search=u.name) }}" target="_blank" rel="noopener">In Mitgliederliste suchen</a></span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav aria-label="MA-Kennungen Seiten">
+        <ul class="pagination justify-content-center">
+            <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.import_kpi_preview_ma_page', page=page - 1) if page > 1 else '#' }}">Zurück</a>
+            </li>
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page or (p <= 3) or (p > total_pages - 2) or (p >= page - 1 and p <= page + 1) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.import_kpi_preview_ma_page', page=p) }}">{{ p }}</a>
+            </li>
+                {% elif p == 4 and page > 5 %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% elif p == total_pages - 2 and page < total_pages - 4 %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.import_kpi_preview_ma_page', page=page + 1) if page < total_pages else '#' }}">Weiter</a>
+            </li>
+        </ul>
+        <p class="text-center text-muted small">Seite {{ page }} von {{ total_pages }}</p>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
