@@ -4199,8 +4199,10 @@ def _kpi_insert_survey(batch_id, s):
     return survey
 
 
-def _kpi_commit(filename, surveys, stats, overwrite=False, progress_cb=None):
+def _kpi_commit(filename, surveys, stats, overwrite=False, progress_cb=None, imported_by_id=None):
     """Commit KPI import. overwrite=True replaces date range + updates existing datensatz_ids."""
+    if imported_by_id is None:
+        imported_by_id = current_user.id
     total = len(surveys)
 
     def _progress(done, message):
@@ -4215,7 +4217,7 @@ def _kpi_commit(filename, surveys, stats, overwrite=False, progress_cb=None):
 
     batch = KpiImportBatch(
         filename=(filename or '')[:255],
-        imported_by_id=current_user.id,
+        imported_by_id=imported_by_id,
         date_from=date_from,
         date_to=date_to,
         surveys_total=len(surveys),
@@ -4381,6 +4383,7 @@ def _kpi_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
 
             batch, _df, _dt, commit_result = _kpi_commit(
                 filename, surveys, stats, overwrite=overwrite, progress_cb=progress,
+                imported_by_id=user_id,
             )
             category, message = _kpi_format_commit_flash(batch, commit_result)
             _import_job_write(job_id, user_id, {
@@ -4415,6 +4418,10 @@ def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
             intervals, _m, _u, _unmatched = _prod_build_intervals(
                 rows, settings, team_map, dag_map, name_map, ma_map,
             )
+            _import_job_write(job_id, user_id, {
+                'status': 'running', 'pct': 5,
+                'message': f'{len(intervals)} Intervalle vorbereitet, speichern…',
+            })
 
             def progress(done, total, message):
                 pct = 5 + int((done / max(total, 1)) * 90)
@@ -4424,6 +4431,7 @@ def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
 
             batch, deleted = _prod_commit_intervals(
                 filename, intervals, overwrite=overwrite, progress_cb=progress,
+                imported_by_id=user_id,
             )
             msg = f'{batch.intervals_stored} Intervalle importiert'
             if deleted:
@@ -4898,7 +4906,9 @@ def _prod_build_intervals(rows, settings, team_map, dag_map, name_map, ma_map):
     return intervals, matched, unmatched, unmatched_list
 
 
-def _prod_commit_intervals(filename, intervals, overwrite=False, progress_cb=None):
+def _prod_commit_intervals(filename, intervals, overwrite=False, progress_cb=None, imported_by_id=None):
+    if imported_by_id is None:
+        imported_by_id = current_user.id
     dates = [iv['slot_at'].date() for iv in intervals if iv.get('slot_at')]
     date_from = min(dates) if dates else None
     date_to = max(dates) if dates else None
@@ -4919,7 +4929,7 @@ def _prod_commit_intervals(filename, intervals, overwrite=False, progress_cb=Non
 
     batch = ProductivityImportBatch(
         filename=filename,
-        imported_by_id=current_user.id,
+        imported_by_id=imported_by_id,
         date_from=date_from,
         date_to=date_to,
         rows_total=len(intervals),
