@@ -1,10 +1,8 @@
 {% extends "base.html" %}
 
 {% block head_extra %}
+{% include 'main/_kpi_toolbar_styles.html' %}
 <style>
-    .kpi-toolbar { background: #1f1f24; border: 1px solid #34343c; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
-    .kpi-mode-group .btn { border-color: #4a4a55; color: #d6d6dd; background: #2a2a31; }
-    .kpi-mode-group .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
     .kpi-card { border: 1px solid #34343c; border-radius: 12px; padding: 1.25rem; height: 100%; background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%); overflow: visible; }
     .card .card-header { overflow: visible; }
     .kpi-card .kpi-value { font-size: 2.4rem; font-weight: 700; line-height: 1; }
@@ -23,7 +21,6 @@
     .kpi-chart-wrap { position: relative; height: 260px; }
     .kpi-day-row { cursor: pointer; }
     .kpi-day-row:hover { background: rgba(226, 0, 116, 0.08); }
-    .kpi-mini-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; }
     .kpi-label-with-hint {
         display: inline-flex;
         align-items: center;
@@ -131,38 +128,37 @@
 
     <form method="GET" action="{{ url_for('main.kpi_dashboard_produktivitaet') }}" id="kpiFilterForm" class="kpi-toolbar">
         <input type="hidden" name="mode" id="kpiMode" value="{{ mode }}">
-        <div class="form-row align-items-end">
-            <div class="col-12 col-lg-auto mb-2">
-                <div class="kpi-mini-label mb-1">ansicht</div>
+        <div class="kpi-filter-row">
+            <div class="kpi-filter-item">
+                <div class="kpi-mini-label">ansicht</div>
                 <div class="btn-group btn-group-sm kpi-mode-group" role="group">
                     <button type="button" class="btn {% if mode == 'project' %}active{% endif %}" data-mode="project">Projekt</button>
                     <button type="button" class="btn {% if mode == 'team' %}active{% endif %}" data-mode="team">Team</button>
                     <button type="button" class="btn {% if mode == 'agent' %}active{% endif %}" data-mode="agent">Agent</button>
                 </div>
             </div>
-            <div class="col-12 col-md-4 col-lg-3 mb-2">
-                <div class="kpi-mini-label mb-1">projekt</div>
+            <div class="kpi-filter-item">
+                <div class="kpi-mini-label">projekt</div>
                 <select name="project_id" class="form-control form-control-sm kpi-auto">
                     <option value="">-- Projekt wählen --</option>
                     {% for p in projects %}<option value="{{ p.id }}" {% if sel_project == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
-                <div class="kpi-mini-label mb-1">team</div>
+            <div class="kpi-filter-item kpi-team-field" {% if mode == 'project' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label">team</div>
                 <select name="team_id" class="form-control form-control-sm kpi-auto">
                     <option value="">-- Team wählen --</option>
                     {% for t in teams %}<option value="{{ t.id }}" {% if sel_team == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="col-12 col-md-4 col-lg-3 mb-2 kpi-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
-                <div class="kpi-mini-label mb-1">agent</div>
+            <div class="kpi-filter-item kpi-agent-field" {% if mode != 'agent' %}style="display:none;"{% endif %}>
+                <div class="kpi-mini-label">agent</div>
                 <select name="member_id" class="form-control form-control-sm kpi-auto">
                     <option value="">-- Agent wählen --</option>
                     {% for m in members %}<option value="{{ m.id }}" {% if sel_member == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
                 </select>
             </div>
-
-            <div class="col-12 col-lg-auto mb-2 ml-lg-auto">
+            <div class="kpi-filter-item kpi-filter-gran">
                 {% include 'main/_kpi_granularity_toggle.html' %}
             </div>
         </div>

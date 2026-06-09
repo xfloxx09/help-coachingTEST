@@ -1,0 +1,58 @@
+<style>
+    .kpi-toolbar {
+        background: #1f1f24;
+        border: 1px solid #34343c;
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .kpi-filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.45rem 0.5rem;
+    }
+    @media (min-width: 992px) {
+        .kpi-filter-row {
+            flex-wrap: nowrap;
+        }
+    }
+    .kpi-filter-item {
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+    .kpi-filter-item.kpi-filter-gran {
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+    .kpi-filter-item select.form-control-sm {
+        width: 8.25rem;
+        max-width: 100%;
+        padding-left: 0.4rem;
+        padding-right: 1.4rem;
+        font-size: 0.8rem;
+    }
+    .kpi-mini-label {
+        font-size: 0.65rem;
+        text-transform: lowercase;
+        color: #9a9aa3;
+        margin-bottom: 0.15rem;
+        line-height: 1.1;
+    }
+    .kpi-mode-group .btn {
+        border-color: #4a4a55;
+        color: #d6d6dd;
+        background: #2a2a31;
+        padding: 0.18rem 0.45rem;
+        font-size: 0.76rem;
+        line-height: 1.25;
+    }
+    .kpi-mode-group .btn.active {
+        background: #e20074;
+        border-color: #e20074;
+        color: #fff;
+    }
+    .kpi-granularity-toggle .btn {
+        min-width: 2.35rem;
+    }
+</style>
