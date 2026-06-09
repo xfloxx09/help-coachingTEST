@@ -511,6 +511,69 @@
         color: #fff;
     }
     .ci-wz-help { margin: 0; line-height: 1.45; }
+    .ci-wz-step-tip {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        margin-bottom: 0.65rem;
+        padding: 0.65rem 2rem 0.65rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid #4aa3ff;
+        background: linear-gradient(135deg, rgba(74, 163, 255, 0.14) 0%, rgba(74, 163, 255, 0.06) 100%);
+        font-size: 0.82rem;
+        color: #d6d6dd;
+        line-height: 1.45;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+    .ci-wz-step-tip--impact {
+        border-color: #e20074;
+        background: linear-gradient(135deg, rgba(226, 0, 116, 0.14) 0%, rgba(226, 0, 116, 0.06) 100%);
+    }
+    .ci-wz-step-tip-icon {
+        flex-shrink: 0;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #4aa3ff;
+        color: #fff;
+        font-size: 0.85rem;
+    }
+    .ci-wz-step-tip-icon--impact { background: #e20074; }
+    .ci-wz-step-tip-body strong {
+        display: block;
+        color: #e8e8ec;
+        font-size: 0.88rem;
+        margin-bottom: 0.25rem;
+    }
+    .ci-wz-step-tip-body p { margin-bottom: 0.35rem; }
+    .ci-wz-step-tip-body ul { font-size: 0.8rem; color: #b9b9c2; }
+    .ci-wz-step-tip-body ul li { margin-bottom: 0.15rem; }
+    .ci-wz-step-tip-close {
+        position: absolute;
+        top: 0.35rem;
+        right: 0.45rem;
+        border: none;
+        background: transparent;
+        color: #9a9aa3;
+        font-size: 1.15rem;
+        line-height: 1;
+        padding: 0;
+        cursor: pointer;
+    }
+    .ci-wz-step-tip-close:hover { color: #e8e8ec; }
+    .ci-wz-tip-mark {
+        display: inline-block;
+        padding: 0 0.3rem;
+        border-radius: 3px;
+        font-weight: 600;
+        font-size: 0.78rem;
+    }
+    .ci-wz-tip-mark--coach { background: rgba(226, 0, 116, 0.25); color: #ffb8dc; }
+    .ci-wz-tip-mark--data { background: rgba(226, 0, 116, 0.2); color: #ff8fc7; }
     .ci-wz-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; font-size: 0.78rem; color: #b9b9c2; }
     .ci-wz-legend-coach { color: #ff8fc7; }
     .ci-wz-legend-survey { color: #9ed0ff; }
@@ -1197,7 +1260,6 @@
         var windowInput = document.getElementById('ciWindow');
         var presetsWrap = document.getElementById('ciWzPresetsWrap');
         var periodPresets = document.getElementById('ciWzPeriodPresets');
-        var wzHelpEl = document.getElementById('ciWzHelp');
         var wzSubtitleEl = document.getElementById('ciWzSubtitle');
         var wzEmptyDefault = 'Keine auswertbaren Coachings in dieser Auswahl.';
         var backBtn = document.getElementById('ciWzBack');
@@ -1205,6 +1267,8 @@
         var stepsEl = document.getElementById('ciWzSteps');
         var step1Panel = document.getElementById('ciWzStep1Panel');
         var step2Panel = document.getElementById('ciWzStep2Panel');
+        var stepTip1 = document.getElementById('ciWzStepTip1');
+        var stepTip2 = document.getElementById('ciWzStepTip2');
 
         var state = {
             days: [],
@@ -1226,6 +1290,7 @@
             coachingEvents: [],
             zones: null,
             impactDragOrigWindow: 14,
+            tipsDismissed: { 1: false, 2: false },
         };
 
         function syncWizardVisibility() {
@@ -1233,25 +1298,25 @@
             var prodLegend = document.querySelector('.ci-wz-legend-prod-wrap');
             if (surveyLegend) surveyLegend.classList.toggle('d-none', !state.showSurveys);
             if (prodLegend) prodLegend.classList.toggle('d-none', !state.showProductivity);
-            var dayBits = ['<strong>C</strong> Coachings'];
-            var subtitleBits = ['Coachings'];
-            if (state.showSurveys) {
-                dayBits.push('<strong>B</strong> Bewertungen');
-                subtitleBits.push('Bewertungen');
+        }
+
+        function updateStepTips() {
+            if (!stepTip1 || !stepTip2) return;
+            if (state.freeMode) {
+                stepTip1.classList.add('d-none');
+                stepTip2.classList.add('d-none');
+                return;
             }
-            if (state.showProductivity) {
-                dayBits.push('<strong>P</strong> Prod.-Rohdaten (Ja/Nein)');
-                subtitleBits.push('Prod.-Rohdaten');
-            }
-            if (wzSubtitleEl) {
-                wzSubtitleEl.textContent = 'Pro Tag: ' + subtitleBits.join(' · ') + ' — Timeline ziehen oder Schnellauswahl';
-            }
-            if (wzHelpEl) {
-                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> '
-                    + '<strong>Oben (C):</strong> Zeitraum ziehen · '
-                    + '<strong>Unten (B/P):</strong> Wirkungsfenster (symmetrisch vor &amp; nach Coaching). '
-                    + dayBits.join(', ') + '.';
-            }
+            var show1 = state.wizardStep === 1 && !state.tipsDismissed[1];
+            var show2 = state.wizardStep === 2 && !state.tipsDismissed[2];
+            stepTip1.classList.toggle('d-none', !show1);
+            stepTip2.classList.toggle('d-none', !show2);
+            stepTip2.classList.toggle('ci-wz-step-tip--impact', show2);
+        }
+
+        function resetStepTips() {
+            state.tipsDismissed = { 1: false, 2: false };
+            updateStepTips();
         }
 
         function fallbackRowZones() {
@@ -1506,6 +1571,7 @@
             } else if (wzSubtitleEl && state.freeMode) {
                 wzSubtitleEl.textContent = 'Zeitraum und Wirkungsfenster anpassen';
             }
+            updateStepTips();
             scheduleWizardLayout();
         }
 
@@ -1908,6 +1974,14 @@
             });
         }
 
+        document.querySelectorAll('.ci-wz-step-tip-close').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var tip = btn.getAttribute('data-tip');
+                if (tip) state.tipsDismissed[tip] = true;
+                updateStepTips();
+            });
+        });
+
         if (periodPresets) {
             periodPresets.querySelectorAll('[data-period]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -1954,6 +2028,7 @@
             if (nextBtn) nextBtn.disabled = true;
 
             state.freeMode = !!(dateFromInput.value && dateToInput.value);
+            resetStepTips();
 
             var q = new URLSearchParams(new FormData(form));
             q.delete('period');
@@ -1989,12 +2064,16 @@
                         emptyEl.classList.remove('d-none');
                         return;
                     }
-                    if (data.empty_message && !data.actionable_coaching_count) {
-                        if (wzHelpEl) {
-                            wzHelpEl.innerHTML = '<i class="fas fa-info-circle mr-1"></i> '
-                                + data.empty_message
-                                + ' Im Schritt 2 können Sie das Wirkungsfenster vergrößern.';
+                    if (data.empty_message && !data.actionable_coaching_count && stepTip2) {
+                        var tipBody = stepTip2.querySelector('.ci-wz-step-tip-body');
+                        var extra = stepTip2.querySelector('.ci-wz-step-tip-extra');
+                        if (tipBody && !extra) {
+                            extra = document.createElement('p');
+                            extra.className = 'ci-wz-step-tip-extra mb-0 mt-2';
+                            extra.style.color = '#ffb648';
+                            tipBody.appendChild(extra);
                         }
+                        if (extra) extra.textContent = data.empty_message;
                     }
                     pickDefaultRange();
                     renderDays();

@@ -44,7 +44,32 @@
                 </div>
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
-                    <p class="ci-wz-help small text-muted mb-2" id="ciWzHelp"></p>
+                    <div class="ci-wz-step-tip d-none" id="ciWzStepTip1" role="status">
+                        <button type="button" class="ci-wz-step-tip-close" data-tip="1" aria-label="Hinweis schließen">&times;</button>
+                        <div class="ci-wz-step-tip-icon"><i class="fas fa-hand-pointer"></i></div>
+                        <div class="ci-wz-step-tip-body">
+                            <strong>Schritt 1 — Zeitraum wählen</strong>
+                            <p>In der <span class="ci-wz-tip-mark ci-wz-tip-mark--coach">C-Zeile</span> (Coachings) den blauen Bereich setzen:</p>
+                            <ul class="mb-0 pl-3">
+                                <li>Über die <strong>Coaching-Zeile ziehen</strong> oder blaue Ränder/Griff nutzen</li>
+                                <li>Oben rechts: Schnellauswahl (7 / 14 / 30 Tage …)</li>
+                                <li>Nur <strong>auswertbare Coachings</strong> (nicht grau) zählen für Vorher/Nachher</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="ci-wz-step-tip d-none" id="ciWzStepTip2" role="status">
+                        <button type="button" class="ci-wz-step-tip-close" data-tip="2" aria-label="Hinweis schließen">&times;</button>
+                        <div class="ci-wz-step-tip-icon ci-wz-step-tip-icon--impact"><i class="fas fa-arrows-alt-h"></i></div>
+                        <div class="ci-wz-step-tip-body">
+                            <strong>Schritt 2 — Wirkungsfenster festlegen</strong>
+                            <p>Am <span class="ci-wz-tip-mark ci-wz-tip-mark--data">B/P-Zeilen</span> (Bewertungen &amp; Prod.-Rohdaten) die pinken Ränder ziehen:</p>
+                            <ul class="mb-0 pl-3">
+                                <li>Fenster wächst <strong>symmetrisch</strong> — gleiche Tage vor und nach jedem Coaching</li>
+                                <li>Legt fest, welcher KPI-Zeitraum für den Vorher/Nachher-Vergleich gilt</li>
+                                <li>Danach auf <strong>Übernehmen &amp; anzeigen</strong> klicken</li>
+                            </ul>
+                        </div>
+                    </div>
 
                     <div class="ci-wz-step-panel" id="ciWzStep1Panel">
                         <div class="ci-wz-scroll" id="ciWzScroll">
@@ -62,12 +87,7 @@
                         </div>
                     </div>
 
-                    <div class="ci-wz-step-panel d-none" id="ciWzStep2Panel">
-                        <p class="small text-muted mb-0">
-                            Wirkungsfenster an den <strong>unteren Zeilen (B/P)</strong> der Timeline ziehen —
-                            symmetrisch vor und nach jedem Coaching.
-                        </p>
-                    </div>
+                    <div class="ci-wz-step-panel d-none" id="ciWzStep2Panel"></div>
 
                     <div class="ci-wz-summary row mt-3">
                         <div class="col-md-4">
