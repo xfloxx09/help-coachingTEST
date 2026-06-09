@@ -23,6 +23,8 @@ import json
 import tempfile
 import os
 import re
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -3355,6 +3357,23 @@ def _import_json_temp(data):
     return path
 
 
+def _spawn_revert_worker(command, batch_id, job_id, user_id):
+    """Run revert in a separate OS process so gunicorn workers stay free."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen(
+        [
+            sys.executable, '-m', 'app.import_worker', command,
+            str(batch_id), job_id, str(user_id),
+        ],
+        cwd=root,
+        env=os.environ.copy(),
+        start_new_session=True,
+        close_fds=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def _kpi_parse_date(value):
     s = (value or '').strip()
     if not s:
@@ -4372,151 +4391,6 @@ def import_kpi_csv_done(job_id):
     return redirect(url_for('admin.import_kpi_csv'))
 
 
-def _kpi_delete_batch_surveys(batch_id, progress_cb=None):
-    """Delete surveys + answers for a batch in SQL chunks; yields DB between commits."""
-    total = db.session.execute(
-        text('SELECT COUNT(*) FROM kpi_surveys WHERE batch_id = :bid'),
-        {'bid': batch_id},
-    ).scalar() or 0
-    deleted = 0
-    chunk = 400
-
-    def _progress(message):
-        if progress_cb:
-            pct = 5 + int((deleted / max(total, 1)) * 90) if total else 95
-            progress_cb(deleted, total, message)
-
-    _progress('Antworten und Befragungen löschen…')
-    while True:
-        ids = db.session.execute(
-            text('SELECT id FROM kpi_surveys WHERE batch_id = :bid LIMIT :lim'),
-            {'bid': batch_id, 'lim': chunk},
-        ).scalars().all()
-        if not ids:
-            break
-        db.session.execute(
-            text('DELETE FROM kpi_answers WHERE survey_id = ANY(:ids)'),
-            {'ids': ids},
-        )
-        db.session.execute(
-            text('DELETE FROM kpi_surveys WHERE id = ANY(:ids)'),
-            {'ids': ids},
-        )
-        db.session.commit()
-        db.session.remove()
-        deleted += len(ids)
-        _progress(f'{min(deleted, total)}/{total} Befragungen gelöscht…')
-        time.sleep(0.05)
-    return deleted
-
-
-def _kpi_run_revert_job(app, job_id, user_id, batch_id):
-    with app.app_context():
-        try:
-            batch = KpiImportBatch.query.get(batch_id)
-            if not batch:
-                raise ValueError(f'Import-Batch #{batch_id} nicht gefunden.')
-            _import_job_write(job_id, user_id, {
-                'status': 'running', 'pct': 2, 'message': 'Rückgängig machen wird gestartet…',
-            })
-
-            def progress(done, total, message):
-                pct = 5 + int((done / max(total, 1)) * 90)
-                _import_job_write(job_id, user_id, {
-                    'status': 'running', 'pct': pct, 'message': message,
-                })
-
-            deleted = _kpi_delete_batch_surveys(batch_id, progress_cb=progress)
-            db.session.delete(batch)
-            db.session.commit()
-            _import_job_write(job_id, user_id, {
-                'status': 'done',
-                'pct': 100,
-                'message': 'Import rückgängig gemacht.',
-                'done_url': url_for('admin.import_kpi_csv_done', job_id=job_id),
-                'flash_category': 'success',
-                'flash_message': f'Import rückgängig gemacht: {deleted} Befragungen gelöscht.',
-            })
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.exception('KPI revert job failed')
-            _import_job_write(job_id, user_id, {
-                'status': 'error', 'pct': 0, 'message': str(e),
-            })
-        finally:
-            db.session.remove()
-
-
-def _prod_delete_batch_intervals(batch_id, progress_cb=None):
-    chunk = 1000
-    total = db.session.execute(
-        text('SELECT COUNT(*) FROM productivity_intervals WHERE batch_id = :bid'),
-        {'bid': batch_id},
-    ).scalar() or 0
-    deleted = 0
-
-    def _progress(message):
-        if progress_cb:
-            pct = 5 + int((deleted / max(total, 1)) * 90) if total else 95
-            progress_cb(deleted, total, message)
-
-    _progress('Intervalle löschen…')
-    while True:
-        n = db.session.execute(
-            text(
-                'DELETE FROM productivity_intervals WHERE id IN ('
-                'SELECT id FROM productivity_intervals WHERE batch_id = :bid LIMIT :lim'
-                ')'
-            ),
-            {'bid': batch_id, 'lim': chunk},
-        ).rowcount
-        db.session.commit()
-        db.session.remove()
-        if not n:
-            break
-        deleted += n
-        _progress(f'{min(deleted, total)}/{total} Intervalle gelöscht…')
-        time.sleep(0.05)
-    return deleted
-
-
-def _prod_run_revert_job(app, job_id, user_id, batch_id):
-    with app.app_context():
-        try:
-            batch = ProductivityImportBatch.query.get(batch_id)
-            if not batch:
-                raise ValueError(f'Produktivitäts-Import #{batch_id} nicht gefunden.')
-            _import_job_write(job_id, user_id, {
-                'status': 'running', 'pct': 2, 'message': 'Zurücksetzen wird gestartet…',
-            })
-
-            def progress(done, total, message):
-                pct = 5 + int((done / max(total, 1)) * 90)
-                _import_job_write(job_id, user_id, {
-                    'status': 'running', 'pct': pct, 'message': message,
-                })
-
-            deleted = _prod_delete_batch_intervals(batch_id, progress_cb=progress)
-            db.session.delete(batch)
-            db.session.commit()
-            _import_job_write(job_id, user_id, {
-                'status': 'done',
-                'pct': 100,
-                'message': 'Import zurückgesetzt.',
-                'done_url': url_for('admin.import_productivity_csv_done', job_id=job_id),
-                'flash_category': 'success',
-                'flash_message': f'Produktivitäts-Import #{batch_id} zurückgesetzt ({deleted} Intervalle gelöscht).',
-            })
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.exception('Productivity revert job failed')
-            _import_job_write(job_id, user_id, {
-                'status': 'error', 'pct': 0, 'message': str(e),
-            })
-        finally:
-            db.session.remove()
-
-
 @bp.route('/import_kpi_csv/revert/<int:batch_id>/start', methods=['POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
@@ -4527,13 +4401,7 @@ def revert_kpi_import_start(batch_id):
     _import_job_write(job_id, current_user.id, {
         'status': 'pending', 'pct': 0, 'message': 'Rückgängig machen wird gestartet…',
     })
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_kpi_run_revert_job,
-        args=(app, job_id, current_user.id, batch_id),
-        daemon=True,
-    )
-    thread.start()
+    _spawn_revert_worker('kpi_revert', batch_id, job_id, current_user.id)
     return jsonify({'job_id': job_id})
 
 
@@ -4984,13 +4852,7 @@ def import_productivity_csv_revert_start(batch_id):
     _import_job_write(job_id, current_user.id, {
         'status': 'pending', 'pct': 0, 'message': 'Zurücksetzen wird gestartet…',
     })
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_prod_run_revert_job,
-        args=(app, job_id, current_user.id, batch_id),
-        daemon=True,
-    )
-    thread.start()
+    _spawn_revert_worker('prod_revert', batch_id, job_id, current_user.id)
     return jsonify({'job_id': job_id})
 
 
@@ -5006,13 +4868,7 @@ def import_productivity_csv_revert(batch_id):
     _import_job_write(job_id, current_user.id, {
         'status': 'pending', 'pct': 0, 'message': 'Zurücksetzen wird gestartet…',
     })
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_prod_run_revert_job,
-        args=(app, job_id, current_user.id, batch_id),
-        daemon=True,
-    )
-    thread.start()
+    _spawn_revert_worker('prod_revert', batch_id, job_id, current_user.id)
     return redirect(url_for('admin.import_productivity_csv_revert_status', job_id=job_id))
 
 

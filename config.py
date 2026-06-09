@@ -95,6 +95,7 @@ class Config:
         'pool_recycle': 280,
         'pool_size': 10,
         'max_overflow': 10,
+        'pool_timeout': 8,
     }
     PERFORMANCE_BENCHMARK = 80.0
     # Team pre-filter on /add-coaching. Set ENABLE_ADD_COACHING_TEAM_FILTER=false to disable without git revert.
