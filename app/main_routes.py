@@ -6293,6 +6293,17 @@ def _coaching_impact_scope_filters(mode, sel_project, sel_team, sel_member, kpi_
     }
 
 
+def _coaching_impact_range_confirmed(period_arg, date_from_str, date_to_str):
+    """True only after the user applied Zeitraum via the wizard (vonbis + valid dates)."""
+    if (period_arg or '').strip() != 'vonbis':
+        return False, None, None
+    start = _parse_kpi_date(date_from_str)
+    end = _parse_kpi_date(date_to_str)
+    if start and end and start <= end:
+        return True, start, end
+    return False, None, None
+
+
 @bp.route('/coaching-impact/activity-map')
 @login_required
 @permission_required('view_coaching_impact')
@@ -6523,21 +6534,27 @@ def coaching_impact():
     if sel_member and sel_member not in valid_member_ids:
         sel_member = None
 
-    # --- Date range + impact window ---
-    period_arg = (request.args.get('period') or '90days').strip()
+    # --- Date range + impact window (wizard required; no preset period) ---
+    period_arg = (request.args.get('period') or '').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
     granularity_arg = (request.args.get('granularity') or '').strip()
+    range_confirmed, start_date, end_date = _coaching_impact_range_confirmed(
+        period_arg, date_from_str, date_to_str,
+    )
     window_q = request.args.get('window', type=int)
     admin_window = kpi_logic.coaching_impact_window_days()
-    if window_q is not None and 1 <= window_q <= 90:
-        impact_window_days = window_q
+    if range_confirmed:
+        if window_q is not None and 1 <= window_q <= 90:
+            impact_window_days = window_q
+        else:
+            impact_window_days = admin_window
+        chart_granularity = kpi_time.resolve_granularity(
+            granularity_arg, period_arg, start_date, end_date, None,
+        )
     else:
         impact_window_days = admin_window
-    start_date, end_date, period_arg = _kpi_dashboard_date_range(period_arg, date_from_str, date_to_str)
-    chart_granularity = kpi_time.resolve_granularity(
-        granularity_arg, period_arg, start_date, end_date, None,
-    )
+        chart_granularity = 'day'
     table_granularity = chart_granularity
     toggle_granularity = chart_granularity
     granularity_notice = None
@@ -6595,6 +6612,7 @@ def coaching_impact():
             if coach_name:
                 scope_label = scope_label + ' · ' + coach_name
 
+    if selection_made and range_confirmed:
         kpi_range_filters = list(kpi_filters)
         if start_date:
             kpi_range_filters.append(KpiSurvey.antwort_date >= start_date)
@@ -6755,7 +6773,7 @@ def coaching_impact():
         }
 
     range_summary = None
-    if start_date and end_date:
+    if range_confirmed and start_date and end_date:
         range_summary = (
             f'{start_date.strftime("%d.%m.%Y")} – {end_date.strftime("%d.%m.%Y")}'
             f' · Wirkungsfenster {impact_window_days} Tage'
@@ -6776,8 +6794,8 @@ def coaching_impact():
         sel_coach=sel_coach,
         coaches=coaches,
         period=period_arg,
-        date_from=date_from_str,
-        date_to=date_to_str,
+        date_from=date_from_str if range_confirmed else '',
+        date_to=date_to_str if range_confirmed else '',
         granularity=granularity_arg,
         chart_granularity=chart_granularity,
         table_granularity=table_granularity,
@@ -6788,6 +6806,7 @@ def coaching_impact():
         before_after_prod=before_after_prod,
         impact_window_days=impact_window_days,
         range_summary=range_summary,
+        range_confirmed=range_confirmed,
         summary=summary,
         kpi=kpi,
         scope_label=scope_label,

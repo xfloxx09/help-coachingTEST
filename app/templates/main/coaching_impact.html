@@ -670,17 +670,17 @@
                         <span class="ci-range-setup-action">Zeitraum festlegen <i class="fas fa-chevron-right"></i></span>
                     </button>
                 </div>
-                <input type="hidden" name="period" id="ciPeriod" value="{% if date_from and date_to %}vonbis{% else %}{{ period|default('90days') }}{% endif %}">
+                <input type="hidden" name="period" id="ciPeriod" value="{% if range_confirmed %}vonbis{% endif %}">
                 <input type="hidden" name="date_from" id="ciDateFrom" value="{{ date_from }}">
                 <input type="hidden" name="date_to" id="ciDateTo" value="{{ date_to }}">
-                <input type="hidden" name="window" id="ciWindow" value="{{ impact_window_days }}">
+                <input type="hidden" name="window" id="ciWindow" value="{% if range_confirmed %}{{ impact_window_days }}{% endif %}">
             </div>
         </div>
     </form>
     {% include 'main/_kpi_granularity_notice.html' %}
     {% include 'main/_coaching_impact_range_wizard.html' %}
 
-    {% if selection_made %}
+    {% if selection_made and range_confirmed %}
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
     {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
 
@@ -868,6 +868,17 @@
     </div>
     {% endif %}
     {% endif %}
+
+    {% elif selection_made %}
+    <div class="alert alert-info">
+        <i class="fas fa-sliders-h mr-1"></i>
+        <strong>{{ scope_label }}</strong> ist ausgewählt.
+        Bitte legen Sie oben über <strong>Zeitraum &amp; Wirkungsfenster</strong> den Analysezeitraum fest,
+        um die Coaching-Wirkung anzuzeigen.
+        <button type="button" class="btn btn-sm telekom-button ml-2 mt-2 mt-md-0" id="ciOpenRangeWizardInline">
+            Zeitraum festlegen
+        </button>
+    </div>
 
     {% elif has_any_data %}
     <div class="alert alert-secondary">
@@ -1501,16 +1512,64 @@
         });
     })();
 
+    function ciClearRange() {
+        var periodInput = document.getElementById('ciPeriod');
+        var df = document.getElementById('ciDateFrom');
+        var dt = document.getElementById('ciDateTo');
+        var win = document.getElementById('ciWindow');
+        if (periodInput) periodInput.value = '';
+        if (df) df.value = '';
+        if (dt) dt.value = '';
+        if (win) win.value = '';
+        var setupValue = document.getElementById('ciRangeSetupValue');
+        if (setupValue) setupValue.textContent = 'Noch nicht festgelegt';
+    }
+
+    function ciNavigateWithForm(openWizard) {
+        var url = new URL(form.action, window.location.origin);
+        var data = new FormData(form);
+        data.forEach(function (value, key) {
+            if (value !== '') url.searchParams.set(key, value);
+        });
+        if (openWizard) url.searchParams.set('open_wizard', '1');
+        window.location.href = url.toString();
+    }
+
     document.querySelectorAll('.ci-auto').forEach(function (sel) {
         sel.addEventListener('change', function () {
-            if (sel.name !== 'coach_id') {
+            var scopeChanged = sel.name !== 'coach_id';
+            if (scopeChanged) {
+                ciClearRange();
                 var coachSel = form.querySelector('[name=coach_id]');
                 if (coachSel) coachSel.value = '';
             }
             ciUpdateWizardButtonState();
-            form.submit();
+            if (scopeChanged && ciScopeReady()) {
+                ciNavigateWithForm(true);
+            } else {
+                form.submit();
+            }
         });
     });
+
+    var inlineWizardBtn = document.getElementById('ciOpenRangeWizardInline');
+    if (inlineWizardBtn) {
+        inlineWizardBtn.addEventListener('click', function () {
+            var openBtn = document.getElementById('ciOpenRangeWizard');
+            if (openBtn) openBtn.click();
+        });
+    }
+
+    if (new URLSearchParams(window.location.search).get('open_wizard') === '1' && ciScopeReady()) {
+        var openBtn = document.getElementById('ciOpenRangeWizard');
+        var df = document.getElementById('ciDateFrom');
+        if (openBtn && !(df && df.value)) {
+            openBtn.click();
+        }
+        var cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('open_wizard');
+        history.replaceState({}, '', cleanUrl.toString());
+    }
 
     var overlay = {{ overlay|tojson }};
     var ba = {{ before_after|tojson if before_after else 'null' }};
