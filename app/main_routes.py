@@ -5333,6 +5333,17 @@ def _kpi_cum_add(cum, info_positive, loesung_positive, nps_value, fachkompetenz_
             cum['vert_pos'] += 1
 
 
+def _kpi_zero_period_metrics():
+    """Chart/table values when a period has no Bewertungen."""
+    return {
+        'info_quote': 0,
+        'loes_quote': 0,
+        'nps': 0,
+        'fachkompetenz': 0,
+        'vertrieb_quote': 0,
+    }
+
+
 def _kpi_cum_metrics(cum):
     nps = kpi_logic.compute_nps(cum['nps'])
     fach_avg = round(sum(cum['fach']) / len(cum['fach']), 2) if cum['fach'] else None
@@ -5465,13 +5476,15 @@ def _kpi_dashboard_daily_series(
         if period_bucket['surveys']:
             for survey in period_bucket['surveys']:
                 _kpi_cum_add(cum, *survey)
+            metrics = _kpi_cum_metrics(cum)
+        else:
+            metrics = _kpi_zero_period_metrics()
 
-        cum_m = _kpi_cum_metrics(cum)
         chart_daily.append({
             'date': period['key'],
             'label': period['label'],
             'count': period_bucket['count'],
-            **cum_m,
+            **metrics,
         })
 
     table_daily = []
@@ -5480,10 +5493,7 @@ def _kpi_dashboard_daily_series(
         if period_bucket['count']:
             day_m = _kpi_day_bucket_metrics(period_bucket)
         else:
-            day_m = {
-                'info_quote': None, 'loes_quote': None, 'nps': None,
-                'fachkompetenz': None, 'vertrieb_quote': None,
-            }
+            day_m = _kpi_zero_period_metrics()
         table_daily.append({
             'date': period['key'],
             'label': period['label'],
