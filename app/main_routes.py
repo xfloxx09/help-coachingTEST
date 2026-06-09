@@ -6644,6 +6644,7 @@ def coaching_impact():
     }
     visible_prod = productivity_logic.impact_visibility_dict(None)
     prod_labels = productivity_logic.labels_dict(None)
+    prod_formula_hint = productivity_logic.prod_formula_hint(None)
     coaches = []
 
     if selection_made:
@@ -6652,6 +6653,7 @@ def coaching_impact():
         visible = _kpi_visibility(active_project_id)
         visible_prod = _prod_impact_visibility(active_project_id)
         prod_labels = _prod_labels(active_project_id)
+        prod_formula_hint = productivity_logic.prod_formula_hint(_prod_settings(active_project_id))
         kpi_filters = list(kpi_base)
         kpi_filters.extend(_kpi_source_filter(active_project_id))
         coaching_filters = list(coaching_base)
@@ -6868,6 +6870,7 @@ def coaching_impact():
         visible=visible,
         visible_prod=visible_prod,
         prod_labels=prod_labels,
+        prod_formula_hint=prod_formula_hint,
         mode=mode,
         projects=projects,
         teams=teams,

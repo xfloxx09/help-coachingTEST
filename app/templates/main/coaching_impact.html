@@ -44,6 +44,61 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
     }
+    .ci-card { overflow: visible; }
+    .ci-card .ci-label-with-hint,
+    .kpi-label-with-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        overflow: visible;
+        -webkit-line-clamp: unset;
+        -webkit-box-orient: unset;
+    }
+    .kpi-metric-hint-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+    }
+    .kpi-metric-hint-btn {
+        color: #8a8a95;
+        font-size: 0.9rem;
+        line-height: 1;
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+    .kpi-metric-hint-btn:hover,
+    .kpi-metric-hint-btn:focus,
+    .kpi-metric-hint-btn[aria-expanded="true"] {
+        color: #e20074;
+        outline: none;
+        box-shadow: none;
+    }
+    .kpi-metric-hint-panel {
+        position: absolute;
+        z-index: 1080;
+        top: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%);
+        min-width: 280px;
+        max-width: 340px;
+        padding: 0.8rem 0.9rem;
+        background: #2a2a31;
+        border: 1px solid #4a4a55;
+        border-radius: 10px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+        color: #e8e8ec;
+        text-align: left;
+        white-space: normal;
+        font-weight: normal;
+    }
+    .kpi-metric-hint-panel code {
+        color: #4debd4;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 0.15rem 0.35rem;
+        border-radius: 4px;
+        word-break: break-word;
+    }
+    th .kpi-label-with-hint { justify-content: flex-end; }
     .ci-card .ci-ba-values {
         display: flex;
         align-items: center;
@@ -997,7 +1052,14 @@
             {% set ba = before_after_prod[key] %}
             <div class="ci-ba-card-wrap">
                 <div class="ci-card {{ cls }}">
+                    {% if key == 'prod' %}
+                    <div class="ci-label ci-label-with-hint">
+                        <span>{{ label }}</span>
+                        {% include 'main/_prod_metric_hint.html' %}
+                    </div>
+                    {% else %}
                     <div class="ci-label">{{ label }}</div>
+                    {% endif %}
                     {% if ba.pairs %}
                     {% set delta_good = (ba.delta < 0) if ba.lower_is_better else (ba.delta > 0) %}
                     {% set delta_bad = (ba.delta > 0) if ba.lower_is_better else (ba.delta < 0) %}
@@ -1063,7 +1125,7 @@
                             {% if visible.fachkompetenz %}<th class="text-right ci-col-qual">Fachk.</th>{% endif %}
                             {% if visible.vertrieb %}<th class="text-right ci-col-qual">Vertrieb</th>{% endif %}
                             {% if visible_prod.sign_on %}<th class="text-right ci-col-prod">{{ prod_labels.sign_on }}</th>{% endif %}
-                            {% if visible_prod.prod %}<th class="text-right ci-col-prod">{{ prod_labels.prod }}</th>{% endif %}
+                            {% if visible_prod.prod %}<th class="text-right ci-col-prod"><span class="kpi-label-with-hint"><span>{{ prod_labels.prod }}</span>{% include 'main/_prod_metric_hint.html' %}</span></th>{% endif %}
                             {% if visible_prod.nach %}<th class="text-right ci-col-prod">{{ prod_labels.nach }}</th>{% endif %}
                             {% if visible_prod.idle %}<th class="text-right ci-col-prod">{{ prod_labels.idle }}</th>{% endif %}
                             {% if visible_prod.works %}<th class="text-right ci-col-prod">{{ prod_labels.works }}</th>{% endif %}
@@ -1180,6 +1242,41 @@
 {% block scripts %}
 {% set cat_labels = kpi_category_labels or {'qualitaet': 'Qualität', 'produktivitaet': 'Produktivität'} %}
 <script>
+(function () {
+    function closeProdMetricHints() {
+        document.querySelectorAll('.kpi-metric-hint-panel').forEach(function (panel) {
+            panel.hidden = true;
+            var wrap = panel.closest('.kpi-metric-hint-wrap');
+            if (wrap) {
+                var b = wrap.querySelector('.kpi-metric-hint-btn');
+                if (b) b.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+    document.querySelectorAll('.kpi-metric-hint-panel').forEach(function (panel) {
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+    document.querySelectorAll('.kpi-metric-hint-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var wrap = btn.closest('.kpi-metric-hint-wrap');
+            var panel = wrap && wrap.querySelector('.kpi-metric-hint-panel');
+            if (!panel) return;
+            var willOpen = panel.hidden;
+            closeProdMetricHints();
+            if (willOpen) {
+                panel.hidden = false;
+                btn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+    document.addEventListener('click', closeProdMetricHints);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeProdMetricHints();
+    });
+})();
+
 (function () {
     document.querySelectorAll('[data-kpi-granularity]').forEach(function (btn) {
         btn.addEventListener('click', function () {
