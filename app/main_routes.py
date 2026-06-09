@@ -4943,6 +4943,25 @@ def _kpi_dashboard_period_from_request(req):
     }
 
 
+def _kpi_data_month_keys(filters, date_column):
+    """Return sorted 'YYYY-MM' strings for months with at least one matching row."""
+    yr = extract('year', date_column)
+    mo = extract('month', date_column)
+    rows = (
+        db.session.query(yr, mo)
+        .filter(*filters)
+        .filter(date_column.isnot(None))
+        .group_by(yr, mo)
+        .all()
+    )
+    out = []
+    for y, m in rows:
+        if y is None or m is None:
+            continue
+        out.append(f'{int(y)}-{int(m):02d}')
+    return sorted(out)
+
+
 def _kpi_scope():
     """Returns (accessible_project_ids_or_None, sees_all_teams, my_team_ids)."""
     accessible = get_accessible_project_ids()
@@ -5660,6 +5679,20 @@ def kpi_dashboard_qualitaet():
         (mode == 'agent' and sel_member)
     )
 
+    period_month_filters = list(base_filters)
+    period_month_filters.extend(_kpi_source_filter(active_project_id))
+    if mode == 'agent' and sel_member:
+        period_month_filters.append(KpiSurvey.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        period_month_filters.append(KpiSurvey.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        period_month_filters.append(KpiSurvey.project_id == sel_project)
+    period_data_months = (
+        _kpi_data_month_keys(period_month_filters, KpiSurvey.antwort_date)
+        if selection_made else []
+    )
+    period_data_tick_label = 'Bewertungen vorhanden'
+
     kpi = None
     chart_daily = []
     daily = []
@@ -5738,6 +5771,8 @@ def kpi_dashboard_qualitaet():
         visible=visible,
         kpi_category_labels=_kpi_category_labels(),
         active_kpi_nav='qualitaet',
+        period_data_months=period_data_months,
+        period_data_tick_label=period_data_tick_label,
     )
 
 
@@ -5834,6 +5869,19 @@ def kpi_dashboard_produktivitaet():
         (mode == 'agent' and sel_member)
     )
 
+    period_month_filters = list(base_filters)
+    if mode == 'agent' and sel_member:
+        period_month_filters.append(ProductivityInterval.team_member_id == sel_member)
+    elif mode == 'team' and sel_team:
+        period_month_filters.append(ProductivityInterval.team_id == sel_team)
+    elif mode == 'project' and sel_project:
+        period_month_filters.append(ProductivityInterval.project_id == sel_project)
+    period_data_months = (
+        _kpi_data_month_keys(period_month_filters, ProductivityInterval.slot_at)
+        if selection_made else []
+    )
+    period_data_tick_label = 'Rohdaten vorhanden'
+
     summary = None
     chart_daily = []
     daily = []
@@ -5905,6 +5953,8 @@ def kpi_dashboard_produktivitaet():
         visible=visible,
         kpi_category_labels=_kpi_category_labels(),
         active_kpi_nav='produktivitaet',
+        period_data_months=period_data_months,
+        period_data_tick_label=period_data_tick_label,
     )
 
 
