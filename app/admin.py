@@ -3334,6 +3334,11 @@ def _kpi_detect_encoding(temp_path):
     return 'latin-1'  # decodes any byte sequence, used as last resort
 
 
+def _kpi_normalize_row(row):
+    """Match CSV headers case-insensitively (exports use e.g. Datensatz_id, Frage, Antwort)."""
+    return {(k or '').strip().lstrip('\ufeff').lower(): v for k, v in row.items()}
+
+
 def _kpi_read_surveys(temp_path):
     """Parse the KPI CSV grouped by datensatz_id. Returns list of survey dicts (no DB)."""
     surveys = {}
@@ -3344,7 +3349,8 @@ def _kpi_read_surveys(temp_path):
         f.seek(0)
         delimiter = ';' if ';' in sample else ','
         reader = csv.DictReader(f, delimiter=delimiter)
-        for row in reader:
+        for raw_row in reader:
+            row = _kpi_normalize_row(raw_row)
             dsid = (row.get('datensatz_id') or '').strip()
             if not dsid:
                 continue
@@ -4012,7 +4018,11 @@ def import_kpi_csv():
             return redirect(url_for('admin.import_kpi_csv'))
 
         if not surveys:
-            flash('Keine Datensätze mit "datensatz_id" in der CSV gefunden.', 'warning')
+            flash(
+                'Keine Datensätze mit "datensatz_id" in der CSV gefunden. '
+                'Erwartet wird eine Spalte datensatz_id (Groß/Kleinschreibung egal).',
+                'warning',
+            )
             _kpi_cleanup_session_temp()
             return redirect(url_for('admin.import_kpi_csv'))
 
