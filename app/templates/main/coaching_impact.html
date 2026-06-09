@@ -731,12 +731,12 @@
             {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
             {% for key, label, cls, unit in prod_parts %}
             {% set ba = before_after_prod[key] %}
-            {% set delta_good = (ba.delta < 0) if ba.lower_is_better else (ba.delta > 0) %}
-            {% set delta_bad = (ba.delta > 0) if ba.lower_is_better else (ba.delta < 0) %}
             <div class="ci-ba-card-wrap">
                 <div class="ci-card {{ cls }}">
                     <div class="ci-label">{{ label }}</div>
                     {% if ba.pairs %}
+                    {% set delta_good = (ba.delta < 0) if ba.lower_is_better else (ba.delta > 0) %}
+                    {% set delta_bad = (ba.delta > 0) if ba.lower_is_better else (ba.delta < 0) %}
                     <div class="ci-ba-values">
                         <span class="ci-ba-val">{{ ba.before|de_decimal }}{{ unit }}</span>
                         <i class="fas fa-arrow-right ci-arrow"></i>
