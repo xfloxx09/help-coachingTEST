@@ -90,6 +90,12 @@ class Config:
 
     print(f"DEBUG [config.py]: Finale SQLALCHEMY_DATABASE_URI, die gesetzt wird: '{SQLALCHEMY_DATABASE_URI}'") # DEBUG
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 280,
+        'pool_size': 10,
+        'max_overflow': 10,
+    }
     PERFORMANCE_BENCHMARK = 80.0
     # Team pre-filter on /add-coaching. Set ENABLE_ADD_COACHING_TEAM_FILTER=false to disable without git revert.
     ENABLE_ADD_COACHING_TEAM_FILTER = _env_bool_with_default('ENABLE_ADD_COACHING_TEAM_FILTER', True)

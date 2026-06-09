@@ -1,7 +1,7 @@
 # app/admin.py
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session, jsonify, abort
 from flask_login import login_required, current_user
-from sqlalchemy import desc, or_, false, update
+from sqlalchemy import desc, or_, false, update, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from app import db
@@ -4114,6 +4114,8 @@ def _kpi_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
             _import_job_write(job_id, user_id, {
                 'status': 'error', 'pct': 0, 'message': str(e),
             })
+        finally:
+            db.session.remove()
 
 
 def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
@@ -4159,6 +4161,8 @@ def _prod_run_import_job(app, job_id, user_id, temp_path, filename, overwrite):
             _import_job_write(job_id, user_id, {
                 'status': 'error', 'pct': 0, 'message': str(e),
             })
+        finally:
+            db.session.remove()
 
 
 @bp.route('/import_kpi_csv', methods=['GET', 'POST'])
@@ -4369,30 +4373,40 @@ def import_kpi_csv_done(job_id):
 
 
 def _kpi_delete_batch_surveys(batch_id, progress_cb=None):
-    """Delete surveys + answers for a batch in chunks (avoids blocking the worker)."""
-    chunk = 300
-    total = KpiSurvey.query.filter_by(batch_id=batch_id).count()
+    """Delete surveys + answers for a batch in SQL chunks; yields DB between commits."""
+    total = db.session.execute(
+        text('SELECT COUNT(*) FROM kpi_surveys WHERE batch_id = :bid'),
+        {'bid': batch_id},
+    ).scalar() or 0
     deleted = 0
+    chunk = 400
 
     def _progress(message):
         if progress_cb:
             pct = 5 + int((deleted / max(total, 1)) * 90) if total else 95
             progress_cb(deleted, total, message)
 
-    _progress('Befragungen löschen…')
+    _progress('Antworten und Befragungen löschen…')
     while True:
-        ids = [
-            r[0] for r in db.session.query(KpiSurvey.id)
-            .filter(KpiSurvey.batch_id == batch_id)
-            .limit(chunk).all()
-        ]
+        ids = db.session.execute(
+            text('SELECT id FROM kpi_surveys WHERE batch_id = :bid LIMIT :lim'),
+            {'bid': batch_id, 'lim': chunk},
+        ).scalars().all()
         if not ids:
             break
-        KpiAnswer.query.filter(KpiAnswer.survey_id.in_(ids)).delete(synchronize_session=False)
-        KpiSurvey.query.filter(KpiSurvey.id.in_(ids)).delete(synchronize_session=False)
+        db.session.execute(
+            text('DELETE FROM kpi_answers WHERE survey_id = ANY(:ids)'),
+            {'ids': ids},
+        )
+        db.session.execute(
+            text('DELETE FROM kpi_surveys WHERE id = ANY(:ids)'),
+            {'ids': ids},
+        )
         db.session.commit()
+        db.session.remove()
         deleted += len(ids)
-        _progress(f'{deleted}/{total} Befragungen gelöscht…')
+        _progress(f'{min(deleted, total)}/{total} Befragungen gelöscht…')
+        time.sleep(0.05)
     return deleted
 
 
@@ -4429,11 +4443,16 @@ def _kpi_run_revert_job(app, job_id, user_id, batch_id):
             _import_job_write(job_id, user_id, {
                 'status': 'error', 'pct': 0, 'message': str(e),
             })
+        finally:
+            db.session.remove()
 
 
 def _prod_delete_batch_intervals(batch_id, progress_cb=None):
     chunk = 1000
-    total = ProductivityInterval.query.filter_by(batch_id=batch_id).count()
+    total = db.session.execute(
+        text('SELECT COUNT(*) FROM productivity_intervals WHERE batch_id = :bid'),
+        {'bid': batch_id},
+    ).scalar() or 0
     deleted = 0
 
     def _progress(message):
@@ -4443,17 +4462,21 @@ def _prod_delete_batch_intervals(batch_id, progress_cb=None):
 
     _progress('Intervalle löschen…')
     while True:
-        ids = [
-            r[0] for r in db.session.query(ProductivityInterval.id)
-            .filter(ProductivityInterval.batch_id == batch_id)
-            .limit(chunk).all()
-        ]
-        if not ids:
-            break
-        ProductivityInterval.query.filter(ProductivityInterval.id.in_(ids)).delete(synchronize_session=False)
+        n = db.session.execute(
+            text(
+                'DELETE FROM productivity_intervals WHERE id IN ('
+                'SELECT id FROM productivity_intervals WHERE batch_id = :bid LIMIT :lim'
+                ')'
+            ),
+            {'bid': batch_id, 'lim': chunk},
+        ).rowcount
         db.session.commit()
-        deleted += len(ids)
-        _progress(f'{deleted}/{total} Intervalle gelöscht…')
+        db.session.remove()
+        if not n:
+            break
+        deleted += n
+        _progress(f'{min(deleted, total)}/{total} Intervalle gelöscht…')
+        time.sleep(0.05)
     return deleted
 
 
@@ -4490,6 +4513,8 @@ def _prod_run_revert_job(app, job_id, user_id, batch_id):
             _import_job_write(job_id, user_id, {
                 'status': 'error', 'pct': 0, 'message': str(e),
             })
+        finally:
+            db.session.remove()
 
 
 @bp.route('/import_kpi_csv/revert/<int:batch_id>/start', methods=['POST'])

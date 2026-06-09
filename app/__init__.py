@@ -933,6 +933,11 @@ def create_app(config_class=Config):
                 print(f"ℹ️ kpi_categories seed: {e}")
 
         print("--- Migration abgeschlossen ---")
+        conn.close()
+
+    @app.route('/health')
+    def health():
+        return 'ok', 200
 
     # --- Blueprint registration ---
     from app.auth import bp as auth_bp
