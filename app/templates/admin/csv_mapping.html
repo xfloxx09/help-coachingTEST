@@ -131,11 +131,30 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>PLT aktiv? (nur <strong>1</strong> = im Team; leer/sonst = ARCHIV)</label>
+                    <label>PLT aktiv? (<strong>1</strong> = aktiv im Team; <strong>0</strong> oder leer → ARCHIV)</label>
                     <select name="map_active_status" class="form-control">
-                        <option value="">-- Nicht zuordnen (alle wie „inaktiv“ → ARCHIV) --</option>
+                        <option value="">-- Nicht zuordnen (alle als aktiv behandeln) --</option>
                         {% for header in headers %}
                             <option value="{{ header }}" {% if mapping.active_status == header %}selected{% endif %}>{{ header }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Aktiv (zusätzlicher Hinweis, optional)</label>
+                    <select name="map_aktiv" class="form-control">
+                        <option value="">-- Ignorieren --</option>
+                        {% for header in headers %}
+                            <option value="{{ header }}" {% if mapping.aktiv == header %}selected{% endif %}>{{ header }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Wenn <code>PLT aktiv? = 1</code>, aber <code>Aktiv = 0</code>, gilt der PL dennoch als inaktiv.</small>
+                </div>
+                <div class="form-group">
+                    <label>Tagging (nur Vorschau, z.&nbsp;B. Kündigung, Umschulung)</label>
+                    <select name="map_tagging" class="form-control">
+                        <option value="">-- Ignorieren --</option>
+                        {% for header in headers %}
+                            <option value="{{ header }}" {% if mapping.tagging == header %}selected{% endif %}>{{ header }}</option>
                         {% endfor %}
                     </select>
                 </div>

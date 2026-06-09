@@ -299,6 +299,88 @@ def create_user_for_member(member, role_name=ROLE_MITARBEITER, password='Start12
     return user, True
 
 
+def preview_auto_link_all(min_score=50):
+    """Return (proposals, skipped) without changing the database."""
+    members = (
+        TeamMember.query.options(joinedload(TeamMember.team))
+        .filter(TeamMember.user_id.is_(None))
+        .order_by(TeamMember.name)
+        .all()
+    )
+    proposals = []
+    skipped = []
+    for m in members:
+        candidates = find_user_candidates_for_member(m, limit=5)
+        if not candidates:
+            skipped.append({
+                'member_id': m.id,
+                'member_name': m.name,
+                'team_name': m.team.name if m.team else '–',
+                'ma_kennung': m.ma_kennung or '',
+                'dag_id': m.dag_id or '',
+                'pylon': m.pylon or '',
+                'reason': 'Kein passender Benutzer gefunden',
+                'candidates': [],
+            })
+            continue
+        best = candidates[0]
+        if best['score'] < min_score:
+            skipped.append({
+                'member_id': m.id,
+                'member_name': m.name,
+                'team_name': m.team.name if m.team else '–',
+                'ma_kennung': m.ma_kennung or '',
+                'dag_id': m.dag_id or '',
+                'pylon': m.pylon or '',
+                'reason': f'Übereinstimmung zu schwach (Score {best["score"]}, min. {min_score})',
+                'candidates': candidates[:3],
+            })
+            continue
+        if len(candidates) > 1 and candidates[1]['score'] >= min_score:
+            skipped.append({
+                'member_id': m.id,
+                'member_name': m.name,
+                'team_name': m.team.name if m.team else '–',
+                'ma_kennung': m.ma_kennung or '',
+                'dag_id': m.dag_id or '',
+                'pylon': m.pylon or '',
+                'reason': 'Mehrdeutig – mehrere Benutzer mit hohem Score',
+                'candidates': candidates[:5],
+            })
+            continue
+        proposals.append({
+            'member_id': m.id,
+            'member_name': m.name,
+            'team_name': m.team.name if m.team else '–',
+            'ma_kennung': m.ma_kennung or '',
+            'dag_id': m.dag_id or '',
+            'pylon': m.pylon or '',
+            'user_id': best['user_id'],
+            'username': best['username'],
+            'email': best['email'],
+            'role_name': best['role_name'],
+            'score': best['score'],
+            'reasons': best['reasons'],
+        })
+    return proposals, skipped
+
+
+def apply_auto_link_proposals(proposal_rows):
+    """Link members from confirmed preview rows. Each row: member_id, user_id."""
+    linked = 0
+    for row in proposal_rows:
+        member = TeamMember.query.get(row['member_id'])
+        user = User.query.get(row['user_id'])
+        if not member or not user or member.user_id:
+            continue
+        sc, _ = score_user_for_member(user, member)
+        if sc < 50:
+            continue
+        if link_member_to_user(member, user):
+            linked += 1
+    return linked
+
+
 def auto_link_all_unlinked(min_score=50):
     """Try to link all members without user_id. Returns count linked."""
     members = TeamMember.query.filter(TeamMember.user_id.is_(None)).all()

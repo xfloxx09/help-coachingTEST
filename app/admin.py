@@ -1226,14 +1226,37 @@ def create_user_for_member(member_id):
     return redirect(url_for('admin.edit_team_member', member_id=member_id))
 
 
+@bp.route('/teammembers/auto-link', methods=['GET'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def auto_link_team_members_preview():
+    proposals, skipped = member_linking.preview_auto_link_all(min_score=50)
+    return render_template(
+        'admin/auto_link_preview.html',
+        proposals=proposals,
+        skipped=skipped,
+        total_unlinked=len(proposals) + len(skipped),
+        config=current_app.config,
+    )
+
+
 @bp.route('/teammembers/auto-link', methods=['POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
 def auto_link_team_members():
+    selected = request.form.getlist('link_member_id')
+    if not selected:
+        flash('Keine Verknüpfungen ausgewählt.', 'warning')
+        return redirect(url_for('admin.auto_link_team_members_preview'))
+    rows = []
+    for mid in selected:
+        uid = request.form.get(f'link_user_id_{mid}', type=int)
+        if uid:
+            rows.append({'member_id': int(mid), 'user_id': uid})
     try:
-        n = member_linking.auto_link_all_unlinked(min_score=50)
+        n = member_linking.apply_auto_link_proposals(rows)
         db.session.commit()
-        flash(f'{n} Teammitglied(er) automatisch mit Benutzerkonten verknüpft.', 'success' if n else 'info')
+        flash(f'{n} Teammitglied(er) mit Benutzerkonten verknüpft.', 'success' if n else 'info')
     except Exception as e:
         db.session.rollback()
         flash(f'Auto-Verknüpfung fehlgeschlagen: {e}', 'danger')
@@ -2351,13 +2374,13 @@ def create_team_member_with_user():
 # --- CSV Import: Mapping-Felder & Vorschau ---
 CSV_IMPORT_MAP_FIELDS = [
     'pylon', 'plt_id', 'first_name', 'last_name', 'ma_kennung', 'dag_id', 'email',
-    'team', 'project', 'active_status', 'agent_status', 'role',
+    'team', 'project', 'active_status', 'aktiv', 'tagging', 'agent_status', 'role',
 ]
 
 # Reihenfolge der Vergleichstabelle Vorschau (Alt vs Neu)
 CSV_REVIEW_DISPLAY_KEYS = [
     'pylon', 'plt_id', 'first_name', 'last_name', 'email', 'project', 'team',
-    'role', 'agent_status', 'active_status', 'ma_kennung', 'dag_id',
+    'role', 'agent_status', 'active_status', 'aktiv', 'tagging', 'ma_kennung', 'dag_id',
 ]
 
 # Vorschau begrenzen (HTML/ORM); nicht sichtbare Zeilen gelten beim Import als „angehakt“
@@ -2493,17 +2516,62 @@ def _csv_mapping_from_request(form):
     return mapping
 
 
-def _csv_row_active_flag(row, mapping):
-    active_col = mapping.get('active_status')
-    if not active_col:
-        # Ohne zugeordnete Spalte nicht als „inaktiv“ werten — sonst landen alle Neuimporte im ARCHIV.
+def _csv_parse_bool_cell(raw):
+    """1/0, ja/nein, leer → bool or None wenn leer."""
+    if raw is None:
+        return None
+    s = _csv_clean_cell_text(raw, collapse_spaces=True)
+    if not s:
+        return None
+    s = s.lower().replace(' ', '')
+    if s in ('1', '1.0', '1,0', 'true', 'ja', 'j', 'yes', 'y', 'wahr', 'x', 'aktiv'):
         return True
-    raw_active = row.get(active_col, '')
-    active_str = _csv_clean_cell_text(raw_active, collapse_spaces=True) if raw_active is not None else ''
-    if not active_str:
+    if s in ('0', '0.0', '0,0', 'false', 'nein', 'n', 'no', 'inaktiv', 'inaktive'):
         return False
-    s = active_str.lower().replace(' ', '')
-    return s in ('1', '1.0', '1,0', 'true', 'ja', 'j', 'yes', 'y', 'wahr', 'x', 'aktiv')
+    return None
+
+
+def _csv_row_active_flag(row, mapping):
+    """PLT aktiv? entscheidet über Archiv; optional zusätzlich Spalte Aktiv."""
+    active_col = mapping.get('active_status')
+    aktiv_col = mapping.get('aktiv')
+    if not active_col and not aktiv_col:
+        return True
+    plt_active = _csv_parse_bool_cell(row.get(active_col, '')) if active_col else None
+    agent_active = _csv_parse_bool_cell(row.get(aktiv_col, '')) if aktiv_col else None
+    if plt_active is False:
+        return False
+    if plt_active is True:
+        if agent_active is False:
+            return False
+        return True
+    if agent_active is not None:
+        return agent_active
+    return False
+
+
+def _csv_row_status_labels(row, mapping, is_active):
+    """Lesbare Status-Zeile für Vorschau (Archiv-Kontext)."""
+    parts = []
+    active_col = mapping.get('active_status')
+    aktiv_col = mapping.get('aktiv')
+    if active_col:
+        raw = _csv_clean_cell_text(row.get(active_col, ''), True)
+        parts.append(f'PLT aktiv?: {raw if raw else "leer → inaktiv"}')
+    if aktiv_col:
+        raw = _csv_clean_cell_text(row.get(aktiv_col, ''), True)
+        parts.append(f'Aktiv: {raw if raw else "leer"}')
+    tag_col = mapping.get('tagging')
+    if tag_col:
+        raw = _csv_clean_cell_text(row.get(tag_col, ''), True)
+        if raw:
+            parts.append(f'Tagging: {raw}')
+        elif not is_active:
+            parts.append('Tagging: (leer)')
+    if is_active:
+        return 'Aktiv im Team' + (f' ({"; ".join(parts)})' if parts else '')
+    hint = '; '.join(parts) if parts else 'inaktiv'
+    return f'ARCHIV / inaktiv ({hint})'
 
 
 def _norm_csv_cmp(val):
@@ -2711,17 +2779,22 @@ def _csv_member_snapshot(team_member, archiv_team, users_by_id=None):
         if user is None:
             user = User.query.get(team_member.user_id)
     role_n = user.role.name if user and user.role else None
-    email_disp = _csv_display_cell_csv(user.email if user else None)
+    email_disp = _csv_display_cell_csv(user.email if user else None, empty_label='(kein Login)')
+    original_team_name = ''
+    if in_archiv and team_member.original_team:
+        original_team_name = (team_member.original_team.name or '').strip()
     return {
         'in_archiv': in_archiv,
         'project': proj_n,
         'team': team_display,
+        'original_team': original_team_name,
         'name': team_member.name or '',
         'plt_id': _norm_csv_cmp(team_member.plt_id),
         'ma_kennung': _norm_csv_cmp(team_member.ma_kennung),
         'dag_id': _norm_csv_cmp(team_member.dag_id),
         'role': role_n,
         'email': email_disp,
+        'tagging_hint': '',
     }
 
 
@@ -2800,9 +2873,24 @@ def _csv_cell_display(row, column_header):
     return _csv_clean_cell_text(v, collapse_spaces=True)
 
 
-def _csv_display_cell_csv(s):
+def _csv_display_cell_csv(s, *, empty_label='(leer)'):
     t = (s or '').strip()
-    return t if t else '(leer)'
+    return t if t else empty_label
+
+
+def _csv_db_status_label(team_member, archiv_team, users_by_id=None):
+    if not team_member:
+        return '—'
+    snap = _csv_member_snapshot(team_member, archiv_team, users_by_id)
+    if snap['in_archiv']:
+        extra = []
+        if snap.get('tagging_hint'):
+            extra.append(snap['tagging_hint'])
+        if snap.get('original_team') and snap['original_team'] != ARCHIV_TEAM_NAME:
+            extra.append(f'Ursprung: {snap["original_team"]}')
+        suffix = f' ({"; ".join(extra)})' if extra else ''
+        return f'ARCHIV{suffix}'
+    return 'Aktiv im Team'
 
 
 def _csv_name_split_parts(display_name):
@@ -2827,7 +2915,11 @@ def _csv_db_display_for_field(field, team_member, archiv_team, users_by_id=None)
     if field == 'team':
         return _csv_display_cell_csv(snap['team'])
     if field == 'active_status':
-        return '1' if not snap['in_archiv'] else '0'
+        return '1 (aktiv)' if not snap['in_archiv'] else '0 (ARCHIV)'
+    if field == 'aktiv':
+        return '— (nur CSV)'
+    if field == 'tagging':
+        return '— (nur CSV)'
     if field == 'role':
         return _csv_display_cell_csv(snap['role'])
     if field == 'agent_status':
@@ -2897,6 +2989,7 @@ def _csv_build_review_comparison(new_row, mapping, team_member, archiv_team, use
 
     _csv_review_drop_name_rows_when_full_name_matches(rows, new_row, mapping, team_member)
     _csv_review_suppress_inactive_archiv_org_fields(rows, new_row, mapping, team_member, archiv_team)
+    _csv_review_add_status_row(rows, new_row, mapping, team_member, archiv_team, users_by_id)
     return rows
 
 
@@ -2928,17 +3021,52 @@ def _csv_review_suppress_inactive_archiv_org_fields(rows, new_row, mapping, team
     """
     if not team_member or not archiv_team:
         return
-    if team_member.team_id != archiv_team.id:
-        return
-    if _csv_row_active_flag(new_row, mapping):
+    csv_inactive = not _csv_row_active_flag(new_row, mapping)
+    db_in_archiv = team_member.team_id == archiv_team.id
+    if not csv_inactive and not db_in_archiv:
         return
     proj_col = mapping.get('project')
     team_col = mapping.get('team')
+    email_col = mapping.get('email')
     for row in rows:
         lbl = row.get('label')
+        if lbl in (mapping.get('aktiv'), mapping.get('tagging')):
+            row['changed'] = False
         if lbl and (lbl == proj_col or lbl == team_col):
             row['changed'] = False
-            row['old'] = row['new']
+            if db_in_archiv and csv_inactive:
+                row['old'] = f'ARCHIV (Schichtplan in CSV: {row["new"]})'
+                row['new'] = row['old']
+        if lbl == email_col and not team_member.user_id and csv_inactive:
+            row['changed'] = False
+            row['old'] = '(kein Login – E-Mail wird nicht importiert)'
+            row['new'] = row['old']
+
+
+def _csv_review_add_status_row(rows, new_row, mapping, team_member, archiv_team, users_by_id):
+    """Status-Zeile oben in der Vergleichstabelle (Archiv-Kontext)."""
+    is_active = _csv_row_active_flag(new_row, mapping)
+    csv_status = _csv_row_status_labels(new_row, mapping, is_active)
+    db_in_archiv = bool(team_member and team_member.team_id == archiv_team.id)
+    if team_member:
+        db_status = _csv_db_status_label(team_member, archiv_team, users_by_id)
+    else:
+        db_status = '—'
+    if team_member is None:
+        changed = True
+    elif db_in_archiv and is_active:
+        changed = True
+    elif not db_in_archiv and not is_active:
+        changed = True
+    else:
+        changed = False
+    rows.insert(0, {
+        'label': 'Status (Archiv/Aktiv)',
+        'old': db_status,
+        'new': csv_status,
+        'changed': changed,
+        'is_status': True,
+    })
 
 
 def _csv_item_search_text(comparison, extra_lines):
@@ -2951,19 +3079,26 @@ def _csv_item_search_text(comparison, extra_lines):
 
 
 def _csv_change_item_payload(ctx, comparison, change_kind, checkbox_disabled, error_messages=None):
+    changed_rows = [c for c in comparison if c.get('changed')]
     if error_messages is not None:
         lines = list(error_messages)
     else:
-        lines = [f"{c['label']}: from {c['old']} to {c['new']}" for c in comparison if c['changed']]
+        lines = [f"{c['label']}: {c['old']} → {c['new']}" for c in changed_rows]
+    is_active = ctx.get('is_active', True)
     return {
         'pylon': ctx['pylon'],
         'full_name': ctx['full_name'],
         'comparison': comparison,
+        'comparison_changed': changed_rows,
+        'changed_field_count': len(changed_rows),
         'change_lines': lines,
         'group_key': ctx['group_key'],
         'change_kind': change_kind,
         'checkbox_disabled': checkbox_disabled,
         'search_text': _csv_item_search_text(comparison, lines),
+        'csv_active': is_active,
+        'csv_tagging': ctx.get('csv_tagging') or '',
+        'db_in_archiv': bool(ctx.get('db_in_archiv')),
     }
 
 
@@ -2980,10 +3115,14 @@ def _csv_build_change_item(row, mapping, archiv_team, preview_caches=None):
         tm = None
         if preview_caches:
             tm = preview_caches.members_by_pylon.get(pylon)
+        ctx['csv_tagging'] = _csv_mapped_cell_clean(row, mapping, 'tagging') or ''
+        ctx['db_in_archiv'] = bool(tm and tm.team_id == archiv_team.id)
         comparison = _csv_build_review_comparison(row, mapping, tm, archiv_team, users_by_id)
         return _csv_change_item_payload(ctx, comparison, 'error', True, error_messages=ctx['messages'])
 
     team_member = ctx['team_member']
+    ctx['csv_tagging'] = _csv_mapped_cell_clean(row, mapping, 'tagging') or ''
+    ctx['db_in_archiv'] = bool(team_member and team_member.team_id == archiv_team.id)
     after_snap = _csv_target_snapshot(ctx, preview_caches)
     comparison = _csv_build_review_comparison(row, mapping, team_member, archiv_team, users_by_id)
 
@@ -3283,8 +3422,10 @@ def sync_from_csv():
             'dag_id': 'DAG-ID',
             'email': 'eMail',
             'active_status': 'PLT aktiv?',
+            'aktiv': 'Aktiv',
+            'tagging': 'Tagging',
             'agent_status': 'Agent-Status',
-            'role': 'Agent-Status'
+            'role': 'Agent-Status',
         }
 
         return render_template(
@@ -3345,6 +3486,14 @@ def sync_from_csv():
 
         grouped = _group_csv_preview_items(preview_items)
         large_ui = len(change_items) >= CSV_PREVIEW_LARGE_UI_THRESHOLD
+        kind_counts = {
+            'create': sum(1 for x in change_items if x['change_kind'] == 'create'),
+            'archive': sum(1 for x in change_items if x['change_kind'] == 'archive'),
+            'restore': sum(1 for x in change_items if x['change_kind'] == 'restore'),
+            'update': sum(1 for x in change_items if x['change_kind'] == 'update'),
+            'error': sum(1 for x in change_items if x['change_kind'] == 'error'),
+        }
+        csv_archiv_count = sum(1 for x in change_items if not x.get('csv_active'))
         return render_template(
             'admin/csv_import_preview.html',
             grouped=grouped,
@@ -3357,6 +3506,8 @@ def sync_from_csv():
             preview_truncated=preview_truncated,
             large_ui=large_ui,
             preview_max_rows=CSV_PREVIEW_MAX_ROWS,
+            kind_counts=kind_counts,
+            csv_archiv_count=csv_archiv_count,
             config=current_app.config,
         )
 

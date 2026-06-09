@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-2"><i class="fas fa-link text-info"></i> Auto-Verknüpfung – Vorschau</h1>
+    <p class="text-muted mb-4">
+        {{ total_unlinked }} Teammitglied(er) ohne Login.
+        {% if proposals %}
+        <strong>{{ proposals|length }}</strong> klare Zuordnung(en) – bitte prüfen und bestätigen.
+        {% endif %}
+        {% if skipped %}
+        <strong>{{ skipped|length }}</strong> übersprungen (kein Match oder mehrdeutig).
+        {% endif %}
+    </p>
+
+    {% if proposals %}
+    <form method="POST" action="{{ url_for('admin.auto_link_team_members') }}">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <strong>Vorgeschlagene Verknüpfungen ({{ proposals|length }})</strong>
+                <div>
+                    <button type="button" class="btn btn-xs btn-light" id="selectAllBtn">Alle auswählen</button>
+                    <button type="button" class="btn btn-xs btn-light" id="selectNoneBtn">Keine</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>Teammitglied (Import)</th>
+                                <th>→ Benutzerkonto</th>
+                                <th>Match</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for p in proposals %}
+                            <tr>
+                                <td class="text-center align-middle">
+                                    <input type="checkbox" class="link-chk" name="link_member_id"
+                                           value="{{ p.member_id }}" checked>
+                                    <input type="hidden" name="link_user_id_{{ p.member_id }}"
+                                           value="{{ p.user_id }}">
+                                </td>
+                                <td>
+                                    <strong>{{ p.member_name }}</strong>
+                                    <div class="small text-muted">
+                                        {{ p.team_name }}
+                                        {% if p.ma_kennung %} · MA: <code>{{ p.ma_kennung }}</code>{% endif %}
+                                        {% if p.dag_id %} · DAG: <code>{{ p.dag_id }}</code>{% endif %}
+                                        {% if p.pylon %} · Pylon: <code>{{ p.pylon }}</code>{% endif %}
+                                    </div>
+                                    <a href="{{ url_for('admin.edit_team_member', member_id=p.member_id) }}"
+                                       class="small" target="_blank" rel="noopener">Bearbeiten</a>
+                                </td>
+                                <td>
+                                    <strong>{{ p.username }}</strong>
+                                    <span class="badge badge-secondary ml-1">{{ p.role_name }}</span>
+                                    {% if p.email %}<div class="small text-muted">{{ p.email }}</div>{% endif %}
+                                    <a href="{{ url_for('admin.edit_user', user_id=p.user_id) }}"
+                                       class="small" target="_blank" rel="noopener">Benutzer öffnen</a>
+                                </td>
+                                <td class="small">
+                                    Score {{ p.score }}
+                                    <div class="text-muted">{{ p.reasons|join(' · ') }}</div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn telekom-button"
+                        onclick="return confirm('Ausgewählte Verknüpfungen jetzt durchführen?');">
+                    <i class="fas fa-check mr-1"></i> Ausgewählte verknüpfen
+                </button>
+                <a href="{{ url_for('admin.panel') }}" class="btn btn-secondary">Abbrechen</a>
+            </div>
+        </div>
+    </form>
+    {% else %}
+    <div class="alert alert-info">Keine eindeutigen Verknüpfungen gefunden.</div>
+    <a href="{{ url_for('admin.panel') }}" class="btn btn-secondary">Zurück</a>
+    {% endif %}
+
+    {% if skipped %}
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <strong>Nicht vorgeschlagen ({{ skipped|length }})</strong>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Teammitglied</th>
+                            <th>Grund</th>
+                            <th>Mögliche Benutzer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for s in skipped %}
+                        <tr>
+                            <td>
+                                <strong>{{ s.member_name }}</strong>
+                                <div class="small text-muted">
+                                    {{ s.team_name }}
+                                    {% if s.ma_kennung %} · MA: <code>{{ s.ma_kennung }}</code>{% endif %}
+                                    {% if s.dag_id %} · DAG: <code>{{ s.dag_id }}</code>{% endif %}
+                                </div>
+                                <a href="{{ url_for('admin.edit_team_member', member_id=s.member_id) }}"
+                                   class="small" target="_blank" rel="noopener">Manuell verknüpfen</a>
+                            </td>
+                            <td class="small">{{ s.reason }}</td>
+                            <td class="small">
+                                {% if s.candidates %}
+                                    {% for c in s.candidates %}
+                                    <div class="mb-1">
+                                        {{ c.username }} (Score {{ c.score }})
+                                        <span class="text-muted">– {{ c.reasons|join(', ') }}</span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    –
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var boxes = document.querySelectorAll('.link-chk');
+    var allBtn = document.getElementById('selectAllBtn');
+    var noneBtn = document.getElementById('selectNoneBtn');
+    if (allBtn) allBtn.addEventListener('click', function () { boxes.forEach(function (b) { b.checked = true; }); });
+    if (noneBtn) noneBtn.addEventListener('click', function () { boxes.forEach(function (b) { b.checked = false; }); });
+});
+</script>
+{% endblock %}

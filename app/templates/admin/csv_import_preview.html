@@ -27,7 +27,17 @@
 <div class="container-fluid mb-3">
     <p class="text-muted small mb-2">
         <strong>{{ total_changes|int }}</strong> Abweichung(en) zur <strong>Live-Datenbank</strong>
-        ({{ total_csv_rows_with_pylon|int }} Pylon-Zeilen in der CSV; gelbe Tabellenzeilen = geänderte Felder).
+        ({{ total_csv_rows_with_pylon|int }} Pylon-Zeilen in der CSV).
+        {% if kind_counts %}
+        <span class="ml-1">
+            {% if kind_counts.create %}<span class="badge badge-success">{{ kind_counts.create }} Neu</span>{% endif %}
+            {% if kind_counts.archive %}<span class="badge badge-danger">{{ kind_counts.archive }} Archiv</span>{% endif %}
+            {% if kind_counts.restore %}<span class="badge badge-warning text-dark">{{ kind_counts.restore }} Reaktivierung</span>{% endif %}
+            {% if kind_counts.update %}<span class="badge badge-info">{{ kind_counts.update }} Update</span>{% endif %}
+            {% if kind_counts.error %}<span class="badge badge-dark">{{ kind_counts.error }} Fehler</span>{% endif %}
+            {% if csv_archiv_count %}<span class="badge badge-secondary">{{ csv_archiv_count }} in CSV inaktiv</span>{% endif %}
+        </span>
+        {% endif %}
     </p>
     <p class="mb-2">
         <button type="button" class="btn btn-primary btn-sm" id="csvOpenReviewBtn" data-toggle="modal" data-target="#csvChangesModal">
@@ -47,7 +57,7 @@
                     <p class="small text-muted mb-0 mt-1">
                         <strong>Alt</strong> = Ist-Zustand in der <strong>Datenbank (live)</strong>,
                         <strong>Neu</strong> = Wert aus Ihrer <strong>CSV</strong>.
-                        Hervorgehobene Zeilen sind die tatsächlichen Änderungen.
+                        Gelbe Zeilen = echte Änderungen. Archivierte PLs: Projekt/Team/E-Mail-Differenzen werden ausgeblendet, wenn sie nur ARCHIV-Rauschen sind.
                     </p>
                     {% if preview_truncated %}
                     <div class="alert alert-warning py-2 small mt-2 mb-0">
@@ -82,6 +92,23 @@
                                         <input type="checkbox" class="custom-control-input" id="csvPreviewErrorsOnly">
                                         <label class="custom-control-label small" for="csvPreviewErrorsOnly">Nur Fehlerzeilen</label>
                                     </div>
+                                    <div class="custom-control custom-checkbox mr-3 mb-1">
+                                        <input type="checkbox" class="custom-control-input" id="csvPreviewChangedOnly" checked>
+                                        <label class="custom-control-label small" for="csvPreviewChangedOnly">Nur geänderte Felder</label>
+                                    </div>
+                                    <select class="form-control form-control-sm bg-dark text-light border-secondary mb-1 mr-2" id="csvFilterKind" style="width:auto; min-width: 10rem;">
+                                        <option value="">Alle Arten</option>
+                                        <option value="create">Neuanlage</option>
+                                        <option value="archive">Archiv</option>
+                                        <option value="restore">Reaktivierung</option>
+                                        <option value="update">Aktualisierung</option>
+                                        <option value="error">Blockiert</option>
+                                    </select>
+                                    <select class="form-control form-control-sm bg-dark text-light border-secondary mb-1 mr-2" id="csvFilterCsvActive" style="width:auto; min-width: 10rem;">
+                                        <option value="">CSV: alle</option>
+                                        <option value="1">CSV: aktiv (PLT aktiv? = 1)</option>
+                                        <option value="0">CSV: inaktiv / ARCHIV</option>
+                                    </select>
                                     <button type="button" class="btn btn-sm btn-outline-light mb-1 mr-1" id="csvBtnAll">Alle auswählen</button>
                                     <button type="button" class="btn btn-sm btn-outline-light mb-1 mr-1" id="csvBtnNone">Alle abwählen</button>
                                     <button type="button" class="btn btn-sm btn-outline-info mb-1 mr-1" id="csvExpandAll">Alles aufklappen</button>
@@ -148,6 +175,9 @@
                                                             {% set search_blob = (project_label ~ ' ' ~ team_label ~ ' ' ~ role_label ~ ' ' ~ it.pylon ~ ' ' ~ it.full_name ~ ' ' ~ it.search_text)|lower %}
                                                             <tr class="csv-preview-row {% if it.change_kind == 'error' %}table-danger{% endif %}"
                                                                 data-csv-search="{{ search_blob|e }}"
+                                                                data-csv-kind="{{ it.change_kind }}"
+                                                                data-csv-active="{{ '1' if it.csv_active else '0' }}"
+                                                                data-csv-changed-count="{{ it.changed_field_count }}"
                                                                 {% if it.change_kind == 'error' %}data-csv-error="1"{% endif %}>
                                                                 <td class="text-center align-middle">
                                                                     <input type="checkbox" name="include_pylon" value="{{ it.pylon }}"
@@ -155,7 +185,20 @@
                                                                            {% if not it.checkbox_disabled %}checked{% else %}disabled{% endif %}>
                                                                 </td>
                                                                 <td class="align-middle"><code>{{ it.pylon }}</code></td>
-                                                                <td class="align-middle">{{ it.full_name }}</td>
+                                                                <td class="align-middle">
+                                                                    {{ it.full_name }}
+                                                                    {% if not it.csv_active %}
+                                                                    <span class="badge badge-secondary ml-1">CSV inaktiv</span>
+                                                                    {% endif %}
+                                                                    {% if it.csv_tagging %}
+                                                                    <div class="small text-muted mt-1"><i class="fas fa-tag"></i> {{ it.csv_tagging }}</div>
+                                                                    {% elif not it.csv_active %}
+                                                                    <div class="small text-muted mt-1"><i class="fas fa-tag"></i> Tagging: (leer)</div>
+                                                                    {% endif %}
+                                                                    {% if it.db_in_archiv %}
+                                                                    <span class="badge badge-dark ml-1">DB: ARCHIV</span>
+                                                                    {% endif %}
+                                                                </td>
                                                                 <td class="align-middle">
                                                                     {% if it.change_kind == 'error' %}
                                                                     <span class="badge badge-dark">Blockiert</span>
@@ -170,13 +213,14 @@
                                                                     {% endif %}
                                                                 </td>
                                                                 <td class="small align-top p-1">
-                                                                    <table class="table table-sm table-borderless mb-0 text-light csv-compare-inner">
+                                                                    <table class="table table-sm table-borderless mb-0 text-light csv-compare-inner" data-csv-compare-table>
                                                                         <thead>
                                                                             <tr class="border-bottom border-secondary"><th class="py-1" style="width:32%;">Feld</th><th class="py-1" style="width:34%;">Alt (DB)</th><th class="py-1" style="width:34%;">Neu (CSV)</th></tr>
                                                                         </thead>
                                                                         <tbody>
                                                                             {% for c in it.comparison %}
-                                                                            <tr class="{% if c.changed %}bg-warning text-dark font-weight-bold{% else %}text-muted{% endif %}">
+                                                                            <tr class="csv-compare-row {% if c.changed %}csv-compare-changed bg-warning text-dark font-weight-bold{% else %}csv-compare-unchanged text-muted{% endif %}"
+                                                                                data-changed="{{ '1' if c.changed else '0' }}">
                                                                                 <td class="py-1 align-top">{{ c.label }}</td>
                                                                                 <td class="py-1 align-top text-break">{{ c.old }}</td>
                                                                                 <td class="py-1 align-top text-break">{{ c.new }}</td>
@@ -253,8 +297,19 @@
     var form = document.getElementById('csvPreviewForm');
     var searchEl = document.getElementById('csvPreviewSearch');
     var errorsOnlyEl = document.getElementById('csvPreviewErrorsOnly');
+    var changedOnlyEl = document.getElementById('csvPreviewChangedOnly');
+    var filterKindEl = document.getElementById('csvFilterKind');
+    var filterActiveEl = document.getElementById('csvFilterCsvActive');
     var filterStatusEl = document.getElementById('csvFilterStatus');
     var totalRows = document.querySelectorAll('tr.csv-preview-row').length;
+
+    function applyChangedFieldVisibility() {
+        var hideUnchanged = changedOnlyEl && changedOnlyEl.checked;
+        document.querySelectorAll('tr.csv-compare-row').forEach(function (tr) {
+            var isChanged = tr.getAttribute('data-changed') === '1';
+            tr.classList.toggle('d-none', hideUnchanged && !isChanged);
+        });
+    }
 
     function debounce(fn, ms) {
         var t;
@@ -311,19 +366,26 @@
     function applyFilters() {
         var q = (searchEl.value || '').trim().toLowerCase();
         var errOnly = errorsOnlyEl.checked;
+        var kind = filterKindEl ? filterKindEl.value : '';
+        var csvActive = filterActiveEl ? filterActiveEl.value : '';
         var shown = 0;
         document.querySelectorAll('tr.csv-preview-row').forEach(function (tr) {
             var hay = tr.getAttribute('data-csv-search') || '';
             var matchQ = !q || hay.indexOf(q) !== -1;
             var matchE = !errOnly || tr.getAttribute('data-csv-error') === '1';
-            var show = matchQ && matchE;
+            var matchK = !kind || tr.getAttribute('data-csv-kind') === kind;
+            var matchA = !csvActive || tr.getAttribute('data-csv-active') === csvActive;
+            var show = matchQ && matchE && matchK && matchA;
             tr.classList.toggle('d-none', !show);
             if (show) shown += 1;
         });
         resetSectionVisibility();
         pruneEmptySections();
-        filterStatusEl.textContent = (q || errOnly) ? (shown + ' von ' + totalRows + ' sichtbar') : '';
+        var parts = [];
+        if (q || errOnly || kind || csvActive) parts.push(shown + ' von ' + totalRows + ' sichtbar');
+        filterStatusEl.textContent = parts.join(' · ');
         syncAllGroupHeaders();
+        applyChangedFieldVisibility();
     }
 
     var debouncedFilter = debounce(applyFilters, 200);
@@ -334,6 +396,9 @@
 
     searchEl.addEventListener('input', debouncedFilter);
     errorsOnlyEl.addEventListener('change', applyFilters);
+    if (changedOnlyEl) changedOnlyEl.addEventListener('change', applyChangedFieldVisibility);
+    if (filterKindEl) filterKindEl.addEventListener('change', applyFilters);
+    if (filterActiveEl) filterActiveEl.addEventListener('change', applyFilters);
 
     document.getElementById('csvBtnAll').addEventListener('click', function () {
         allBoxes('input.csv-pylon-chk:not(:disabled)', function (c) { c.checked = true; });
@@ -390,6 +455,7 @@
     });
 
     syncAllGroupHeaders();
+    applyChangedFieldVisibility();
 })();
 </script>
 {% endblock %}

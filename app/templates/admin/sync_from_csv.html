@@ -6,7 +6,8 @@
     <div class="card">
         <div class="card-body">
             <p>Laden Sie eine CSV hoch. Nach der Zuordnung zeigt die Vorschau pro Pylon den Vergleich <strong>Live-Datenbank (Alt)</strong> gegen <strong>Ihre CSV (Neu)</strong> — nur Zeilen mit echten Unterschieden.</p>
-            <p><strong>Wichtige Spalten in Ihrer CSV:</strong> <code>Pylon-Nr</code>, <code>PLT-ID</code>, <code>Vorname</code>, <code>Nachname</code>, <code>Projekt Schichtplan</code>, <code>Team</code>, <code>MA-Kennung</code>, <code>DAG-ID</code>, <code>eMail</code>, <code>PLT aktiv?</code>.</p>
+            <p><strong>Wichtige Spalten in Ihrer CSV:</strong> <code>Pylon-Nr</code>, <code>PLT-ID</code>, <code>Vorname</code>, <code>Nachname</code>, <code>Projekt Schichtplan</code>, <code>Team</code>, <code>MA-Kennung</code>, <code>DAG-ID</code>, <code>eMail</code>, <code>PLT aktiv?</code>, <code>Aktiv</code>, <code>Tagging</code> (Kündigung, Umschulung, …).</p>
+            <p class="small text-muted">Inaktive PLs (<code>PLT aktiv? = 0</code>) werden ins ARCHIV übernommen. Die Spalte <code>Tagging</code> erscheint in der Vorschau als Kontext (wird nicht in der DB gespeichert).</p>
             <form method="POST" enctype="multipart/form-data" data-csv-loading="Uploading and reading CSV…">
                 <div class="form-group">
                     <label for="csv_file">CSV-Datei <span class="text-danger">*</span></label>
