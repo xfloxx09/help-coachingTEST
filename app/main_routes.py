@@ -4943,23 +4943,31 @@ def _kpi_dashboard_period_from_request(req):
     }
 
 
-def _kpi_data_month_keys(filters, date_column):
-    """Return sorted 'YYYY-MM' strings for months with at least one matching row."""
-    yr = extract('year', date_column)
-    mo = extract('month', date_column)
+def _kpi_data_period_keys(filters, date_column):
+    """Return month/week/quarter/year keys with at least one matching row."""
+    dcol = cast(date_column, Date)
     rows = (
-        db.session.query(yr, mo)
+        db.session.query(dcol)
         .filter(*filters)
         .filter(date_column.isnot(None))
-        .group_by(yr, mo)
+        .distinct()
         .all()
     )
-    out = []
-    for y, m in rows:
-        if y is None or m is None:
+    months, weeks, quarters, years = set(), set(), set(), set()
+    for (d,) in rows:
+        if not d:
             continue
-        out.append(f'{int(y)}-{int(m):02d}')
-    return sorted(out)
+        years.add(int(d.year))
+        months.add(f'{d.year}-{d.month:02d}')
+        quarters.add(f'{d.year}-Q{(d.month - 1) // 3 + 1}')
+        iso = d.isocalendar()
+        weeks.add(f'{iso.year}-W{iso.week:02d}')
+    return {
+        'months': sorted(months),
+        'weeks': sorted(weeks),
+        'quarters': sorted(quarters),
+        'years': sorted(years),
+    }
 
 
 def _kpi_scope():
@@ -5687,9 +5695,9 @@ def kpi_dashboard_qualitaet():
         period_month_filters.append(KpiSurvey.team_id == sel_team)
     elif mode == 'project' and sel_project:
         period_month_filters.append(KpiSurvey.project_id == sel_project)
-    period_data_months = (
-        _kpi_data_month_keys(period_month_filters, KpiSurvey.antwort_date)
-        if selection_made else []
+    period_data = (
+        _kpi_data_period_keys(period_month_filters, KpiSurvey.antwort_date)
+        if selection_made else {'months': [], 'weeks': [], 'quarters': [], 'years': []}
     )
     period_data_tick_label = 'Bewertungen vorhanden'
 
@@ -5771,7 +5779,7 @@ def kpi_dashboard_qualitaet():
         visible=visible,
         kpi_category_labels=_kpi_category_labels(),
         active_kpi_nav='qualitaet',
-        period_data_months=period_data_months,
+        period_data=period_data,
         period_data_tick_label=period_data_tick_label,
     )
 
@@ -5876,9 +5884,9 @@ def kpi_dashboard_produktivitaet():
         period_month_filters.append(ProductivityInterval.team_id == sel_team)
     elif mode == 'project' and sel_project:
         period_month_filters.append(ProductivityInterval.project_id == sel_project)
-    period_data_months = (
-        _kpi_data_month_keys(period_month_filters, ProductivityInterval.slot_at)
-        if selection_made else []
+    period_data = (
+        _kpi_data_period_keys(period_month_filters, ProductivityInterval.slot_at)
+        if selection_made else {'months': [], 'weeks': [], 'quarters': [], 'years': []}
     )
     period_data_tick_label = 'Rohdaten vorhanden'
 
@@ -5953,7 +5961,7 @@ def kpi_dashboard_produktivitaet():
         visible=visible,
         kpi_category_labels=_kpi_category_labels(),
         active_kpi_nav='produktivitaet',
-        period_data_months=period_data_months,
+        period_data=period_data,
         period_data_tick_label=period_data_tick_label,
     )
 

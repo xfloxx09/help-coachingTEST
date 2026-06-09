@@ -37,28 +37,43 @@
     .kpi-pp-panel.active { display: block; }
     .kpi-pp-label { font-size: 0.72rem; text-transform: lowercase; color: #9a9aa3; margin-bottom: 0.35rem; }
     .kpi-pp-month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
-    .kpi-pp-month-grid .btn {
-        border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
-        font-size: 0.78rem; padding: 0.35rem 0.25rem;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 0.12rem; line-height: 1.15; min-height: 2.65rem;
-    }
-    .kpi-pp-month-grid .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
-    .kpi-pp-month-grid .btn:disabled { opacity: 0.32; cursor: not-allowed; }
-    .kpi-pp-month-grid .btn:disabled:hover { background: #2a2a31; }
-    .kpi-pp-month-lbl { font-weight: 600; }
-    .kpi-pp-month-tick {
-        font-size: 0.52rem; color: #36c6a0; white-space: nowrap;
-        overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-    }
-    .kpi-pp-month-grid .btn.active .kpi-pp-month-tick { color: rgba(255, 255, 255, 0.88); }
-    .kpi-pp-month-legend { margin-top: 0.55rem; font-size: 0.72rem; color: #9a9aa3; }
-    .kpi-pp-month-legend i { color: #36c6a0; margin-right: 0.25rem; }
-    .kpi-pp-quarter-grid { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .kpi-pp-month-grid .btn,
+    .kpi-pp-week-grid .btn,
     .kpi-pp-quarter-grid .btn {
-        min-width: 3.5rem; border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
+        border-color: #4a4a55; color: #d6d6dd; background: #2a2a31;
+        position: relative;
     }
+    .kpi-pp-month-grid .btn {
+        font-size: 0.78rem; padding: 0.4rem 0.25rem;
+        min-height: 2.1rem;
+    }
+    .kpi-pp-month-grid .btn.active,
+    .kpi-pp-week-grid .btn.active,
     .kpi-pp-quarter-grid .btn.active { background: #e20074; border-color: #e20074; color: #fff; }
+    .kpi-pp-month-grid .btn:disabled,
+    .kpi-pp-week-grid .btn:disabled,
+    .kpi-pp-quarter-grid .btn:disabled { opacity: 0.32; cursor: not-allowed; }
+    .kpi-pp-month-grid .btn:disabled:hover,
+    .kpi-pp-week-grid .btn:disabled:hover,
+    .kpi-pp-quarter-grid .btn:disabled:hover { background: #2a2a31; }
+    .kpi-pp-period-tick {
+        position: absolute; top: 3px; right: 5px;
+        font-size: 0.48rem; color: #36c6a0; line-height: 1;
+    }
+    .kpi-pp-month-grid .btn.active .kpi-pp-period-tick,
+    .kpi-pp-week-grid .btn.active .kpi-pp-period-tick,
+    .kpi-pp-quarter-grid .btn.active .kpi-pp-period-tick { color: rgba(255, 255, 255, 0.9); }
+    .kpi-pp-week-grid {
+        display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.3rem;
+        max-height: 11rem; overflow-y: auto; padding-right: 0.15rem;
+    }
+    .kpi-pp-week-grid .btn { font-size: 0.68rem; padding: 0.32rem 0.15rem; min-height: 1.85rem; }
+    .kpi-pp-quarter-grid { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .kpi-pp-quarter-grid .btn { min-width: 3.5rem; font-size: 0.78rem; padding: 0.4rem 0.5rem; min-height: 2.1rem; }
+    .kpi-pp-data-legend { margin-top: 0.55rem; font-size: 0.72rem; color: #9a9aa3; }
+    .kpi-pp-data-legend i { color: #36c6a0; margin-right: 0.25rem; }
+    .kpi-pp-year-hint { margin-top: 0.45rem; font-size: 0.72rem; color: #9a9aa3; }
+    .kpi-pp-year-hint i { color: #36c6a0; margin-right: 0.25rem; }
     .kpi-pp-summary {
         margin-top: 1rem; padding: 0.65rem 0.85rem; border-radius: 8px;
         background: #1f1f24; border: 1px solid #34343c; font-size: 0.88rem;
@@ -123,22 +138,21 @@
                     </div>
                     <div class="kpi-pp-label">monat</div>
                     <div class="kpi-pp-month-grid" id="kpiPpMonthGrid"></div>
-                    <p class="kpi-pp-month-legend mb-0" id="kpiPpMonthLegend" style="display: none;">
-                        <i class="fas fa-check"></i><span id="kpiPpMonthLegendText"></span>
+                    <p class="kpi-pp-data-legend mb-0 kpi-pp-panel-legend" data-pp-legend="month" style="display: none;">
+                        <i class="fas fa-check"></i><span class="kpi-pp-legend-text"></span>
                     </p>
                 </div>
 
                 <div class="kpi-pp-panel" data-pp-panel="week">
-                    <div class="form-row">
-                        <div class="col-6 mb-2">
-                            <div class="kpi-pp-label">jahr</div>
-                            <select class="form-control form-control-sm" id="kpiPpWeekYear"></select>
-                        </div>
-                        <div class="col-6 mb-2">
-                            <div class="kpi-pp-label">kalenderwoche</div>
-                            <input type="number" class="form-control form-control-sm" id="kpiPpWeekNum" min="1" max="53" placeholder="z. B. 12">
-                        </div>
+                    <div class="mb-2">
+                        <div class="kpi-pp-label">jahr</div>
+                        <select class="form-control form-control-sm" id="kpiPpWeekYear"></select>
                     </div>
+                    <div class="kpi-pp-label">kalenderwoche</div>
+                    <div class="kpi-pp-week-grid" id="kpiPpWeekGrid"></div>
+                    <p class="kpi-pp-data-legend mb-0 kpi-pp-panel-legend" data-pp-legend="week" style="display: none;">
+                        <i class="fas fa-check"></i><span class="kpi-pp-legend-text"></span>
+                    </p>
                 </div>
 
                 <div class="kpi-pp-panel" data-pp-panel="quarter">
@@ -147,17 +161,18 @@
                         <select class="form-control form-control-sm" id="kpiPpQuarterYear"></select>
                     </div>
                     <div class="kpi-pp-label">quartal</div>
-                    <div class="kpi-pp-quarter-grid" id="kpiPpQuarterGrid">
-                        <button type="button" class="btn btn-sm" data-q="1">Q1</button>
-                        <button type="button" class="btn btn-sm" data-q="2">Q2</button>
-                        <button type="button" class="btn btn-sm" data-q="3">Q3</button>
-                        <button type="button" class="btn btn-sm" data-q="4">Q4</button>
-                    </div>
+                    <div class="kpi-pp-quarter-grid" id="kpiPpQuarterGrid"></div>
+                    <p class="kpi-pp-data-legend mb-0 kpi-pp-panel-legend" data-pp-legend="quarter" style="display: none;">
+                        <i class="fas fa-check"></i><span class="kpi-pp-legend-text"></span>
+                    </p>
                 </div>
 
                 <div class="kpi-pp-panel" data-pp-panel="year">
                     <div class="kpi-pp-label">jahr</div>
                     <select class="form-control form-control-sm" id="kpiPpYearOnly"></select>
+                    <p class="kpi-pp-year-hint mb-0 kpi-pp-panel-legend" data-pp-legend="year" style="display: none;">
+                        <i class="fas fa-check"></i><span class="kpi-pp-legend-text"></span>
+                    </p>
                 </div>
 
                 <div class="kpi-pp-panel" data-pp-panel="all">
@@ -179,8 +194,13 @@ window.initKpiPeriodPicker = function (form) {
     if (!form || form.dataset.kpiPeriodPickerInit === '1') return;
     form.dataset.kpiPeriodPickerInit = '1';
 
-    var DATA_MONTHS = {{ period_data_months|default([])|tojson }};
+    var PERIOD_DATA = {{ period_data|default({'months': [], 'weeks': [], 'quarters': [], 'years': []})|tojson }};
     var DATA_TICK_LABEL = {{ period_data_tick_label|default('')|tojson }};
+    var DATA_MONTHS = PERIOD_DATA.months || [];
+    var DATA_WEEKS = PERIOD_DATA.weeks || [];
+    var DATA_QUARTERS = PERIOD_DATA.quarters || [];
+    var DATA_YEARS = PERIOD_DATA.years || [];
+    var PERIOD_TICK = '<span class="kpi-pp-period-tick"><i class="fas fa-check"></i></span>';
 
     var openBtn = document.getElementById('kpiOpenPeriodPicker');
     var modal = document.getElementById('kpiPeriodPickerModal');
@@ -244,15 +264,34 @@ window.initKpiPeriodPicker = function (form) {
         freeTo: '',
     };
 
-    function fillYearSelect(sel, selected) {
+    function yearsFromKeys(keys, splitToken) {
+        var ys = {};
+        keys.forEach(function (k) {
+            var y = parseInt(k.split(splitToken)[0], 10);
+            if (!isNaN(y)) ys[y] = true;
+        });
+        return Object.keys(ys).map(function (s) { return parseInt(s, 10); }).sort(function (a, b) { return a - b; });
+    }
+
+    function fillYearSelect(sel, selected, dataYears) {
         if (!sel) return;
         sel.innerHTML = '';
-        for (var y = currentYear + 1; y >= currentYear - 8; y--) {
+        var years = (dataYears && dataYears.length)
+            ? dataYears.slice()
+            : [];
+        if (!years.length) {
+            for (var y = currentYear + 1; y >= currentYear - 8; y--) years.push(y);
+        }
+        years.slice().reverse().forEach(function (y) {
             var opt = document.createElement('option');
             opt.value = String(y);
             opt.textContent = String(y);
             if (y === selected) opt.selected = true;
             sel.appendChild(opt);
+        });
+        if (years.indexOf(selected) < 0 && years.length) {
+            sel.value = String(years[years.length - 1]);
+            state.year = years[years.length - 1];
         }
     }
 
@@ -260,8 +299,43 @@ window.initKpiPeriodPicker = function (form) {
         return year + '-' + pad2(month);
     }
 
+    function weekKey(year, week) {
+        return year + '-W' + pad2(week);
+    }
+
+    function quarterKey(year, quarter) {
+        return year + '-Q' + quarter;
+    }
+
     function monthHasData(year, month) {
         return DATA_MONTHS.indexOf(monthKey(year, month)) >= 0;
+    }
+
+    function weekHasData(year, week) {
+        return DATA_WEEKS.indexOf(weekKey(year, week)) >= 0;
+    }
+
+    function quarterHasData(year, quarter) {
+        return DATA_QUARTERS.indexOf(quarterKey(year, quarter)) >= 0;
+    }
+
+    function yearHasData(year) {
+        return DATA_YEARS.indexOf(year) >= 0;
+    }
+
+    function updatePanelLegends() {
+        document.querySelectorAll('.kpi-pp-panel-legend').forEach(function (el) {
+            var panel = el.getAttribute('data-pp-legend');
+            var show = !!DATA_TICK_LABEL && (
+                (panel === 'month' && DATA_MONTHS.length) ||
+                (panel === 'week' && DATA_WEEKS.length) ||
+                (panel === 'quarter' && DATA_QUARTERS.length) ||
+                (panel === 'year' && DATA_YEARS.length)
+            );
+            el.style.display = show ? '' : 'none';
+            var txt = el.querySelector('.kpi-pp-legend-text');
+            if (txt) txt.textContent = DATA_TICK_LABEL;
+        });
     }
 
     function ensureValidMonthSelection() {
@@ -274,15 +348,49 @@ window.initKpiPeriodPicker = function (form) {
         }
     }
 
-    function updateMonthLegend() {
-        var legend = document.getElementById('kpiPpMonthLegend');
-        var legendText = document.getElementById('kpiPpMonthLegendText');
-        if (!legend || !legendText) return;
-        if (DATA_TICK_LABEL && DATA_MONTHS.length) {
-            legend.style.display = '';
-            legendText.textContent = DATA_TICK_LABEL;
-        } else {
-            legend.style.display = 'none';
+    function ensureValidWeekSelection() {
+        if (weekHasData(state.year, state.week)) return;
+        for (var w = 1; w <= 53; w++) {
+            if (weekHasData(state.year, w)) {
+                state.week = w;
+                return;
+            }
+        }
+    }
+
+    function ensureValidQuarterSelection() {
+        if (quarterHasData(state.year, state.quarter)) return;
+        for (var q = 1; q <= 4; q++) {
+            if (quarterHasData(state.year, q)) {
+                state.quarter = q;
+                return;
+            }
+        }
+    }
+
+    function ensureValidYearSelection() {
+        if (yearHasData(state.year)) return;
+        if (DATA_YEARS.length) state.year = DATA_YEARS[DATA_YEARS.length - 1];
+    }
+
+    function applyLatestDataDefaults() {
+        if (DATA_MONTHS.length) {
+            var mp = DATA_MONTHS[DATA_MONTHS.length - 1].split('-');
+            state.year = parseInt(mp[0], 10) || currentYear;
+            state.month = parseInt(mp[1], 10) || currentMonth;
+        }
+        if (DATA_WEEKS.length) {
+            var wp = DATA_WEEKS[DATA_WEEKS.length - 1].split('-W');
+            state.year = parseInt(wp[0], 10) || state.year;
+            state.week = parseInt(wp[1], 10) || 1;
+        }
+        if (DATA_QUARTERS.length) {
+            var qp = DATA_QUARTERS[DATA_QUARTERS.length - 1].split('-Q');
+            state.year = parseInt(qp[0], 10) || state.year;
+            state.quarter = parseInt(qp[1], 10) || 1;
+        }
+        if (DATA_YEARS.length) {
+            state.year = DATA_YEARS[DATA_YEARS.length - 1];
         }
     }
 
@@ -298,10 +406,7 @@ window.initKpiPeriodPicker = function (form) {
             btn.className = 'btn btn-sm';
             btn.setAttribute('data-m', String(m));
             btn.disabled = !hasData;
-            btn.innerHTML = '<span class="kpi-pp-month-lbl">' + label + '</span>'
-                + (hasData
-                    ? '<span class="kpi-pp-month-tick"><i class="fas fa-check"></i> ' + DATA_TICK_LABEL + '</span>'
-                    : '');
+            btn.innerHTML = label + (hasData ? PERIOD_TICK : '');
             if (hasData) {
                 btn.addEventListener('click', function () {
                     state.month = m;
@@ -313,12 +418,73 @@ window.initKpiPeriodPicker = function (form) {
         });
         ensureValidMonthSelection();
         syncMonthGrid();
-        updateMonthLegend();
+    }
+
+    function rebuildWeekGrid() {
+        var grid = document.getElementById('kpiPpWeekGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        for (var w = 1; w <= 53; w++) {
+            var hasData = weekHasData(state.year, w);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm';
+            btn.setAttribute('data-w', String(w));
+            btn.disabled = !hasData;
+            btn.innerHTML = 'KW ' + w + (hasData ? PERIOD_TICK : '');
+            if (hasData) {
+                (function (weekNum) {
+                    btn.addEventListener('click', function () {
+                        state.week = weekNum;
+                        syncWeekGrid();
+                        updatePreview();
+                    });
+                })(w);
+            }
+            grid.appendChild(btn);
+        }
+        ensureValidWeekSelection();
+        syncWeekGrid();
+        var activeWeek = grid.querySelector('.btn.active');
+        if (activeWeek) activeWeek.scrollIntoView({ block: 'nearest' });
+    }
+
+    function rebuildQuarterGrid() {
+        var grid = document.getElementById('kpiPpQuarterGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        for (var q = 1; q <= 4; q++) {
+            var hasData = quarterHasData(state.year, q);
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm';
+            btn.setAttribute('data-q', String(q));
+            btn.disabled = !hasData;
+            btn.innerHTML = 'Q' + q + (hasData ? PERIOD_TICK : '');
+            if (hasData) {
+                (function (quarterNum) {
+                    btn.addEventListener('click', function () {
+                        state.quarter = quarterNum;
+                        syncQuarterGrid();
+                        updatePreview();
+                    });
+                })(q);
+            }
+            grid.appendChild(btn);
+        }
+        ensureValidQuarterSelection();
+        syncQuarterGrid();
     }
 
     function syncMonthGrid() {
         document.querySelectorAll('#kpiPpMonthGrid .btn').forEach(function (btn) {
             btn.classList.toggle('active', parseInt(btn.getAttribute('data-m'), 10) === state.month);
+        });
+    }
+
+    function syncWeekGrid() {
+        document.querySelectorAll('#kpiPpWeekGrid .btn').forEach(function (btn) {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-w'), 10) === state.week);
         });
     }
 
@@ -353,18 +519,18 @@ window.initKpiPeriodPicker = function (form) {
     }
 
     function syncControlsFromState() {
-        fillYearSelect(document.getElementById('kpiPpMonthYear'), state.year);
-        fillYearSelect(document.getElementById('kpiPpWeekYear'), state.year);
-        fillYearSelect(document.getElementById('kpiPpQuarterYear'), state.year);
-        fillYearSelect(document.getElementById('kpiPpYearOnly'), state.year);
+        fillYearSelect(document.getElementById('kpiPpMonthYear'), state.year, yearsFromKeys(DATA_MONTHS, '-'));
+        fillYearSelect(document.getElementById('kpiPpWeekYear'), state.year, yearsFromKeys(DATA_WEEKS, '-W'));
+        fillYearSelect(document.getElementById('kpiPpQuarterYear'), state.year, yearsFromKeys(DATA_QUARTERS, '-Q'));
+        fillYearSelect(document.getElementById('kpiPpYearOnly'), state.year, DATA_YEARS);
         var ff = document.getElementById('kpiPpFreeFrom');
         var ft = document.getElementById('kpiPpFreeTo');
-        var wn = document.getElementById('kpiPpWeekNum');
         if (ff) ff.value = state.freeFrom;
         if (ft) ft.value = state.freeTo;
-        if (wn) wn.value = state.week || '';
         rebuildMonthGrid();
-        syncQuarterGrid();
+        rebuildWeekGrid();
+        rebuildQuarterGrid();
+        updatePanelLegends();
     }
 
     function computePreview() {
@@ -388,9 +554,9 @@ window.initKpiPeriodPicker = function (form) {
         if (t === 'all') return true;
         if (t === 'free') return state.freeFrom && state.freeTo && state.freeFrom <= state.freeTo;
         if (t === 'month') return state.year && state.month >= 1 && state.month <= 12 && monthHasData(state.year, state.month);
-        if (t === 'week') return state.year && state.week >= 1 && state.week <= 53;
-        if (t === 'quarter') return state.year && state.quarter >= 1 && state.quarter <= 4;
-        if (t === 'year') return !!state.year;
+        if (t === 'week') return state.year && state.week >= 1 && state.week <= 53 && weekHasData(state.year, state.week);
+        if (t === 'quarter') return state.year && state.quarter >= 1 && state.quarter <= 4 && quarterHasData(state.year, state.quarter);
+        if (t === 'year') return !!state.year && yearHasData(state.year);
         return false;
     }
 
@@ -407,14 +573,12 @@ window.initKpiPeriodPicker = function (form) {
         var yo = document.getElementById('kpiPpYearOnly');
         var ff = document.getElementById('kpiPpFreeFrom');
         var ft = document.getElementById('kpiPpFreeTo');
-        var wn = document.getElementById('kpiPpWeekNum');
         if (state.type === 'month' && my) state.year = parseInt(my.value, 10);
         if (state.type === 'week' && wy) state.year = parseInt(wy.value, 10);
         if (state.type === 'quarter' && qy) state.year = parseInt(qy.value, 10);
         if (state.type === 'year' && yo) state.year = parseInt(yo.value, 10);
         if (ff) state.freeFrom = ff.value;
         if (ft) state.freeTo = ft.value;
-        if (wn && wn.value) state.week = parseInt(wn.value, 10);
     }
 
     function writeHiddenAndSubmit() {
@@ -462,15 +626,11 @@ window.initKpiPeriodPicker = function (form) {
     };
 
     rebuildMonthGrid();
+    rebuildWeekGrid();
+    rebuildQuarterGrid();
+    updatePanelLegends();
     document.querySelectorAll('#kpiPpTabs .btn').forEach(function (btn) {
         btn.addEventListener('click', function () { setActiveType(btn.getAttribute('data-pp-type')); });
-    });
-    document.querySelectorAll('#kpiPpQuarterGrid .btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            state.quarter = parseInt(btn.getAttribute('data-q'), 10);
-            syncQuarterGrid();
-            updatePreview();
-        });
     });
     var monthYearSel = document.getElementById('kpiPpMonthYear');
     if (monthYearSel) {
@@ -480,7 +640,23 @@ window.initKpiPeriodPicker = function (form) {
             updatePreview();
         });
     }
-    ['kpiPpWeekYear', 'kpiPpQuarterYear', 'kpiPpYearOnly', 'kpiPpFreeFrom', 'kpiPpFreeTo', 'kpiPpWeekNum'].forEach(function (id) {
+    var weekYearSel = document.getElementById('kpiPpWeekYear');
+    if (weekYearSel) {
+        weekYearSel.addEventListener('change', function () {
+            state.year = parseInt(weekYearSel.value, 10) || currentYear;
+            rebuildWeekGrid();
+            updatePreview();
+        });
+    }
+    var quarterYearSel = document.getElementById('kpiPpQuarterYear');
+    if (quarterYearSel) {
+        quarterYearSel.addEventListener('change', function () {
+            state.year = parseInt(quarterYearSel.value, 10) || currentYear;
+            rebuildQuarterGrid();
+            updatePreview();
+        });
+    }
+    ['kpiPpYearOnly', 'kpiPpFreeFrom', 'kpiPpFreeTo'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.addEventListener('input', function () { readControlsIntoState(); updatePreview(); });
         if (el) el.addEventListener('change', function () { readControlsIntoState(); updatePreview(); });
@@ -490,17 +666,12 @@ window.initKpiPeriodPicker = function (form) {
         loadFromHidden();
         if (!periodInput || !periodInput.value) {
             state.type = 'month';
-            if (DATA_MONTHS.length) {
-                var last = DATA_MONTHS[DATA_MONTHS.length - 1];
-                var parts = last.split('-');
-                state.year = parseInt(parts[0], 10) || currentYear;
-                state.month = parseInt(parts[1], 10) || currentMonth;
-            } else {
-                state.year = currentYear;
-                state.month = currentMonth;
-            }
+            applyLatestDataDefaults();
         }
         if (state.type === 'month') ensureValidMonthSelection();
+        if (state.type === 'week') ensureValidWeekSelection();
+        if (state.type === 'quarter') ensureValidQuarterSelection();
+        if (state.type === 'year') ensureValidYearSelection();
         setActiveType(state.type);
         syncControlsFromState();
         updatePreview();
