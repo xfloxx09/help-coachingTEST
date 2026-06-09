@@ -890,13 +890,14 @@
                 </select>
             </div>
 
-            {% if selection_made and coaches %}
+            {% if selection_made %}
             <div class="ci-filter-item">
                 <div class="ci-mini-label mb-1">coach</div>
-                <select name="coach_id" class="form-control form-control-sm ci-auto">
-                    <option value="">Alle Coaches</option>
+                <select name="coach_id" class="form-control form-control-sm ci-auto" id="ciCoachSelect">
+                    <option value="" {% if not coach_chosen %}selected{% endif %} disabled>— Coach wählen —</option>
+                    <option value="all" {% if coach_chosen and not sel_coach %}selected{% endif %}>Alle Coaches</option>
                     {% for c in coaches %}
-                    <option value="{{ c.id }}" {% if sel_coach == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    <option value="{{ c.id }}" {% if coach_chosen and sel_coach == c.id %}selected{% endif %}>{{ c.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -920,7 +921,9 @@
             <div class="col-12 mb-2">
                 <div class="ci-range-setup">
                     <button type="button" class="ci-range-setup-btn" id="ciOpenRangeWizard"
-                            {% if not selection_made %}disabled title="Zuerst Projekt, Team oder Agent wählen"{% endif %}>
+                            {% if not selection_made %}disabled title="Zuerst Projekt, Team oder Agent wählen"
+                            {% elif not coach_chosen %}disabled title="Zuerst Coach wählen (Alle oder einzeln)"
+                            {% endif %}>
                         <span class="ci-range-setup-icon"><i class="fas fa-sliders-h"></i></span>
                         <span class="ci-range-setup-text">
                             <strong>Zeitraum &amp; Wirkungsfenster</strong>
@@ -941,7 +944,7 @@
     {% include 'main/_kpi_granularity_notice.html' %}
     {% include 'main/_coaching_impact_range_wizard.html' %}
 
-    {% if selection_made and range_confirmed %}
+    {% if selection_made and coach_chosen and range_confirmed %}
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
     {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
 
@@ -1130,7 +1133,7 @@
     {% endif %}
     {% endif %}
 
-    {% elif selection_made %}
+    {% elif selection_made and coach_chosen %}
     <div class="alert alert-info">
         <i class="fas fa-sliders-h mr-1"></i>
         <strong>{{ scope_label }}</strong> ist ausgewählt.
@@ -1139,6 +1142,14 @@
         <button type="button" class="btn btn-sm telekom-button ml-2 mt-2 mt-md-0" id="ciOpenRangeWizardInline">
             Zeitraum festlegen
         </button>
+    </div>
+
+    {% elif selection_made %}
+    <div class="alert alert-info">
+        <i class="fas fa-user-tie mr-1"></i>
+        <strong>{{ scope_label }}</strong> ist ausgewählt.
+        Bitte wählen Sie oben einen <strong>Coach</strong> (Alle Coaches oder ein bestimmter Coach),
+        bevor Sie den Zeitraum festlegen.
     </div>
 
     {% elif has_any_data %}
@@ -1213,12 +1224,26 @@
         return member && member.value;
     }
 
+    function ciCoachReady() {
+        var coachSel = form.querySelector('[name=coach_id]');
+        if (!coachSel) return false;
+        var v = coachSel.value;
+        return v === 'all' || (v !== '' && v !== null);
+    }
+
     function ciUpdateWizardButtonState() {
         var btn = document.getElementById('ciOpenRangeWizard');
         if (!btn) return;
-        var ready = ciScopeReady();
-        btn.disabled = !ready;
-        btn.title = ready ? '' : 'Zuerst Projekt, Team oder Agent wählen';
+        var scopeReady = ciScopeReady();
+        var coachReady = ciCoachReady();
+        btn.disabled = !(scopeReady && coachReady);
+        if (!scopeReady) {
+            btn.title = 'Zuerst Projekt, Team oder Agent wählen';
+        } else if (!coachReady) {
+            btn.title = 'Zuerst Coach wählen (Alle oder einzeln)';
+        } else {
+            btn.title = '';
+        }
     }
     ciUpdateWizardButtonState();
 
@@ -2095,7 +2120,7 @@
         }
 
         openBtn.addEventListener('click', function () {
-            if (!ciScopeReady()) return;
+            if (!ciScopeReady() || !ciCoachReady()) return;
             $('#ciRangeWizardModal').modal('show');
             loadAndShow();
         });
@@ -2153,13 +2178,11 @@
                 ciClearRange();
                 var coachSel = form.querySelector('[name=coach_id]');
                 if (coachSel) coachSel.value = '';
+            } else {
+                ciClearRange();
             }
             ciUpdateWizardButtonState();
-            if (scopeChanged && ciScopeReady()) {
-                ciNavigateWithForm(true);
-            } else {
-                form.submit();
-            }
+            form.submit();
         });
     });
 
@@ -2171,7 +2194,8 @@
         });
     }
 
-    if (new URLSearchParams(window.location.search).get('open_wizard') === '1' && ciScopeReady()) {
+    if (new URLSearchParams(window.location.search).get('open_wizard') === '1'
+            && ciScopeReady() && ciCoachReady()) {
         var openBtn = document.getElementById('ciOpenRangeWizard');
         var df = document.getElementById('ciDateFrom');
         if (openBtn && !(df && df.value)) {
@@ -2479,7 +2503,7 @@
         project_id: {{ (sel_project or '')|tojson }},
         team_id: {{ (sel_team or '')|tojson }},
         member_id: {{ (sel_member or '')|tojson }},
-        coach_id: {{ (sel_coach or '')|tojson }},
+        coach_id: {{ ('all' if coach_chosen and not sel_coach else (sel_coach or ''))|tojson }},
     };
 
     window.openCiDay = function (dateStr) {

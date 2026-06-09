@@ -6421,6 +6421,19 @@ def _coaching_impact_range_confirmed(period_arg, date_from_str, date_to_str):
     return False, None, None
 
 
+def _parse_coaching_impact_coach_arg(raw):
+    """Return (coach_chosen, sel_coach_id or None). 'all' = all coaches, no filter."""
+    raw = (raw or '').strip()
+    if not raw:
+        return False, None
+    if raw.lower() == 'all':
+        return True, None
+    try:
+        return True, int(raw)
+    except (TypeError, ValueError):
+        return False, None
+
+
 @bp.route('/coaching-impact/activity-map')
 @login_required
 @permission_required('view_coaching_impact')
@@ -6437,7 +6450,7 @@ def coaching_impact_activity_map():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
-    sel_coach = request.args.get('coach_id', type=int)
+    coach_chosen, sel_coach = _parse_coaching_impact_coach_arg(request.args.get('coach_id'))
 
     scope_base = _coaching_impact_scope_filters(
         mode, sel_project, sel_team, sel_member, kpi_base, coaching_base, prod_base,
@@ -6445,6 +6458,8 @@ def coaching_impact_activity_map():
     )
     if scope_base is None:
         return jsonify({'error': 'Bitte zuerst Projekt, Team oder Agent wählen.'}), 400
+    if not coach_chosen:
+        return jsonify({'error': 'Bitte zuerst Coach wählen (Alle oder einzeln).'}), 400
     valid_coach_ids = {c['id'] for c in _coaching_impact_coaches_in_scope(scope_base['coaching_filters'])}
     if sel_coach and sel_coach not in valid_coach_ids:
         sel_coach = None
@@ -6527,7 +6542,7 @@ def coaching_impact():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
-    sel_coach = request.args.get('coach_id', type=int)
+    coach_chosen, sel_coach = _parse_coaching_impact_coach_arg(request.args.get('coach_id'))
 
     team_filters = list(kpi_base)
     if sel_project:
@@ -6663,7 +6678,7 @@ def coaching_impact():
             if coach_name:
                 scope_label = scope_label + ' · ' + coach_name
 
-    if selection_made and range_confirmed:
+    if selection_made and coach_chosen and range_confirmed:
         kpi_range_filters = list(kpi_filters)
         if start_date:
             kpi_range_filters.append(KpiSurvey.antwort_date >= start_date)
@@ -6861,6 +6876,7 @@ def coaching_impact():
         sel_team=sel_team,
         sel_member=sel_member,
         sel_coach=sel_coach,
+        coach_chosen=coach_chosen,
         coaches=coaches,
         period=period_arg,
         date_from=date_from_str if range_confirmed else '',
@@ -6930,7 +6946,7 @@ def coaching_impact_day():
     sel_project = request.args.get('project_id', type=int)
     sel_team = request.args.get('team_id', type=int)
     sel_member = request.args.get('member_id', type=int)
-    sel_coach = request.args.get('coach_id', type=int)
+    coach_chosen, sel_coach = _parse_coaching_impact_coach_arg(request.args.get('coach_id'))
 
     filters.append(cast(Coaching.coaching_date, Date) == day)
     if mode == 'agent' and sel_member:
