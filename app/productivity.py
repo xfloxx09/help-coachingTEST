@@ -471,13 +471,13 @@ def aggregate_daily(intervals, start_date=None, end_date=None):
                 'date': cur.strftime('%Y-%m-%d'),
                 'label': cur.strftime('%d.%m.'),
                 'count': len(rows),
-                'sign_on_pct': sm['sign_on_pct'] if sm else None,
-                'prod_pct': sm['prod_pct'] if sm else None,
-                'nach_pct': sm['nach_pct'] if sm else None,
-                'idle_pct': sm['idle_pct'] if sm else None,
-                'nach_per_call': sm['nach_per_call'] if sm else None,
-                'calls': sm['calls'] if sm else None,
-                'works': sm['works'] if sm else None,
+                'sign_on_pct': sm['sign_on_pct'] if sm else 0,
+                'prod_pct': sm['prod_pct'] if sm else 0,
+                'nach_pct': sm['nach_pct'] if sm else 0,
+                'idle_pct': sm['idle_pct'] if sm else 0,
+                'nach_per_call': sm['nach_per_call'] if sm else 0,
+                'calls': sm['calls'] if sm else 0,
+                'works': sm['works'] if sm else 0,
             }
             daily.append(entry)
             if rows:
@@ -719,13 +719,7 @@ def build_dashboard_series(intervals, start_date, end_date, chart_granularity, b
                 'date': period['key'],
                 'label': period['label'],
                 'count': 0,
-                'sign_on_pct': None,
-                'prod_pct': None,
-                'nach_pct': None,
-                'idle_pct': None,
-                'nach_per_call': None,
-                'calls': None,
-                'works': None,
+                **_empty_period_metrics(),
             })
 
     return chart_daily, daily
@@ -839,6 +833,18 @@ def _sum_buckets(buckets):
     return out
 
 
+def _empty_period_metrics():
+    return {
+        'sign_on_pct': 0,
+        'prod_pct': 0,
+        'nach_pct': 0,
+        'idle_pct': 0,
+        'nach_per_call': 0,
+        'calls': 0,
+        'works': 0,
+    }
+
+
 def build_dashboard_series_from_buckets(
     daily_buckets, start_date, end_date, chart_granularity, table_granularity, bucket_ranges_fn,
 ):
@@ -847,6 +853,10 @@ def build_dashboard_series_from_buckets(
     data_dates = list(by_day.keys())
     if not data_dates:
         return [], []
+
+    eff_start = start_date or min(data_dates)
+    eff_end = end_date or max(data_dates)
+    empty_metrics = _empty_period_metrics()
 
     def _period_buckets(period):
         items = []
@@ -857,17 +867,17 @@ def build_dashboard_series_from_buckets(
             d += timedelta(days=1)
         return items
 
-    chart_periods = bucket_ranges_fn(chart_granularity, start_date, end_date, data_dates)
+    chart_periods = bucket_ranges_fn(chart_granularity, eff_start, eff_end, data_dates)
     table_periods = (
         chart_periods if table_granularity == chart_granularity
-        else bucket_ranges_fn(table_granularity, start_date, end_date, data_dates)
+        else bucket_ranges_fn(table_granularity, eff_start, eff_end, data_dates)
     )
 
     acc = _sum_buckets([])
     chart_daily = []
-    if chart_granularity == 'day' and start_date and end_date:
-        cur = start_date
-        while cur <= end_date:
+    if chart_granularity == 'day':
+        cur = eff_start
+        while cur <= eff_end:
             day_b = by_day.get(cur)
             if day_b:
                 acc = _sum_buckets([acc, day_b])
@@ -883,21 +893,28 @@ def build_dashboard_series_from_buckets(
                     'date': cur.strftime('%Y-%m-%d'),
                     'label': cur.strftime('%d.%m.'),
                     'count': 0,
-                    'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
-                    'nach_per_call': 0, 'calls': 0, 'works': 0,
+                    **empty_metrics,
                 })
             cur += timedelta(days=1)
     else:
         for period in chart_periods or []:
             period_totals = _sum_buckets(_period_buckets(period))
-            acc = _sum_buckets([acc, period_totals])
-            metrics = _row_metrics_from_totals(acc, cumulative=True)
-            chart_daily.append({
-                'date': period['key'],
-                'label': period['label'],
-                'count': period_totals['count'],
-                **metrics,
-            })
+            if period_totals['count']:
+                acc = _sum_buckets([acc, period_totals])
+                metrics = _row_metrics_from_totals(acc, cumulative=True)
+                chart_daily.append({
+                    'date': period['key'],
+                    'label': period['label'],
+                    'count': period_totals['count'],
+                    **metrics,
+                })
+            else:
+                chart_daily.append({
+                    'date': period['key'],
+                    'label': period['label'],
+                    'count': 0,
+                    **empty_metrics,
+                })
 
     daily = []
     for period in table_periods or []:
@@ -909,20 +926,11 @@ def build_dashboard_series_from_buckets(
                 'count': totals['count'],
                 **_row_metrics_from_totals(totals),
             })
-        elif table_granularity == 'day':
-            daily.append({
-                'date': period['key'],
-                'label': period['label'],
-                'count': 0,
-                'sign_on_pct': 0, 'prod_pct': 0, 'nach_pct': 0, 'idle_pct': 0,
-                'nach_per_call': 0, 'calls': 0, 'works': 0,
-            })
         else:
             daily.append({
                 'date': period['key'],
                 'label': period['label'],
                 'count': 0,
-                'sign_on_pct': None, 'prod_pct': None, 'nach_pct': None, 'idle_pct': None,
-                'nach_per_call': None, 'calls': None, 'works': None,
+                **empty_metrics,
             })
     return chart_daily, daily
