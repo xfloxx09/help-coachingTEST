@@ -574,6 +574,36 @@
     .ci-wz-summary-lbl { font-size: 0.72rem; color: #9a9aa3; text-transform: uppercase; letter-spacing: 0.03em; }
     .ci-wz-summary-val { font-size: 0.92rem; font-weight: 600; color: #e8e8ec; margin-top: 0.2rem; }
     .ci-wz-hint-box .ci-wz-summary-val { font-weight: 400; color: #b9b9c2; }
+    .ci-wz-steps {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .ci-wz-step {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.82rem;
+        color: #9a9aa3;
+    }
+    .ci-wz-step.active { color: #e8e8ec; font-weight: 600; }
+    .ci-wz-step.done { color: #36c6a0; }
+    .ci-wz-step-num {
+        width: 1.35rem; height: 1.35rem; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.72rem; font-weight: 700;
+        background: #34343c; color: #b9b9c2;
+    }
+    .ci-wz-step.active .ci-wz-step-num { background: #e20074; color: #fff; }
+    .ci-wz-step.done .ci-wz-step-num { background: #36c6a0; color: #fff; }
+    .ci-wz-step-sep { color: #666; font-size: 0.65rem; }
+    .ci-wz-legend-muted { color: #7a7a85; font-size: 0.78rem; }
+    .ci-wz-legend-impact--step2 { opacity: 0.45; }
+    body.ci-wz-on-step2 .ci-wz-legend-impact--step2 { opacity: 1; }
+    .ci-wz-day--coach-muted { opacity: 0.45; }
+    .ci-wz-day--coach-actionable .ci-wz-day-row--coach { color: #ff8fc7; font-weight: 600; }
+    .ci-wz-day-row--coach-muted { opacity: 0.55; }
 </style>
 {% endblock %}
 
@@ -991,7 +1021,12 @@
         var windowPresets = document.getElementById('ciWzWindowPresets');
         var wzHelpEl = document.getElementById('ciWzHelp');
         var wzSubtitleEl = document.getElementById('ciWzSubtitle');
-        var wzEmptyDefault = 'Keine Coachings in dieser Auswahl.';
+        var wzEmptyDefault = 'Keine auswertbaren Coachings in dieser Auswahl.';
+        var backBtn = document.getElementById('ciWzBack');
+        var nextBtn = document.getElementById('ciWzNext');
+        var stepsEl = document.getElementById('ciWzSteps');
+        var step1Panel = document.getElementById('ciWzStep1Panel');
+        var step2Panel = document.getElementById('ciWzStep2Panel');
 
         var state = {
             days: [],
@@ -1006,6 +1041,11 @@
             pointer: null,
             showSurveys: {{ (can_view_kpi_qualitaet or false)|tojson }},
             showProductivity: false,
+            wizardStep: 1,
+            freeMode: false,
+            surveyDatesByMember: {},
+            prodDatesByMember: {},
+            coachingEvents: [],
         };
 
         function syncWizardVisibility() {
@@ -1027,10 +1067,58 @@
                 wzSubtitleEl.textContent = 'Pro Tag: ' + subtitleBits.join(' · ') + ' — Timeline ziehen oder Schnellauswahl';
             }
             if (wzHelpEl) {
-                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> Jeder Tag zeigt '
-                    + dayBits.join(', ')
-                    + '. Auf Timeline <strong>ziehen</strong> = Zeitraum · <strong>Ränder</strong> = vergrößern/verkleinern';
+                wzHelpEl.innerHTML = '<i class="fas fa-hand-pointer mr-1"></i> Nur <strong>auswertbare Coachings</strong> '
+                    + '(Bewertungen oder Prod.-Rohdaten vor <em>und</em> nach dem Termin) zählen für Vorher/Nachher. '
+                    + dayBits.join(', ') + '. Timeline <strong>ziehen</strong> = Zeitraum wählen.';
             }
+        }
+
+        function parseIsoDate(iso) {
+            if (!iso) return null;
+            var p = iso.split('-');
+            return new Date(+p[0], +p[1] - 1, +p[2]);
+        }
+
+        function dateInRange(d, lo, hi) {
+            return d >= lo && d <= hi;
+        }
+
+        function isEventActionable(memberId, dateIso, windowDays) {
+            var d = parseIsoDate(dateIso);
+            if (!d) return false;
+            var beforeLo = new Date(d); beforeLo.setDate(beforeLo.getDate() - windowDays);
+            var beforeHi = new Date(d); beforeHi.setDate(beforeHi.getDate() - 1);
+            var afterLo = new Date(d); afterLo.setDate(afterLo.getDate() + 1);
+            var afterHi = new Date(d); afterHi.setDate(afterHi.getDate() + windowDays);
+            var mid = String(memberId);
+            var qualOk = false;
+            var prodOk = false;
+            if (state.showSurveys && state.surveyDatesByMember[mid]) {
+                var sd = state.surveyDatesByMember[mid].map(parseIsoDate);
+                qualOk = sd.some(function (x) { return dateInRange(x, beforeLo, beforeHi); })
+                    && sd.some(function (x) { return dateInRange(x, afterLo, afterHi); });
+            }
+            if (state.showProductivity && state.prodDatesByMember[mid]) {
+                var pd = state.prodDatesByMember[mid].map(parseIsoDate);
+                prodOk = pd.some(function (x) { return dateInRange(x, beforeLo, beforeHi); })
+                    && pd.some(function (x) { return dateInRange(x, afterLo, afterHi); });
+            }
+            if (state.showSurveys && state.showProductivity) return qualOk || prodOk;
+            if (state.showSurveys) return qualOk;
+            if (state.showProductivity) return prodOk;
+            return false;
+        }
+
+        function recomputeActionableForWindow() {
+            var w = state.windowDays;
+            var byDate = {};
+            (state.coachingEvents || []).forEach(function (ev) {
+                if (!isEventActionable(ev.member_id, ev.date, w)) return;
+                byDate[ev.date] = (byDate[ev.date] || 0) + 1;
+            });
+            state.days.forEach(function (day) {
+                day.actionable_coachings = byDate[day.date] || 0;
+            });
         }
         syncWizardVisibility();
 
@@ -1055,11 +1143,15 @@
             return state.days.length - 1;
         }
 
-        function lastCoachingIdx() {
+        function lastActionableCoachingIdx() {
             for (var i = state.days.length - 1; i >= 0; i--) {
-                if (state.days[i].coachings) return i;
+                if (state.days[i].actionable_coachings > 0) return i;
             }
-            return lastActivityIdx();
+            return -1;
+        }
+
+        function lastCoachingIdx() {
+            return lastActionableCoachingIdx();
         }
 
         function scrollToIdx(idx) {
@@ -1103,7 +1195,75 @@
 
         function applyWindowPreset(days) {
             state.windowDays = days;
+            recomputeActionableForWindow();
+            renderDays();
             updateUI();
+        }
+
+        function updateStepIndicators(activeStep) {
+            if (!stepsEl) return;
+            stepsEl.querySelectorAll('.ci-wz-step').forEach(function (el) {
+                var s = parseInt(el.getAttribute('data-step'), 10);
+                el.classList.toggle('active', !state.freeMode && s === activeStep);
+                el.classList.toggle('done', state.freeMode || s < activeStep);
+            });
+        }
+
+        function updateFooterButtons() {
+            if (state.freeMode) {
+                if (backBtn) backBtn.classList.add('d-none');
+                if (nextBtn) nextBtn.classList.add('d-none');
+                if (applyBtn) applyBtn.classList.remove('d-none');
+            } else if (state.wizardStep === 1) {
+                if (backBtn) backBtn.classList.add('d-none');
+                if (nextBtn) nextBtn.classList.remove('d-none');
+                if (applyBtn) applyBtn.classList.add('d-none');
+            } else {
+                if (backBtn) backBtn.classList.remove('d-none');
+                if (nextBtn) nextBtn.classList.add('d-none');
+                if (applyBtn) applyBtn.classList.remove('d-none');
+            }
+            var periodWrap = document.getElementById('ciWzPeriodPresetsWrap');
+            if (periodWrap) {
+                periodWrap.classList.toggle('d-none', !state.freeMode && state.wizardStep !== 1);
+            }
+        }
+
+        function setWizardStep(step) {
+            state.wizardStep = step;
+            document.body.classList.toggle('ci-wz-free-mode', state.freeMode);
+            if (state.freeMode) {
+                if (step1Panel) step1Panel.classList.remove('d-none');
+                if (step2Panel) step2Panel.classList.remove('d-none');
+                if (stepsEl) stepsEl.classList.remove('d-none');
+                document.body.classList.add('ci-wz-on-step2');
+                updateStepIndicators(2);
+            } else if (step === 1) {
+                if (step1Panel) step1Panel.classList.remove('d-none');
+                if (step2Panel) step2Panel.classList.add('d-none');
+                if (stepsEl) stepsEl.classList.remove('d-none');
+                document.body.classList.remove('ci-wz-on-step2');
+                updateStepIndicators(1);
+            } else {
+                if (step1Panel) step1Panel.classList.remove('d-none');
+                if (step2Panel) step2Panel.classList.remove('d-none');
+                if (stepsEl) stepsEl.classList.remove('d-none');
+                document.body.classList.add('ci-wz-on-step2');
+                updateStepIndicators(2);
+            }
+            updateFooterButtons();
+            if (wzSubtitleEl && !state.freeMode) {
+                wzSubtitleEl.textContent = step === 1
+                    ? 'Schritt 1: Zeitraum wählen — nur Coachings mit Vorher/Nachher-Daten'
+                    : 'Schritt 2: Wirkungsfenster — Tage vor und nach jedem Coaching';
+            } else if (wzSubtitleEl && state.freeMode) {
+                wzSubtitleEl.textContent = 'Zeitraum und Wirkungsfenster anpassen';
+            }
+            updateUI();
+        }
+
+        function showImpactPreview() {
+            return state.freeMode || state.wizardStep >= 2;
         }
 
         function parseIso(s) {
@@ -1133,7 +1293,10 @@
                 el.className = 'ci-wz-day';
                 el.dataset.idx = idx;
                 el.dataset.date = day.date;
-                if (day.coachings) el.classList.add('ci-wz-day--coach-day');
+                if (day.coachings) {
+                    if (day.actionable_coachings > 0) el.classList.add('ci-wz-day--coach-actionable');
+                    else el.classList.add('ci-wz-day--coach-muted');
+                }
 
                 var dateLbl = document.createElement('span');
                 dateLbl.className = 'ci-wz-day-date';
@@ -1144,8 +1307,10 @@
                 rows.className = 'ci-wz-day-rows';
                 rows.appendChild(buildDayRow(
                     'fas fa-chalkboard-teacher',
-                    day.coachings || '–',
-                    'ci-wz-day-row--coach',
+                    day.actionable_coachings > 0
+                        ? (day.actionable_coachings + (day.coachings > day.actionable_coachings ? '/' + day.coachings : ''))
+                        : (day.coachings ? '0/' + day.coachings : '–'),
+                    day.actionable_coachings > 0 ? 'ci-wz-day-row--coach' : 'ci-wz-day-row--coach ci-wz-day-row--coach-muted',
                     !day.coachings
                 ));
                 if (state.showSurveys) {
@@ -1169,9 +1334,10 @@
                 el.addEventListener('mouseenter', function () {
                     el.classList.add('ci-wz-day--hover');
                     var parts = [fmtDe(day.date)];
-                    parts.push(day.coachings
-                        ? day.coachings + ' Coaching' + (day.coachings === 1 ? '' : 's')
-                        : 'Keine Coachings');
+                    parts.push(day.actionable_coachings
+                        ? day.actionable_coachings + ' auswertbar' + (day.coachings > day.actionable_coachings
+                            ? ' (' + day.coachings + ' gesamt)' : '')
+                        : (day.coachings ? day.coachings + ' Coaching(s), nicht auswertbar' : 'Keine Coachings'));
                     if (state.showSurveys) {
                         parts.push(day.surveys
                             ? day.surveys + ' Bewertung' + (day.surveys === 1 ? '' : 'en')
@@ -1207,13 +1373,14 @@
         function coachingIndicesInRange() {
             var out = [];
             for (var i = state.startIdx; i <= state.endIdx; i++) {
-                if (state.days[i] && state.days[i].coachings > 0) out.push(i);
+                if (state.days[i] && state.days[i].actionable_coachings > 0) out.push(i);
             }
             return out;
         }
 
         function renderImpactBands() {
             impactLayerEl.innerHTML = '';
+            if (!showImpactPreview()) return;
             var w = state.windowDays;
             var seen = {};
             coachingIndicesInRange().forEach(function (ci) {
@@ -1233,11 +1400,13 @@
         function updateDayClasses() {
             var w = state.windowDays;
             var impactSet = {};
-            coachingIndicesInRange().forEach(function (ci) {
-                for (var j = Math.max(0, ci - w); j <= Math.min(state.days.length - 1, ci + w); j++) {
-                    impactSet[j] = true;
-                }
-            });
+            if (showImpactPreview()) {
+                coachingIndicesInRange().forEach(function (ci) {
+                    for (var j = Math.max(0, ci - w); j <= Math.min(state.days.length - 1, ci + w); j++) {
+                        impactSet[j] = true;
+                    }
+                });
+            }
             daysEl.querySelectorAll('.ci-wz-day').forEach(function (el) {
                 var idx = +el.dataset.idx;
                 el.classList.toggle('ci-wz-day--in-range', idx >= state.startIdx && idx <= state.endIdx);
@@ -1252,13 +1421,15 @@
                 var n = rangeDays();
                 rangeLabelEl.textContent = fmtDe(d0.date) + ' – ' + fmtDe(d1.date) + ' (' + n + ' Tag' + (n === 1 ? '' : 'e') + ')';
             }
-            var coach = 0, surv = 0, prodDays = 0;
+            var coach = 0, actCoach = 0, surv = 0, prodDays = 0;
             for (var i = state.startIdx; i <= state.endIdx; i++) {
                 coach += state.days[i].coachings || 0;
+                actCoach += state.days[i].actionable_coachings || 0;
                 if (state.showSurveys) surv += state.days[i].surveys || 0;
                 if (state.showProductivity && state.days[i].has_productivity) prodDays++;
             }
-            var countParts = [coach + ' Coaching(s)'];
+            var countParts = [actCoach + ' auswertbare Coaching(s)'];
+            if (coach > actCoach) countParts.push((coach - actCoach) + ' ohne Vorher/Nachher');
             if (state.showSurveys) countParts.push(surv + ' Bewertung(en)');
             if (state.showProductivity) {
                 countParts.push(prodDays + ' Tag' + (prodDays === 1 ? '' : 'e') + ' mit Prod.-Rohdaten');
@@ -1266,8 +1437,10 @@
             countsLabelEl.textContent = countParts.join(' · ');
             windowValEl.textContent = state.windowDays;
             if (windowSlider) windowSlider.value = state.windowDays;
-            applyBtn.disabled = !d0 || !d1;
+            applyBtn.disabled = !d0 || !d1 || actCoach === 0;
+            if (nextBtn) nextBtn.disabled = !d0 || !d1 || actCoach === 0;
             updatePresetButtons();
+            updateFooterButtons();
             var single = rangeDays() === 1;
             if (selectionBgEl) selectionBgEl.classList.toggle('ci-wz-selection-bg--single', single);
             if (handlesEl) handlesEl.classList.toggle('ci-wz-handles--single', single);
@@ -1402,7 +1575,22 @@
         if (windowSlider) {
             windowSlider.addEventListener('input', function () {
                 state.windowDays = parseInt(windowSlider.value, 10) || 14;
+                recomputeActionableForWindow();
+                renderDays();
                 updateUI();
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function () {
+                if (nextBtn.disabled) return;
+                setWizardStep(2);
+                scrollToIdx(Math.floor((state.startIdx + state.endIdx) / 2));
+            });
+        }
+        if (backBtn) {
+            backBtn.addEventListener('click', function () {
+                setWizardStep(1);
             });
         }
 
@@ -1432,12 +1620,19 @@
                 state.anchorIdx = ei;
                 return;
             }
-            var lastCoach = lastCoachingIdx();
-            if (lastCoach < 0) {
-                state.endIdx = state.days.length - 1;
-                state.startIdx = Math.max(0, state.endIdx - 89);
+            var firstAct = -1;
+            var lastAct = -1;
+            for (var i = 0; i < state.days.length; i++) {
+                if (state.days[i].actionable_coachings > 0) {
+                    if (firstAct < 0) firstAct = i;
+                    lastAct = i;
+                }
+            }
+            if (lastAct >= 0) {
+                state.endIdx = Math.min(state.days.length - 1, lastAct + 7);
+                state.startIdx = Math.max(0, Math.min(firstAct, lastAct) - 7);
             } else {
-                state.endIdx = Math.min(state.days.length - 1, lastCoach + 7);
+                state.endIdx = state.days.length - 1;
                 state.startIdx = Math.max(0, state.endIdx - 89);
             }
             state.anchorIdx = state.endIdx;
@@ -1449,6 +1644,9 @@
             workspaceEl.classList.add('d-none');
             if (presetsWrap) presetsWrap.classList.add('d-none');
             applyBtn.disabled = true;
+            if (nextBtn) nextBtn.disabled = true;
+
+            state.freeMode = !!(dateFromInput.value && dateToInput.value);
 
             var q = new URLSearchParams(new FormData(form));
             q.delete('period');
@@ -1466,17 +1664,38 @@
                         return;
                     }
                     if (!data.days || !data.days.length) {
-                        emptyEl.textContent = wzEmptyDefault;
+                        emptyEl.textContent = data.empty_message || wzEmptyDefault;
                         emptyEl.classList.remove('d-none');
                         return;
                     }
                     state.days = data.days;
+                    state.coachingEvents = data.coaching_events || [];
+                    state.surveyDatesByMember = data.survey_dates_by_member || {};
+                    state.prodDatesByMember = data.prod_dates_by_member || {};
                     state.showSurveys = !!data.show_surveys;
                     state.showProductivity = !!data.show_productivity;
                     state.windowDays = parseInt(windowInput.value, 10) || data.default_window || 14;
                     syncWizardVisibility();
+                    recomputeActionableForWindow();
+                    if (!data.actionable_coaching_count && !(data.coaching_events && data.coaching_events.length)) {
+                        emptyEl.textContent = data.empty_message || wzEmptyDefault;
+                        emptyEl.classList.remove('d-none');
+                        return;
+                    }
+                    if (data.empty_message && !data.actionable_coaching_count) {
+                        if (wzHelpEl) {
+                            wzHelpEl.innerHTML = '<i class="fas fa-info-circle mr-1"></i> '
+                                + data.empty_message
+                                + ' Im Schritt 2 können Sie das Wirkungsfenster vergrößern.';
+                        }
+                    }
                     pickDefaultRange();
                     renderDays();
+                    if (state.freeMode) {
+                        setWizardStep(2);
+                    } else {
+                        setWizardStep(data.actionable_coaching_count ? 1 : 2);
+                    }
                     updateUI();
                     workspaceEl.classList.remove('d-none');
                     if (presetsWrap) presetsWrap.classList.remove('d-none');

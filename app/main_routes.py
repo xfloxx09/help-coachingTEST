@@ -32,6 +32,7 @@ from app.models import (
 from app import kpi as kpi_logic
 from app import productivity as productivity_logic
 from app import kpi_time
+from app import coaching_impact_wizard as ci_wizard
 from app.forms import CoachingForm, WorkshopForm, PasswordChangeForm, CoachingReviewForm, AssignedCoachingForm
 from app.utils import (
     bogen_layout_for_project,
@@ -6397,103 +6398,37 @@ def coaching_impact_activity_map():
     show_surveys = can_view_kpi_qualitaet(current_user)
     show_prod_perm = can_view_kpi_produktivitaet(current_user)
 
-    coach_rows = (
-        db.session.query(
-            cast(Coaching.coaching_date, Date),
-            func.count(Coaching.id),
-        )
-        .filter(*scope['coaching_filters'])
-        .group_by(cast(Coaching.coaching_date, Date))
-        .all()
-    )
-    survey_rows = []
-    if show_surveys:
-        survey_rows = (
-            db.session.query(
-                KpiSurvey.antwort_date,
-                func.count(KpiSurvey.id),
-            )
-            .filter(*scope['kpi_filters'])
-            .group_by(KpiSurvey.antwort_date)
-            .all()
-        )
-    prod_rows = []
-    if show_prod_perm:
-        prod_rows = (
-            db.session.query(
-                cast(ProductivityInterval.slot_at, Date),
-                func.count(ProductivityInterval.id),
-            )
-            .filter(*scope['prod_filters'])
-            .group_by(cast(ProductivityInterval.slot_at, Date))
-            .all()
-        )
-
-    by_date = {}
-    for d, cnt in coach_rows:
-        if d is None:
-            continue
-        key = d.isoformat()
-        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
-        by_date[key]['coachings'] = int(cnt)
-    for d, cnt in survey_rows:
-        if d is None:
-            continue
-        key = d.isoformat()
-        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
-        by_date[key]['surveys'] = int(cnt)
-    for d, cnt in prod_rows:
-        if d is None:
-            continue
-        key = d.isoformat()
-        by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
-        by_date[key]['productivity'] = int(cnt)
-
-    has_productivity = show_prod_perm and any(v['productivity'] > 0 for v in by_date.values())
-    show_productivity = has_productivity
-
-    if not by_date:
-        return jsonify({
-            'days': [],
-            'min_date': None,
-            'max_date': None,
-            'default_window': kpi_logic.coaching_impact_window_days(),
-            'show_surveys': show_surveys,
-            'show_productivity': show_productivity,
-        })
-
-    dates = sorted(by_date.keys())
-    min_d = datetime.strptime(dates[0], '%Y-%m-%d').date()
-    max_d = datetime.strptime(dates[-1], '%Y-%m-%d').date()
-    # Pad timeline so user can extend selection slightly beyond last activity
-    pad_start = min_d - timedelta(days=7)
-    pad_end = max_d + timedelta(days=7)
-    days_out = []
-    cur = pad_start
-    while cur <= pad_end:
-        key = cur.isoformat()
-        bucket = by_date.get(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
-        days_out.append({
-            'date': key,
-            'label': cur.strftime('%d.%m.'),
-            'coachings': bucket['coachings'],
-            'surveys': bucket['surveys'] if show_surveys else 0,
-            'productivity': bucket['productivity'] if show_prod_perm else 0,
-            'has_productivity': bool(show_prod_perm and bucket['productivity'] > 0),
-        })
-        cur += timedelta(days=1)
-
     window_q = request.args.get('window', type=int)
     default_window = window_q if window_q and 1 <= window_q <= 90 else kpi_logic.coaching_impact_window_days()
 
-    return jsonify({
-        'days': days_out,
-        'min_date': pad_start.isoformat(),
-        'max_date': pad_end.isoformat(),
-        'default_window': default_window,
-        'show_surveys': show_surveys,
-        'show_productivity': show_productivity,
-    })
+    payload = ci_wizard.build_activity_map_payload(
+        scope['coaching_filters'],
+        scope['kpi_filters'],
+        scope['prod_filters'],
+        default_window,
+        show_surveys,
+        show_prod_perm,
+    )
+    show_productivity = show_prod_perm and any(
+        d.get('productivity', 0) > 0 for d in payload.get('days', [])
+    )
+    payload['show_productivity'] = show_productivity
+    if not payload['days'] or payload.get('actionable_coaching_count', 0) == 0:
+        msg = (
+            'Keine Coachings mit auswertbaren Vorher/Nachher-Daten '
+            '(Bewertungen oder Prod.-Rohdaten vor und nach dem Coaching).'
+        )
+        if payload.get('coaching_events'):
+            msg = (
+                'Coachings vorhanden, aber keines mit Bewertungen oder Prod.-Rohdaten '
+                'sowohl vor als auch nach dem Termin im Wirkungsfenster.'
+            )
+        return jsonify({
+            **payload,
+            'error': None,
+            'empty_message': msg,
+        })
+    return jsonify(payload)
 
 
 @bp.route('/coaching-impact')
@@ -6722,17 +6657,41 @@ def coaching_impact():
             ).filter(*coaching_range_filters).all()
         )
         events = [(r[0], r[1]) for r in coaching_rows if r[1] is not None]
+        show_surveys_ci = can_view_kpi_qualitaet(current_user)
+        show_prod_ci = can_view_kpi_produktivitaet(current_user)
+        prod_scope_filters = list(prod_base)
+        if mode == 'agent' and sel_member:
+            prod_scope_filters.append(ProductivityInterval.team_member_id == sel_member)
+        elif mode == 'team' and sel_team:
+            prod_scope_filters.append(ProductivityInterval.team_id == sel_team)
+        elif mode == 'project' and sel_project:
+            prod_scope_filters.append(ProductivityInterval.project_id == sel_project)
+        survey_dates_ci = (
+            ci_wizard.load_survey_dates_by_member(kpi_filters) if show_surveys_ci else {}
+        )
+        prod_dates_ci = (
+            ci_wizard.load_prod_dates_by_member(prod_scope_filters) if show_prod_ci else {}
+        )
+        events = ci_wizard.filter_actionable_events(
+            events,
+            impact_window_days,
+            survey_dates_ci,
+            prod_dates_ci,
+            show_surveys_ci,
+            show_prod_ci,
+        )
+        actionable_set = set(events)
         coaching_by_day = {}
         total_time = 0
         perf_values = []
         for member_id, d, perf, time_spent in coaching_rows:
+            if d is None or (member_id, d) not in actionable_set:
+                continue
             if time_spent:
                 total_time += time_spent
             perf_pct = _coaching_performance_pct(perf)
             if perf_pct is not None:
                 perf_values.append(perf_pct)
-            if d is None:
-                continue
             cb = coaching_by_day.setdefault(d, {'count': 0, 'perf': [], 'time': 0})
             cb['count'] += 1
             if time_spent:
@@ -6740,13 +6699,7 @@ def coaching_impact():
             if perf_pct is not None:
                 cb['perf'].append(perf_pct)
 
-        prod_filters = list(prod_base)
-        if mode == 'agent' and sel_member:
-            prod_filters.append(ProductivityInterval.team_member_id == sel_member)
-        elif mode == 'team' and sel_team:
-            prod_filters.append(ProductivityInterval.team_id == sel_team)
-        elif mode == 'project' and sel_project:
-            prod_filters.append(ProductivityInterval.project_id == sel_project)
+        prod_filters = list(prod_scope_filters)
         if start_date:
             prod_filters.append(ProductivityInterval.slot_at >= datetime.combine(start_date, datetime.min.time()))
         if end_date:
