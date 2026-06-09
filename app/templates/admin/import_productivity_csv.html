@@ -65,8 +65,12 @@
                             <td class="text-right">{{ b.unmatched_member }}</td>
                             <td>{{ b.imported_by.username if b.imported_by else '-' }}</td>
                             <td>
-                                <form method="POST" action="{{ url_for('admin.import_productivity_csv_revert', batch_id=b.id) }}"
-                                      onsubmit="return confirm('Import #{{ b.id }} wirklich löschen?');" class="d-inline">
+                                <form method="POST" action="{{ url_for('admin.import_productivity_csv_revert_start', batch_id=b.id) }}"
+                                      onsubmit="return confirm('Import #{{ b.id }} wirklich löschen?');" class="d-inline"
+                                      data-import-async="1"
+                                      data-import-label="Import zurücksetzen"
+                                      data-start-url="{{ url_for('admin.import_productivity_csv_revert_start', batch_id=b.id) }}"
+                                      data-status-url="{{ url_for('admin.import_productivity_csv_job_status', job_id='__JOB__') }}">
                                     <button type="submit" class="btn btn-outline-danger btn-sm">Zurücksetzen</button>
                                 </form>
                             </td>

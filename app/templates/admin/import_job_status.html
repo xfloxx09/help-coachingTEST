@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 520px;">
+    <h1 class="h4 mb-3">{{ title }}</h1>
+    <div class="progress mb-3" style="height: 28px;">
+        <div id="jobStatusBar" class="progress-bar progress-bar-striped progress-bar-animated telekom-progress-bar" role="progressbar" style="width: 0%;">0%</div>
+    </div>
+    <p id="jobStatusMessage" class="text-muted small mb-0">Wird gestartet…</p>
+    <p id="jobStatusError" class="text-danger small mt-2" style="display: none;"></p>
+</div>
+
+<script>
+(function () {
+    var statusUrl = {{ status_url|tojson }};
+    var doneUrl = {{ done_url|tojson }};
+    var bar = document.getElementById('jobStatusBar');
+    var msg = document.getElementById('jobStatusMessage');
+    var err = document.getElementById('jobStatusError');
+
+    function setProgress(pct, message) {
+        var p = Math.max(0, Math.min(100, pct || 0));
+        if (bar) {
+            bar.style.width = p + '%';
+            bar.textContent = p + '%';
+        }
+        if (msg && message) msg.textContent = message;
+    }
+
+    var poll = setInterval(function () {
+        fetch(statusUrl, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (st) {
+                if (st.status === 'running' || st.status === 'pending') {
+                    setProgress(st.pct || 0, st.message || 'Läuft…');
+                } else if (st.status === 'done') {
+                    clearInterval(poll);
+                    setProgress(100, st.message || 'Fertig…');
+                    window.location.href = st.done_url || doneUrl;
+                } else if (st.status === 'error') {
+                    clearInterval(poll);
+                    if (err) {
+                        err.textContent = st.error || st.message || 'Fehler';
+                        err.style.display = 'block';
+                    }
+                    if (bar) {
+                        bar.classList.remove('progress-bar-animated', 'telekom-progress-bar');
+                        bar.classList.add('bg-danger');
+                    }
+                }
+            })
+            .catch(function () {
+                clearInterval(poll);
+                if (err) {
+                    err.textContent = 'Status konnte nicht abgefragt werden.';
+                    err.style.display = 'block';
+                }
+            });
+    }, 600);
+})();
+</script>
+{% endblock %}

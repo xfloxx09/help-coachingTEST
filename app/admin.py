@@ -4368,26 +4368,163 @@ def import_kpi_csv_done(job_id):
     return redirect(url_for('admin.import_kpi_csv'))
 
 
-@bp.route('/import_kpi_csv/revert/<int:batch_id>', methods=['POST'])
+def _kpi_delete_batch_surveys(batch_id, progress_cb=None):
+    """Delete surveys + answers for a batch in chunks (avoids blocking the worker)."""
+    chunk = 300
+    total = KpiSurvey.query.filter_by(batch_id=batch_id).count()
+    deleted = 0
+
+    def _progress(message):
+        if progress_cb:
+            pct = 5 + int((deleted / max(total, 1)) * 90) if total else 95
+            progress_cb(deleted, total, message)
+
+    _progress('Befragungen löschen…')
+    while True:
+        ids = [
+            r[0] for r in db.session.query(KpiSurvey.id)
+            .filter(KpiSurvey.batch_id == batch_id)
+            .limit(chunk).all()
+        ]
+        if not ids:
+            break
+        KpiAnswer.query.filter(KpiAnswer.survey_id.in_(ids)).delete(synchronize_session=False)
+        KpiSurvey.query.filter(KpiSurvey.id.in_(ids)).delete(synchronize_session=False)
+        db.session.commit()
+        deleted += len(ids)
+        _progress(f'{deleted}/{total} Befragungen gelöscht…')
+    return deleted
+
+
+def _kpi_run_revert_job(app, job_id, user_id, batch_id):
+    with app.app_context():
+        try:
+            batch = KpiImportBatch.query.get(batch_id)
+            if not batch:
+                raise ValueError(f'Import-Batch #{batch_id} nicht gefunden.')
+            _import_job_write(job_id, user_id, {
+                'status': 'running', 'pct': 2, 'message': 'Rückgängig machen wird gestartet…',
+            })
+
+            def progress(done, total, message):
+                pct = 5 + int((done / max(total, 1)) * 90)
+                _import_job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            deleted = _kpi_delete_batch_surveys(batch_id, progress_cb=progress)
+            db.session.delete(batch)
+            db.session.commit()
+            _import_job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import rückgängig gemacht.',
+                'done_url': url_for('admin.import_kpi_csv_done', job_id=job_id),
+                'flash_category': 'success',
+                'flash_message': f'Import rückgängig gemacht: {deleted} Befragungen gelöscht.',
+            })
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('KPI revert job failed')
+            _import_job_write(job_id, user_id, {
+                'status': 'error', 'pct': 0, 'message': str(e),
+            })
+
+
+def _prod_delete_batch_intervals(batch_id, progress_cb=None):
+    chunk = 1000
+    total = ProductivityInterval.query.filter_by(batch_id=batch_id).count()
+    deleted = 0
+
+    def _progress(message):
+        if progress_cb:
+            pct = 5 + int((deleted / max(total, 1)) * 90) if total else 95
+            progress_cb(deleted, total, message)
+
+    _progress('Intervalle löschen…')
+    while True:
+        ids = [
+            r[0] for r in db.session.query(ProductivityInterval.id)
+            .filter(ProductivityInterval.batch_id == batch_id)
+            .limit(chunk).all()
+        ]
+        if not ids:
+            break
+        ProductivityInterval.query.filter(ProductivityInterval.id.in_(ids)).delete(synchronize_session=False)
+        db.session.commit()
+        deleted += len(ids)
+        _progress(f'{deleted}/{total} Intervalle gelöscht…')
+    return deleted
+
+
+def _prod_run_revert_job(app, job_id, user_id, batch_id):
+    with app.app_context():
+        try:
+            batch = ProductivityImportBatch.query.get(batch_id)
+            if not batch:
+                raise ValueError(f'Produktivitäts-Import #{batch_id} nicht gefunden.')
+            _import_job_write(job_id, user_id, {
+                'status': 'running', 'pct': 2, 'message': 'Zurücksetzen wird gestartet…',
+            })
+
+            def progress(done, total, message):
+                pct = 5 + int((done / max(total, 1)) * 90)
+                _import_job_write(job_id, user_id, {
+                    'status': 'running', 'pct': pct, 'message': message,
+                })
+
+            deleted = _prod_delete_batch_intervals(batch_id, progress_cb=progress)
+            db.session.delete(batch)
+            db.session.commit()
+            _import_job_write(job_id, user_id, {
+                'status': 'done',
+                'pct': 100,
+                'message': 'Import zurückgesetzt.',
+                'done_url': url_for('admin.import_productivity_csv_done', job_id=job_id),
+                'flash_category': 'success',
+                'flash_message': f'Produktivitäts-Import #{batch_id} zurückgesetzt ({deleted} Intervalle gelöscht).',
+            })
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('Productivity revert job failed')
+            _import_job_write(job_id, user_id, {
+                'status': 'error', 'pct': 0, 'message': str(e),
+            })
+
+
+@bp.route('/import_kpi_csv/revert/<int:batch_id>/start', methods=['POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
-def revert_kpi_import(batch_id):
-    """Delete all surveys (and their answers) imported in a given batch, then the batch."""
-    batch = KpiImportBatch.query.get_or_404(batch_id)
-    try:
-        survey_ids = [r[0] for r in db.session.query(KpiSurvey.id).filter(KpiSurvey.batch_id == batch.id).all()]
-        deleted = len(survey_ids)
-        if survey_ids:
-            KpiAnswer.query.filter(KpiAnswer.survey_id.in_(survey_ids)).delete(synchronize_session=False)
-            KpiSurvey.query.filter(KpiSurvey.id.in_(survey_ids)).delete(synchronize_session=False)
-        db.session.delete(batch)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Import konnte nicht rückgängig gemacht werden: {e}', 'danger')
-        return redirect(url_for('admin.import_kpi_csv'))
-    flash(f'Import rückgängig gemacht: {deleted} Befragungen gelöscht.', 'success')
-    return redirect(url_for('admin.import_kpi_csv'))
+def revert_kpi_import_start(batch_id):
+    if not KpiImportBatch.query.get(batch_id):
+        return jsonify({'error': f'Import-Batch #{batch_id} nicht gefunden.'}), 404
+    job_id = uuid.uuid4().hex
+    _import_job_write(job_id, current_user.id, {
+        'status': 'pending', 'pct': 0, 'message': 'Rückgängig machen wird gestartet…',
+    })
+    app = current_app._get_current_object()
+    thread = threading.Thread(
+        target=_kpi_run_revert_job,
+        args=(app, job_id, current_user.id, batch_id),
+        daemon=True,
+    )
+    thread.start()
+    return jsonify({'job_id': job_id})
+
+
+@bp.route('/import_kpi_csv/revert/status/<job_id>')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_kpi_csv_revert_status(job_id):
+    """Poll page if revert was started without JS."""
+    return render_template(
+        'admin/import_job_status.html',
+        job_id=job_id,
+        status_url=url_for('admin.import_kpi_csv_job_status', job_id=job_id),
+        done_url=url_for('admin.import_kpi_csv_done', job_id=job_id),
+        title='Import rückgängig machen',
+        config=current_app.config,
+    )
 
 
 def _kpi_recompute_flags(project_id=None):
@@ -4812,16 +4949,60 @@ def import_productivity_csv_done(job_id):
     return redirect(url_for('admin.import_productivity_csv'))
 
 
+@bp.route('/import_productivity_csv/revert/<int:batch_id>/start', methods=['POST'])
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_revert_start(batch_id):
+    if not ProductivityImportBatch.query.get(batch_id):
+        return jsonify({'error': f'Produktivitäts-Import #{batch_id} nicht gefunden.'}), 404
+    job_id = uuid.uuid4().hex
+    _import_job_write(job_id, current_user.id, {
+        'status': 'pending', 'pct': 0, 'message': 'Zurücksetzen wird gestartet…',
+    })
+    app = current_app._get_current_object()
+    thread = threading.Thread(
+        target=_prod_run_revert_job,
+        args=(app, job_id, current_user.id, batch_id),
+        daemon=True,
+    )
+    thread.start()
+    return jsonify({'job_id': job_id})
+
+
 @bp.route('/import_productivity_csv/revert/<int:batch_id>', methods=['POST'])
 @login_required
 @role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
 def import_productivity_csv_revert(batch_id):
-    batch = ProductivityImportBatch.query.get_or_404(batch_id)
-    ProductivityInterval.query.filter_by(batch_id=batch.id).delete(synchronize_session=False)
-    db.session.delete(batch)
-    db.session.commit()
-    flash(f'Produktivitäts-Import #{batch_id} zurückgesetzt.', 'success')
-    return redirect(url_for('admin.import_productivity_csv'))
+    """Start async revert (non-JS fallback redirects to status page)."""
+    if not ProductivityImportBatch.query.get(batch_id):
+        flash(f'Produktivitäts-Import #{batch_id} nicht gefunden.', 'danger')
+        return redirect(url_for('admin.import_productivity_csv'))
+    job_id = uuid.uuid4().hex
+    _import_job_write(job_id, current_user.id, {
+        'status': 'pending', 'pct': 0, 'message': 'Zurücksetzen wird gestartet…',
+    })
+    app = current_app._get_current_object()
+    thread = threading.Thread(
+        target=_prod_run_revert_job,
+        args=(app, job_id, current_user.id, batch_id),
+        daemon=True,
+    )
+    thread.start()
+    return redirect(url_for('admin.import_productivity_csv_revert_status', job_id=job_id))
+
+
+@bp.route('/import_productivity_csv/revert/status/<job_id>')
+@login_required
+@role_required([ROLE_ADMIN, ROLE_BETRIEBSLEITER])
+def import_productivity_csv_revert_status(job_id):
+    return render_template(
+        'admin/import_job_status.html',
+        job_id=job_id,
+        status_url=url_for('admin.import_productivity_csv_job_status', job_id=job_id),
+        done_url=url_for('admin.import_productivity_csv_done', job_id=job_id),
+        title='Produktivitäts-Import zurücksetzen',
+        config=current_app.config,
+    )
 
 
 @bp.route('/kpi-verwaltung', methods=['GET', 'POST'])

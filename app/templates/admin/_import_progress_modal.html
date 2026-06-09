@@ -106,8 +106,17 @@
         var statusTpl = form.getAttribute('data-status-url');
         if (!startUrl || !statusTpl) return;
 
+        var label = form.getAttribute('data-import-label') || 'Import';
+        var title = document.getElementById('importProgressTitle');
+        var bar = document.getElementById('importProgressBar');
+        if (title) title.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + label + '…';
+        if (bar) {
+            bar.classList.add('progress-bar-animated', 'telekom-progress-bar');
+            bar.classList.remove('bg-danger');
+        }
+
         showProgressModal();
-        setProgress(0, 'Import wird gestartet…');
+        setProgress(0, label + ' wird gestartet…');
         document.getElementById('importProgressError').style.display = 'none';
         document.getElementById('importProgressFooter').style.display = 'none';
 
@@ -119,7 +128,7 @@
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
             .then(function (res) {
                 if (!res.ok || !res.json.job_id) {
-                    throw new Error(res.json.error || 'Import konnte nicht gestartet werden.');
+                    throw new Error(res.json.error || (label + ' konnte nicht gestartet werden.'));
                 }
                 var jobId = res.json.job_id;
                 var statusUrl = statusTpl.replace('__JOB__', jobId);
@@ -128,7 +137,7 @@
                         .then(function (r) { return r.json(); })
                         .then(function (st) {
                             if (st.status === 'running' || st.status === 'pending') {
-                                setProgress(st.pct || 0, st.message || 'Import läuft…');
+                                setProgress(st.pct || 0, st.message || (label + ' läuft…'));
                             } else if (st.status === 'done') {
                                 clearInterval(poll);
                                 setProgress(100, st.message || 'Fertig – Weiterleitung…');
@@ -139,7 +148,7 @@
                                 if (btn) btn.disabled = false;
                             } else if (st.status === 'missing') {
                                 clearInterval(poll);
-                                showProgressError('Import-Job nicht gefunden.');
+                                showProgressError('Vorgang nicht gefunden.');
                                 if (btn) btn.disabled = false;
                             }
                         })

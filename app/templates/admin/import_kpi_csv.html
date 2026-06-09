@@ -80,7 +80,12 @@
                             <td class="text-right">{{ b.surveys_unassigned }}</td>
                             <td>{{ b.imported_by.username if b.imported_by else '-' }}</td>
                             <td class="text-right">
-                                <form method="POST" action="{{ url_for('admin.revert_kpi_import', batch_id=b.id) }}" style="display:inline;"
+                                <form method="POST" action="{{ url_for('admin.revert_kpi_import_start', batch_id=b.id) }}" style="display:inline;"
+                                      class="kpi-revert-form"
+                                      data-import-async="1"
+                                      data-import-label="Import rückgängig machen"
+                                      data-start-url="{{ url_for('admin.revert_kpi_import_start', batch_id=b.id) }}"
+                                      data-status-url="{{ url_for('admin.import_kpi_csv_job_status', job_id='__JOB__') }}"
                                       onsubmit="return confirm('Diesen Import rückgängig machen? Alle {{ b.surveys_total }} Befragungen aus diesem Import werden gelöscht.');">
                                     <button type="submit" class="btn btn-xs btn-outline-danger">
                                         <i class="fas fa-undo mr-1"></i>Rückgängig
