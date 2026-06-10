@@ -1,0 +1,106 @@
+{# Monatswerte Vorher / Nachher — one calendar month per side #}
+{% if monatswerte %}
+<div class="ci-ba-section mt-2" id="{{ panel_id }}">
+    {% if monatswerte.month_picker %}
+    <div class="ci-monat-picker-row mb-3">
+        <label class="ci-monat-picker">
+            <span class="text-muted small">Vorher-Monat</span>
+            <select class="form-control form-control-sm ci-monat-select" data-ci-monat-param="vorher_month">
+                {% for opt in monatswerte.vorher_options %}
+                <option value="{{ opt.value }}"{% if opt.value == monatswerte.vorher_month %} selected{% endif %}>{{ opt.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="ci-monat-picker">
+            <span class="text-muted small">Nachher-Monat</span>
+            <select class="form-control form-control-sm ci-monat-select" data-ci-monat-param="nachher_month">
+                {% for opt in monatswerte.nachher_options %}
+                <option value="{{ opt.value }}"{% if opt.value == monatswerte.nachher_month %} selected{% endif %}>{{ opt.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    {% endif %}
+    <div class="ci-ba-section-title">Monatswerte</div>
+    <div class="ci-ba-randtage-row-wrap mb-2">
+        {% if monatswerte.before %}
+        <div class="ci-ba-randtage-box">
+            <div class="ci-ba-randtage-head">
+                <strong>{{ monatswerte.titles.before }}</strong>
+                <span class="ci-ba-randtage-date">
+                    {{ monatswerte.before.label }}
+                    {% if monatswerte.before.subtitle %}<span class="ci-ba-randtage-fallback">{{ monatswerte.before.subtitle }}</span>{% endif %}
+                </span>
+            </div>
+            <div class="ci-ba-randtage-metrics">
+                {% for key, label, cls, unit, one_decimal in metric_parts %}
+                {% if is_prod %}
+                {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
+                {% set val = monatswerte.before.metrics.get(metric_key) %}
+                {% set pmap = target_map[key] %}
+                {% set tg = targets[pmap[0]] %}
+                {% set ty = targets[pmap[1]] %}
+                {% if val is not none %}
+                    {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
+                {% else %}
+                    {% set status = 'na' %}
+                {% endif %}
+                {% else %}
+                {% set val = monatswerte.before.metrics.get(key) %}
+                {% set tg = targets[target_map[key][0]] %}
+                {% set ty = targets[target_map[key][1]] %}
+                {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
+                {% endif %}
+                <div class="ci-ba-randtage-row">
+                    <span class="ci-ba-randtage-row-lbl">{% if is_prod and key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
+                    <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if monatswerte.before and monatswerte.after %}
+        <div class="ci-ba-randtage-arrow" aria-hidden="true"><i class="fas fa-arrow-right"></i></div>
+        {% endif %}
+        {% if monatswerte.after %}
+        <div class="ci-ba-randtage-box">
+            <div class="ci-ba-randtage-head">
+                <strong>{{ monatswerte.titles.after }}</strong>
+                <span class="ci-ba-randtage-date">
+                    {{ monatswerte.after.label }}
+                    {% if monatswerte.after.subtitle %}<span class="ci-ba-randtage-fallback">{{ monatswerte.after.subtitle }}</span>{% endif %}
+                </span>
+            </div>
+            <div class="ci-ba-randtage-metrics">
+                {% for key, label, cls, unit, one_decimal in metric_parts %}
+                {% if is_prod %}
+                {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
+                {% set val = monatswerte.after.metrics.get(metric_key) %}
+                {% set pmap = target_map[key] %}
+                {% set tg = targets[pmap[0]] %}
+                {% set ty = targets[pmap[1]] %}
+                {% if val is not none %}
+                    {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
+                {% else %}
+                    {% set status = 'na' %}
+                {% endif %}
+                {% else %}
+                {% set val = monatswerte.after.metrics.get(key) %}
+                {% set tg = targets[target_map[key][0]] %}
+                {% set ty = targets[target_map[key][1]] %}
+                {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
+                {% endif %}
+                <div class="ci-ba-randtage-row">
+                    <span class="ci-ba-randtage-row-lbl">{% if is_prod and key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
+                    <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if not monatswerte.before and not monatswerte.after %}
+        <div class="text-muted small">Keine Bewertungen in den gewählten Monaten.</div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

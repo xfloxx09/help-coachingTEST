@@ -6251,18 +6251,6 @@ def _impact_prod_aggregate_range(prod_by_day, day_lo, day_hi):
     return productivity_logic._row_metrics_from_totals(totals)
 
 
-def _impact_quarter_start(d):
-    q_month = ((d.month - 1) // 3) * 3 + 1
-    return date(d.year, q_month, 1)
-
-
-def _impact_quarter_end(d):
-    q_start = _impact_quarter_start(d)
-    if q_start.month == 10:
-        return date(d.year, 12, 31)
-    return date(d.year, q_start.month + 3, 1) - timedelta(days=1)
-
-
 def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
     """Vorher = window before first coaching; Nachher = from first coaching through window after last."""
     before_lo = first_coaching - timedelta(days=window)
@@ -6270,34 +6258,6 @@ def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
     after_lo = first_coaching
     after_hi = last_coaching + timedelta(days=window)
     return before_lo, before_hi, after_lo, after_hi
-
-
-def _impact_side_days(win_lo, win_hi):
-    if win_lo is None or win_hi is None or win_lo > win_hi:
-        return 0
-    return (win_hi - win_lo).days + 1
-
-
-def _impact_randtage_modes_for_window(window, first_coaching=None, last_coaching=None):
-    span = window
-    if first_coaching is not None and last_coaching is not None:
-        nachher_span = (last_coaching - first_coaching).days + 1 + window
-        span = max(window, nachher_span)
-    modes = ['day', 'week', 'month']
-    if span > 31:
-        modes.append('quarter')
-    if span > 92:
-        modes.append('year')
-    return modes
-
-
-_RANDTAGE_MODE_LABELS = {
-    'day': 'Tag',
-    'week': 'KW',
-    'month': 'Monat',
-    'quarter': 'Quartal',
-    'year': 'Jahr',
-}
 
 
 def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, subtitle=None):
@@ -6314,317 +6274,181 @@ def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, 
     }
 
 
-def _impact_randtage_period_clip(mode, side, win_lo, win_hi, before_lo=None):
-    """Calendar slice for Randtage aggregation (first unit vorher, last unit nachher)."""
-    is_before = side == 'before'
-    side_days = _impact_side_days(win_lo, win_hi)
-    if is_before:
-        if mode == 'week':
-            week_start = kpi_time._week_start_monday(win_lo)
-            week_end = week_start + timedelta(days=6)
-            return max(win_lo, week_start), min(win_hi, week_end)
-        if mode == 'month':
-            if side_days <= 30:
-                return win_lo, win_hi
-            return win_lo, min(win_hi, kpi_time._month_end(win_lo))
-        if mode == 'quarter':
-            if side_days <= 92:
-                return win_lo, win_hi
-            return win_lo, min(win_hi, _impact_quarter_end(win_lo))
-        if mode == 'year':
-            if side_days <= 365:
-                return win_lo, win_hi
-            return win_lo, min(win_hi, date(win_lo.year, 12, 31))
-        return win_lo, win_hi
-
-    # Nachher: last calendar unit at Wirkungsfenster-Ende, inkl. Vorher-Tage in derselben Einheit
-    vorher_floor = before_lo if before_lo is not None else win_lo
-    if mode == 'week':
-        week_start = kpi_time._week_start_monday(win_hi)
-        week_end = week_start + timedelta(days=6)
-        return max(week_start, vorher_floor), min(week_end, win_hi)
-    if mode == 'month':
-        month_start = kpi_time._month_start(win_hi)
-        month_end = kpi_time._month_end(win_hi)
-        return max(month_start, vorher_floor), min(month_end, win_hi)
-    if mode == 'quarter':
-        q_start = _impact_quarter_start(win_hi)
-        q_end = _impact_quarter_end(win_hi)
-        return max(q_start, vorher_floor), min(q_end, win_hi)
-    if mode == 'year':
-        year_start = date(win_hi.year, 1, 1)
-        year_end = date(win_hi.year, 12, 31)
-        return max(year_start, vorher_floor), min(year_end, win_hi)
-    return win_lo, win_hi
+_IMPACT_MONTH_PICKER_WINDOW = 31
 
 
-def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
-    is_before = side == 'before'
-    side_days = _impact_side_days(clip_lo, clip_hi)
+def _impact_months_in_range(day_lo, day_hi):
+    if day_lo is None or day_hi is None or day_lo > day_hi:
+        return []
+    months = []
+    y, m = day_lo.year, day_lo.month
+    while (y, m) <= (day_hi.year, day_hi.month):
+        months.append((y, m))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return months
+
+
+def _impact_parse_month_key(key):
+    if not key:
+        return None
+    try:
+        y_s, m_s = key.split('-', 1)
+        y, m = int(y_s), int(m_s)
+        if 1 <= m <= 12:
+            return y, m
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def _impact_month_option(year, month):
+    return {
+        'value': f'{year:04d}-{month:02d}',
+        'label': kpi_time.month_label_de(year, month),
+    }
+
+
+def _impact_month_clip_vorher(year, month, before_lo, before_hi):
+    month_start = date(year, month, 1)
+    month_end = kpi_time._month_end(month_start)
+    clip_lo = max(month_start, before_lo)
+    clip_hi = min(month_end, before_hi)
     if clip_lo > clip_hi:
-        return None, None, ''
-    date_span = f'{clip_lo.strftime("%d.%m.")} – {clip_hi.strftime("%d.%m.")}'
-    if mode == 'week':
-        week_start = kpi_time._week_start_monday(clip_lo if is_before else clip_hi)
-        iso = week_start.isocalendar()
-        label = f'KW {iso[1]:02d}/{str(iso[0])[-2:]}'
-        title = (
-            'Erste Kalenderwoche · vor den Coachings'
-            if is_before else 'Letzte Kalenderwoche · Nachher'
-        )
-        return label, date_span, title
-    if mode == 'month':
-        if is_before and side_days <= 30:
-            label = date_span
-            subtitle = f'{side_days} Tage'
-            title = 'Vorher · Wirkungsfenster'
-            return label, subtitle, title
-        ref = clip_lo if is_before else clip_hi
-        label = kpi_time.month_label_de(ref.year, ref.month)
-        title = (
-            'Erster Monat · vor den Coachings'
-            if is_before else 'Letzter Monat · Nachher'
-        )
-        return label, date_span, title
-    if mode == 'quarter':
-        if is_before and side_days <= 92:
-            label = date_span
-            subtitle = f'{side_days} Tage'
-            title = 'Vorher · Wirkungsfenster'
-            return label, subtitle, title
-        ref = clip_lo if is_before else clip_hi
-        q = (ref.month - 1) // 3 + 1
-        label = f'Q{q} {ref.year}'
-        title = (
-            'Erstes Quartal · vor den Coachings'
-            if is_before else 'Letztes Quartal · Nachher'
-        )
-        return label, date_span, title
-    if mode == 'year':
-        if is_before and side_days <= 365:
-            label = date_span
-            subtitle = f'{side_days} Tage'
-            title = 'Vorher · Wirkungsfenster'
-            return label, subtitle, title
-        ref_year = clip_lo.year if is_before else clip_hi.year
-        label = str(ref_year)
-        title = (
-            'Erstes Jahr · vor den Coachings'
-            if is_before else 'Letztes Jahr · Nachher'
-        )
-        return label, date_span, title
-    return None, None, ''
+        return None, None
+    return clip_lo, clip_hi
 
 
-def _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn, before_lo=None):
-    clip_lo, clip_hi = _impact_randtage_period_clip(
-        mode, side, win_lo, win_hi, before_lo=before_lo,
-    )
-    label, subtitle, title = _impact_randtage_period_meta(mode, side, clip_lo, clip_hi)
-    metrics = agg_fn(clip_lo, clip_hi) if clip_lo <= clip_hi else None
-    anchor = clip_lo if side == 'before' else clip_hi
-    rep_day = clip_lo if metrics else None
-    return _impact_randtage_snapshot(rep_day, metrics, anchor, label=label, subtitle=subtitle), title
+def _impact_month_clip_nachher(year, month, before_lo, after_hi):
+    month_start = date(year, month, 1)
+    month_end = kpi_time._month_end(month_start)
+    clip_lo = max(month_start, before_lo)
+    clip_hi = min(month_end, after_hi)
+    if clip_lo > clip_hi:
+        return None, None
+    return clip_lo, clip_hi
 
 
-def _impact_randtage_side_qual(mode, kpi_by_day, side, before_lo, before_hi, after_lo, after_hi, window):
-    """One vorher or nachher snapshot for quality KPIs at the chosen granularity."""
-    day_fn = lambda d: _impact_day_qual(kpi_by_day, d)
-    has_data = _impact_day_has_qual
-    agg_fn = lambda lo, hi: _impact_qual_aggregate_range(kpi_by_day, lo, hi)
-    is_before = side == 'before'
-    win_lo, win_hi = (before_lo, before_hi) if is_before else (after_lo, after_hi)
-    prefer_forward = is_before
-
-    if mode == 'day':
-        anchor = before_lo if is_before else after_hi
-        d, metrics = _impact_closest_day_in_window(
-            day_fn, win_lo, win_hi, anchor, prefer_forward, has_data,
-        )
-        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · Nachher (Wirkungsfenster-Ende)'
-        subtitle = 'nächster Tag mit Daten im Wirkungsfenster' if d and anchor and d != anchor else None
-        return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
-
-    if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(
-            mode, side, win_lo, win_hi, agg_fn, before_lo=before_lo,
-        )
-
-    return None, ''
+def _impact_monat_snapshot(clip_lo, clip_hi, metrics, title):
+    if clip_lo is None or clip_hi is None:
+        return None, title
+    label = kpi_time.month_label_de(clip_lo.year, clip_lo.month)
+    subtitle = f"{clip_lo.strftime('%d.%m.')} – {clip_hi.strftime('%d.%m.')}"
+    snap = _impact_randtage_snapshot(clip_lo, metrics, clip_hi, label=label, subtitle=subtitle)
+    return snap, title
 
 
-def _impact_randtage_side_prod(mode, prod_by_day, side, before_lo, before_hi, after_lo, after_hi, window):
-    day_fn = lambda d: _impact_day_prod(prod_by_day, d)
-    has_data = _impact_day_has_prod
-    agg_fn = lambda lo, hi: _impact_prod_aggregate_range(prod_by_day, lo, hi)
-    is_before = side == 'before'
-    win_lo, win_hi = (before_lo, before_hi) if is_before else (after_lo, after_hi)
-    prefer_forward = is_before
-
-    if mode == 'day':
-        anchor = before_lo if is_before else after_hi
-        d, metrics = _impact_closest_day_in_window(
-            day_fn, win_lo, win_hi, anchor, prefer_forward, has_data,
-        )
-        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · Nachher (Wirkungsfenster-Ende)'
-        subtitle = 'nächster Tag mit Daten im Wirkungsfenster' if d and anchor and d != anchor else None
-        return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
-
-    if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(
-            mode, side, win_lo, win_hi, agg_fn, before_lo=before_lo,
-        )
-
-    return None, ''
-
-
-def _impact_randtage_qual(kpi_by_day, first_coaching, last_coaching, window):
+def _impact_monatswerte_qual(
+    kpi_by_day, first_coaching, last_coaching, window,
+    vorher_month_key=None, nachher_month_key=None, coaching_count=0,
+):
     before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
         first_coaching, last_coaching, window,
     )
-    modes = _impact_randtage_modes_for_window(window, first_coaching, last_coaching)
-    by_mode = {}
-    titles = {}
-    for mode in modes:
-        b_snap, b_title = _impact_randtage_side_qual(
-            mode, kpi_by_day, 'before', before_lo, before_hi, after_lo, after_hi, window,
-        )
-        a_snap, a_title = _impact_randtage_side_qual(
-            mode, kpi_by_day, 'after', before_lo, before_hi, after_lo, after_hi, window,
-        )
-        by_mode[mode] = {'before': b_snap, 'after': a_snap}
-        titles[mode] = {'before': b_title, 'after': a_title}
-    return {
-        'modes': modes,
-        'mode_labels': {m: _RANDTAGE_MODE_LABELS[m] for m in modes},
-        'default_mode': 'day',
-        'by_mode': by_mode,
-        'titles': titles,
-        'before': by_mode.get('day', {}).get('before'),
-        'after': by_mode.get('day', {}).get('after'),
-    }
+    month_picker = window > _IMPACT_MONTH_PICKER_WINDOW
+    vorher_months = _impact_months_in_range(before_lo, before_hi)
+    nachher_months = _impact_months_in_range(before_lo, after_hi)
+    default_v = (before_hi.year, before_hi.month)
+    default_n = (after_hi.year, after_hi.month)
 
+    if month_picker:
+        picked_v = _impact_parse_month_key(vorher_month_key)
+        picked_n = _impact_parse_month_key(nachher_month_key)
+        vy, vm = picked_v if picked_v in vorher_months else default_v
+        ny, nm = picked_n if picked_n in nachher_months else default_n
+    else:
+        vy, vm = default_v
+        ny, nm = default_n
 
-def _impact_randtage_prod(prod_by_day, first_coaching, last_coaching, window):
-    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
-        first_coaching, last_coaching, window,
-    )
-    modes = _impact_randtage_modes_for_window(window, first_coaching, last_coaching)
-    by_mode = {}
-    titles = {}
-    for mode in modes:
-        b_snap, b_title = _impact_randtage_side_prod(
-            mode, prod_by_day, 'before', before_lo, before_hi, after_lo, after_hi, window,
-        )
-        a_snap, a_title = _impact_randtage_side_prod(
-            mode, prod_by_day, 'after', before_lo, before_hi, after_lo, after_hi, window,
-        )
-        by_mode[mode] = {'before': b_snap, 'after': a_snap}
-        titles[mode] = {'before': b_title, 'after': a_title}
-    return {
-        'modes': modes,
-        'mode_labels': {m: _RANDTAGE_MODE_LABELS[m] for m in modes},
-        'default_mode': 'day',
-        'by_mode': by_mode,
-        'titles': titles,
-        'before': by_mode.get('day', {}).get('before'),
-        'after': by_mode.get('day', {}).get('after'),
-    }
+    v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
+    n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
+    v_metrics = _impact_qual_aggregate_range(kpi_by_day, v_lo, v_hi) if v_lo else None
+    n_metrics = _impact_qual_aggregate_range(kpi_by_day, n_lo, n_hi) if n_lo else None
+    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_metrics, 'Vorher')
+    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_metrics, 'Nachher')
 
-
-def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, window, coaching_count):
-    """Vorher/Während/Nachher from first/last coaching day in Zeitraum (Ø daily + Randtage)."""
-    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
-        first_coaching, last_coaching, window,
-    )
-    during_lo = first_coaching
-    during_hi = last_coaching
-
-    def day_qual(d):
-        return _impact_day_qual(kpi_by_day, d)
-
-    out = {}
+    chart = {}
     for key in ('info', 'loes', 'nps', 'fach', 'vert'):
-        b_avg, b_days = _impact_avg_daily_metric(day_qual, key, before_lo, before_hi)
-        d_avg, d_days = _impact_avg_daily_metric(day_qual, key, during_lo, during_hi)
-        a_avg, a_days = _impact_avg_daily_metric(day_qual, key, after_lo, after_hi)
-        _, b_raw_metrics = _impact_closest_day_in_window(
-            day_qual, before_lo, before_hi, before_lo, True, _impact_day_has_qual,
-        )
-        _, a_raw_metrics = _impact_closest_day_in_window(
-            day_qual, after_lo, after_hi, after_hi, False, _impact_day_has_qual,
-        )
-        raw_b = (b_raw_metrics or {}).get(key)
-        raw_a = (a_raw_metrics or {}).get(key)
-        has_avg = b_avg is not None and a_avg is not None
-        has_raw = raw_b is not None and raw_a is not None
-        out[key] = {
-            'avg': {
-                'before': b_avg,
-                'during': d_avg,
-                'after': a_avg,
-                'delta': round(a_avg - b_avg, 2) if has_avg else None,
-            },
-            'raw': {
-                'before': raw_b,
-                'after': raw_a,
-                'delta': round(raw_a - raw_b, 2) if has_raw else None,
-            },
-            'days': {'before': b_days, 'during': d_days, 'after': a_days},
-            'has_avg': has_avg,
-            'has_raw': has_raw,
-            'coachings': coaching_count,
+        bv = (v_metrics or {}).get(key)
+        av = (n_metrics or {}).get(key)
+        chart[key] = {
+            'before': bv,
+            'after': av,
+            'delta': round(av - bv, 2) if bv is not None and av is not None else None,
+            'has': bv is not None and av is not None,
         }
-    return out
+
+    return {
+        'month_picker': month_picker,
+        'vorher_month': f'{vy:04d}-{vm:02d}',
+        'nachher_month': f'{ny:04d}-{nm:02d}',
+        'vorher_options': [_impact_month_option(y, m) for y, m in vorher_months],
+        'nachher_options': [_impact_month_option(y, m) for y, m in nachher_months],
+        'before': before_snap,
+        'after': after_snap,
+        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'chart': chart,
+        'coachings': coaching_count,
+    }
 
 
-def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, window, coaching_count):
-    """Productivity Vorher/Während/Nachher from first/last coaching day in Zeitraum."""
+def _impact_monatswerte_prod(
+    prod_by_day, first_coaching, last_coaching, window,
+    vorher_month_key=None, nachher_month_key=None, coaching_count=0,
+):
     before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
         first_coaching, last_coaching, window,
     )
-    during_lo = first_coaching
-    during_hi = last_coaching
+    month_picker = window > _IMPACT_MONTH_PICKER_WINDOW
+    vorher_months = _impact_months_in_range(before_lo, before_hi)
+    nachher_months = _impact_months_in_range(before_lo, after_hi)
+    default_v = (before_hi.year, before_hi.month)
+    default_n = (after_hi.year, after_hi.month)
 
-    def day_prod(d):
-        return _impact_day_prod(prod_by_day, d)
+    if month_picker:
+        picked_v = _impact_parse_month_key(vorher_month_key)
+        picked_n = _impact_parse_month_key(nachher_month_key)
+        vy, vm = picked_v if picked_v in vorher_months else default_v
+        ny, nm = picked_n if picked_n in nachher_months else default_n
+    else:
+        vy, vm = default_v
+        ny, nm = default_n
+
+    v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
+    n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
+    v_metrics = _impact_prod_aggregate_range(prod_by_day, v_lo, v_hi) if v_lo else None
+    n_metrics = _impact_prod_aggregate_range(prod_by_day, n_lo, n_hi) if n_lo else None
+    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_metrics, 'Vorher')
+    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_metrics, 'Nachher')
 
     lower_is_better = {'nach', 'idle'}
-    out = {}
+    chart = {}
     for key in ('sign_on', 'prod', 'nach', 'idle'):
         metric_key = 'nach_per_call' if key == 'nach' else f'{key}_pct' if key != 'prod' else 'prod_pct'
-        b_avg, b_days = _impact_avg_daily_metric(day_prod, metric_key, before_lo, before_hi)
-        d_avg, d_days = _impact_avg_daily_metric(day_prod, metric_key, during_lo, during_hi)
-        a_avg, a_days = _impact_avg_daily_metric(day_prod, metric_key, after_lo, after_hi)
-        _, b_raw_metrics = _impact_closest_day_in_window(
-            day_prod, before_lo, before_hi, before_lo, True, _impact_day_has_prod,
-        )
-        _, a_raw_metrics = _impact_closest_day_in_window(
-            day_prod, after_lo, after_hi, after_hi, False, _impact_day_has_prod,
-        )
-        raw_b = (b_raw_metrics or {}).get(metric_key)
-        raw_a = (a_raw_metrics or {}).get(metric_key)
-        has_avg = b_avg is not None and a_avg is not None
-        has_raw = raw_b is not None and raw_a is not None
-        out[key] = {
-            'avg': {
-                'before': b_avg,
-                'during': d_avg,
-                'after': a_avg,
-                'delta': round(a_avg - b_avg, 2) if has_avg else None,
-            },
-            'raw': {
-                'before': raw_b,
-                'after': raw_a,
-                'delta': round(raw_a - raw_b, 2) if has_raw else None,
-            },
-            'days': {'before': b_days, 'during': d_days, 'after': a_days},
-            'has_avg': has_avg,
-            'has_raw': has_raw,
-            'coachings': coaching_count,
+        bv = (v_metrics or {}).get(metric_key)
+        av = (n_metrics or {}).get(metric_key)
+        chart[key] = {
+            'before': bv,
+            'after': av,
+            'delta': round(av - bv, 2) if bv is not None and av is not None else None,
+            'has': bv is not None and av is not None,
             'lower_is_better': key in lower_is_better,
         }
-    return out
+
+    return {
+        'month_picker': month_picker,
+        'vorher_month': f'{vy:04d}-{vm:02d}',
+        'nachher_month': f'{ny:04d}-{nm:02d}',
+        'vorher_options': [_impact_month_option(y, m) for y, m in vorher_months],
+        'nachher_options': [_impact_month_option(y, m) for y, m in nachher_months],
+        'before': before_snap,
+        'after': after_snap,
+        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'chart': chart,
+        'coachings': coaching_count,
+    }
 
 
 def _coaching_impact_overlay(
@@ -6945,6 +6769,8 @@ def coaching_impact():
         period_arg, date_from_str, date_to_str,
     )
     window_q = request.args.get('window', type=int)
+    vorher_month_arg = (request.args.get('vorher_month') or '').strip() or None
+    nachher_month_arg = (request.args.get('nachher_month') or '').strip() or None
     admin_window = kpi_logic.coaching_impact_window_days()
     if range_confirmed:
         if window_q is not None and 1 <= window_q <= 90:
@@ -6971,8 +6797,8 @@ def coaching_impact():
     before_after = None
     before_after_prod = None
     impact_ba_meta = None
-    randtage_qual = None
-    randtage_prod = None
+    monatswerte_qual = None
+    monatswerte_prod = None
     summary = None
     kpi = None
     scope_label = ''
@@ -7200,17 +7026,17 @@ def coaching_impact():
                 'coaching_start': start_date,
                 'coaching_end': end_date,
             }
-            before_after = _impact_range_before_after_qual(
-                kpi_by_day_impact, first_coaching, last_coaching, window, coaching_count,
-            )
-            before_after_prod = _impact_range_before_after_prod(
-                prod_by_day_impact, first_coaching, last_coaching, window, coaching_count,
-            )
-            randtage_qual = _impact_randtage_qual(
+            monatswerte_qual = _impact_monatswerte_qual(
                 kpi_by_day_impact, first_coaching, last_coaching, window,
+                vorher_month_key=vorher_month_arg,
+                nachher_month_key=nachher_month_arg,
+                coaching_count=coaching_count,
             )
-            randtage_prod = _impact_randtage_prod(
+            monatswerte_prod = _impact_monatswerte_prod(
                 prod_by_day_impact, first_coaching, last_coaching, window,
+                vorher_month_key=vorher_month_arg,
+                nachher_month_key=nachher_month_arg,
+                coaching_count=coaching_count,
             )
 
         data_dates = sorted(
@@ -7277,8 +7103,8 @@ def coaching_impact():
         overlay=overlay,
         before_after=before_after,
         before_after_prod=before_after_prod,
-        randtage_qual=randtage_qual,
-        randtage_prod=randtage_prod,
+        monatswerte_qual=monatswerte_qual,
+        monatswerte_prod=monatswerte_prod,
         impact_ba_meta=impact_ba_meta,
         impact_window_days=impact_window_days,
         range_summary=range_summary,
