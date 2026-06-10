@@ -6285,12 +6285,12 @@ def _impact_data_bounds(day_map):
 
 
 def _impact_vn_bounds(first_coaching, last_coaching, data_lo, data_hi):
-    """Vorher: before first coaching; Nachher: after last coaching; Aktuell: from first coaching."""
+    """Vorher: before first coaching; Nachher: after last coaching; Aktuell: all scope KPI data."""
     before_hi = first_coaching - timedelta(days=1)
     before_lo = data_lo
     nachher_lo = last_coaching + timedelta(days=1)
     nachher_hi = data_hi
-    aktuell_lo = first_coaching
+    aktuell_lo = data_lo
     aktuell_hi = data_hi
     if data_lo is not None and before_lo > before_hi:
         before_lo, before_hi = None, None
@@ -6436,13 +6436,16 @@ def _impact_vn_mode_qual(
     for key in ('info', 'loes', 'nps', 'fach', 'vert'):
         bv = (v_agg or {}).get('values', {}).get(key)
         av = (n_agg or {}).get('values', {}).get(key)
+        uv = (a_agg or {}).get('values', {}).get(key)
         chart[key] = {
             'before': bv,
             'after': av,
+            'aktuell': uv,
             'delta': round(av - bv, 2) if bv is not None and av is not None else None,
             'has': bv is not None and av is not None,
             'before_count': (v_agg or {}).get('counts', {}).get(key, 0),
             'after_count': (n_agg or {}).get('counts', {}).get(key, 0),
+            'aktuell_count': (a_agg or {}).get('counts', {}).get(key, 0),
         }
     return {
         'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),
@@ -6474,14 +6477,17 @@ def _impact_vn_mode_prod(
         metric_key = 'nach_per_call' if key == 'nach' else f'{key}_pct' if key != 'prod' else 'prod_pct'
         bv = (v_agg or {}).get('values', {}).get(metric_key)
         av = (n_agg or {}).get('values', {}).get(metric_key)
+        uv = (a_agg or {}).get('values', {}).get(metric_key)
         chart[key] = {
             'before': bv,
             'after': av,
+            'aktuell': uv,
             'delta': round(av - bv, 2) if bv is not None and av is not None else None,
             'has': bv is not None and av is not None,
             'lower_is_better': key in lower_is_better,
             'before_count': (v_agg or {}).get('counts', {}).get(metric_key, 0),
             'after_count': (n_agg or {}).get('counts', {}).get(metric_key, 0),
+            'aktuell_count': (a_agg or {}).get('counts', {}).get(metric_key, 0),
         }
     return {
         'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),

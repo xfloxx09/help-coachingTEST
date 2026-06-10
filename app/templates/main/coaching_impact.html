@@ -2388,23 +2388,23 @@
             ciBaChartInstance.destroy();
             ciBaChartInstance = null;
         }
-        var baLabels = [], baBefore = [], baAfter = [];
+        var baLabels = [], baBefore = [], baAfter = [], baAktuell = [];
         if (mode === 'produktivitaet') {
             var pc = vnChartData(vnProd);
             if (pc) {
-                if (visibleProd.sign_on && pc.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(pc.sign_on.before); baAfter.push(pc.sign_on.after); }
-                if (visibleProd.prod && pc.prod) { baLabels.push(prodLabels.prod); baBefore.push(pc.prod.before); baAfter.push(pc.prod.after); }
-                if (visibleProd.nach && pc.nach) { baLabels.push(prodLabels.nach); baBefore.push(pc.nach.before); baAfter.push(pc.nach.after); }
-                if (visibleProd.idle && pc.idle) { baLabels.push(prodLabels.idle); baBefore.push(pc.idle.before); baAfter.push(pc.idle.after); }
+                if (visibleProd.sign_on && pc.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(pc.sign_on.before); baAfter.push(pc.sign_on.after); baAktuell.push(pc.sign_on.aktuell); }
+                if (visibleProd.prod && pc.prod) { baLabels.push(prodLabels.prod); baBefore.push(pc.prod.before); baAfter.push(pc.prod.after); baAktuell.push(pc.prod.aktuell); }
+                if (visibleProd.nach && pc.nach) { baLabels.push(prodLabels.nach); baBefore.push(pc.nach.before); baAfter.push(pc.nach.after); baAktuell.push(pc.nach.aktuell); }
+                if (visibleProd.idle && pc.idle) { baLabels.push(prodLabels.idle); baBefore.push(pc.idle.before); baAfter.push(pc.idle.after); baAktuell.push(pc.idle.aktuell); }
             }
         } else {
             var qc = vnChartData(vnQual);
             if (qc) {
-                if (visible.info && qc.info) { baLabels.push('Informationsquote'); baBefore.push(qc.info.before); baAfter.push(qc.info.after); }
-                if (visible.loesung && qc.loes) { baLabels.push('Lösungsquote'); baBefore.push(qc.loes.before); baAfter.push(qc.loes.after); }
-                if (visible.nps && qc.nps) { baLabels.push('NPS'); baBefore.push(qc.nps.before); baAfter.push(qc.nps.after); }
-                if (visible.fachkompetenz && qc.fach) { baLabels.push('Fachkompetenz'); baBefore.push(qc.fach.before); baAfter.push(qc.fach.after); }
-                if (visible.vertrieb && qc.vert) { baLabels.push('Vertrieb'); baBefore.push(qc.vert.before); baAfter.push(qc.vert.after); }
+                if (visible.info && qc.info) { baLabels.push('Informationsquote'); baBefore.push(qc.info.before); baAfter.push(qc.info.after); baAktuell.push(qc.info.aktuell); }
+                if (visible.loesung && qc.loes) { baLabels.push('Lösungsquote'); baBefore.push(qc.loes.before); baAfter.push(qc.loes.after); baAktuell.push(qc.loes.aktuell); }
+                if (visible.nps && qc.nps) { baLabels.push('NPS'); baBefore.push(qc.nps.before); baAfter.push(qc.nps.after); baAktuell.push(qc.nps.aktuell); }
+                if (visible.fachkompetenz && qc.fach) { baLabels.push('Fachkompetenz'); baBefore.push(qc.fach.before); baAfter.push(qc.fach.after); baAktuell.push(qc.fach.aktuell); }
+                if (visible.vertrieb && qc.vert) { baLabels.push('Vertrieb'); baBefore.push(qc.vert.before); baAfter.push(qc.vert.after); baAktuell.push(qc.vert.aktuell); }
             }
         }
         if (!baLabels.length) return;
@@ -2414,7 +2414,8 @@
                 labels: baLabels,
                 datasets: [
                     { label: 'Vorher', data: baBefore, backgroundColor: 'rgba(154,154,165,0.65)' },
-                    { label: 'Nachher', data: baAfter, backgroundColor: 'rgba(226,0,116,0.7)' },
+                    { label: 'Nachher', data: baAfter, backgroundColor: 'rgba(120,120,130,0.75)' },
+                    { label: 'Aktueller Stand', data: baAktuell, backgroundColor: 'rgba(226,0,116,0.88)' },
                 ],
             },
             options: {
