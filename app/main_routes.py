@@ -6207,7 +6207,7 @@ def _impact_closest_day_in_window(day_fn, window_lo, window_hi, anchor, prefer_f
 
 
 def _impact_qual_aggregate_range(kpi_by_day, day_lo, day_hi):
-    """Pool survey rows across days and compute scope-level quality KPIs."""
+    """Pool survey rows across days; return values and Bewertung counts per KPI."""
     if day_lo is None or day_hi is None or day_lo > day_hi:
         return None
     kb = {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []}
@@ -6225,11 +6225,20 @@ def _impact_qual_aggregate_range(kpi_by_day, day_lo, day_hi):
         return None
     nps = kpi_logic.compute_nps(kb['nps'])
     return {
-        'info': round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None,
-        'loes': round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None,
-        'nps': nps['nps'] if nps['total'] else None,
-        'fach': _impact_avg(kb['fach']) if kb['fach'] else None,
-        'vert': round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None,
+        'values': {
+            'info': round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None,
+            'loes': round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None,
+            'nps': nps['nps'] if nps['total'] else None,
+            'fach': _impact_avg(kb['fach']) if kb['fach'] else None,
+            'vert': round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None,
+        },
+        'counts': {
+            'info': len(kb['info']),
+            'loes': len(kb['loes']),
+            'nps': nps['total'],
+            'fach': len(kb['fach']),
+            'vert': len(kb['vert']),
+        },
     }
 
 
@@ -6248,7 +6257,12 @@ def _impact_prod_aggregate_range(prod_by_day, day_lo, day_hi):
     totals = productivity_logic._sum_buckets(buckets)
     if not totals['count']:
         return None
-    return productivity_logic._row_metrics_from_totals(totals)
+    values = productivity_logic._row_metrics_from_totals(totals)
+    interval_count = totals['count']
+    return {
+        'values': values,
+        'counts': {k: interval_count for k in values.keys()},
+    }
 
 
 def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
@@ -6260,7 +6274,7 @@ def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
     return before_lo, before_hi, after_lo, after_hi
 
 
-def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, subtitle=None):
+def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, subtitle=None, counts=None):
     display_label = label or (day.strftime('%d.%m.%Y') if day else None)
     if not display_label:
         return None
@@ -6271,6 +6285,7 @@ def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, 
         'fallback': bool(fallback),
         'subtitle': subtitle,
         'metrics': metrics or {},
+        'counts': counts or {},
     }
 
 
@@ -6331,12 +6346,16 @@ def _impact_month_clip_nachher(year, month, before_lo, after_hi):
     return clip_lo, clip_hi
 
 
-def _impact_monat_snapshot(clip_lo, clip_hi, metrics, title):
-    if clip_lo is None or clip_hi is None:
+def _impact_monat_snapshot(clip_lo, clip_hi, agg, title):
+    if clip_lo is None or clip_hi is None or not agg:
         return None, title
+    values = agg.get('values', agg)
+    counts = agg.get('counts', {})
     label = kpi_time.month_label_de(clip_lo.year, clip_lo.month)
     subtitle = f"{clip_lo.strftime('%d.%m.')} – {clip_hi.strftime('%d.%m.')}"
-    snap = _impact_randtage_snapshot(clip_lo, metrics, clip_hi, label=label, subtitle=subtitle)
+    snap = _impact_randtage_snapshot(
+        clip_lo, values, clip_hi, label=label, subtitle=subtitle, counts=counts,
+    )
     return snap, title
 
 
@@ -6364,20 +6383,22 @@ def _impact_monatswerte_qual(
 
     v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
     n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
-    v_metrics = _impact_qual_aggregate_range(kpi_by_day, v_lo, v_hi) if v_lo else None
-    n_metrics = _impact_qual_aggregate_range(kpi_by_day, n_lo, n_hi) if n_lo else None
-    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_metrics, 'Vorher')
-    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_metrics, 'Nachher')
+    v_agg = _impact_qual_aggregate_range(kpi_by_day, v_lo, v_hi) if v_lo else None
+    n_agg = _impact_qual_aggregate_range(kpi_by_day, n_lo, n_hi) if n_lo else None
+    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_agg, 'Vorher')
+    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_agg, 'Nachher')
 
     chart = {}
     for key in ('info', 'loes', 'nps', 'fach', 'vert'):
-        bv = (v_metrics or {}).get(key)
-        av = (n_metrics or {}).get(key)
+        bv = (v_agg or {}).get('values', {}).get(key)
+        av = (n_agg or {}).get('values', {}).get(key)
         chart[key] = {
             'before': bv,
             'after': av,
             'delta': round(av - bv, 2) if bv is not None and av is not None else None,
             'has': bv is not None and av is not None,
+            'before_count': (v_agg or {}).get('counts', {}).get(key, 0),
+            'after_count': (n_agg or {}).get('counts', {}).get(key, 0),
         }
 
     return {
@@ -6418,23 +6439,25 @@ def _impact_monatswerte_prod(
 
     v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
     n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
-    v_metrics = _impact_prod_aggregate_range(prod_by_day, v_lo, v_hi) if v_lo else None
-    n_metrics = _impact_prod_aggregate_range(prod_by_day, n_lo, n_hi) if n_lo else None
-    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_metrics, 'Vorher')
-    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_metrics, 'Nachher')
+    v_agg = _impact_prod_aggregate_range(prod_by_day, v_lo, v_hi) if v_lo else None
+    n_agg = _impact_prod_aggregate_range(prod_by_day, n_lo, n_hi) if n_lo else None
+    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_agg, 'Vorher')
+    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_agg, 'Nachher')
 
     lower_is_better = {'nach', 'idle'}
     chart = {}
     for key in ('sign_on', 'prod', 'nach', 'idle'):
         metric_key = 'nach_per_call' if key == 'nach' else f'{key}_pct' if key != 'prod' else 'prod_pct'
-        bv = (v_metrics or {}).get(metric_key)
-        av = (n_metrics or {}).get(metric_key)
+        bv = (v_agg or {}).get('values', {}).get(metric_key)
+        av = (n_agg or {}).get('values', {}).get(metric_key)
         chart[key] = {
             'before': bv,
             'after': av,
             'delta': round(av - bv, 2) if bv is not None and av is not None else None,
             'has': bv is not None and av is not None,
             'lower_is_better': key in lower_is_better,
+            'before_count': (v_agg or {}).get('counts', {}).get(metric_key, 0),
+            'after_count': (n_agg or {}).get('counts', {}).get(metric_key, 0),
         }
 
     return {
