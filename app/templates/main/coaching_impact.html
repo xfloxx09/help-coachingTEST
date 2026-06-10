@@ -1049,6 +1049,7 @@
             {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
             · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
             · Wirkungsfenster {{ impact_ba_meta.window }} Tage
+            · Vorher {{ impact_ba_meta.window }} Tage davor · Nachher ab erstem Coaching inkl. Zeitraum bis {{ impact_ba_meta.window }} Tage nach letztem
         </p>
         {% endif %}
         {% set parts = [] %}
@@ -1112,6 +1113,7 @@
             {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
             · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
             · Wirkungsfenster {{ impact_ba_meta.window }} Tage
+            · Vorher {{ impact_ba_meta.window }} Tage davor · Nachher ab erstem Coaching inkl. Zeitraum bis {{ impact_ba_meta.window }} Tage nach letztem
         </p>
         {% endif %}
         {% set prod_parts = [] %}

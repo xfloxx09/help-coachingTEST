@@ -6264,18 +6264,29 @@ def _impact_quarter_end(d):
 
 
 def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
+    """Vorher = window before first coaching; Nachher = from first coaching through window after last."""
     before_lo = first_coaching - timedelta(days=window)
     before_hi = first_coaching - timedelta(days=1)
-    after_lo = last_coaching + timedelta(days=1)
+    after_lo = first_coaching
     after_hi = last_coaching + timedelta(days=window)
     return before_lo, before_hi, after_lo, after_hi
 
 
-def _impact_randtage_modes_for_window(window):
+def _impact_side_days(win_lo, win_hi):
+    if win_lo is None or win_hi is None or win_lo > win_hi:
+        return 0
+    return (win_hi - win_lo).days + 1
+
+
+def _impact_randtage_modes_for_window(window, first_coaching=None, last_coaching=None):
+    span = window
+    if first_coaching is not None and last_coaching is not None:
+        nachher_span = (last_coaching - first_coaching).days + 1 + window
+        span = max(window, nachher_span)
     modes = ['day', 'week', 'month']
-    if window > 31:
+    if span > 31:
         modes.append('quarter')
-    if window > 92:
+    if span > 92:
         modes.append('year')
     return modes
 
@@ -6303,28 +6314,29 @@ def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, 
     }
 
 
-def _impact_randtage_period_clip(mode, window, side, win_lo, win_hi):
+def _impact_randtage_period_clip(mode, side, win_lo, win_hi):
     """Calendar slice for Randtage aggregation (first unit vorher, last unit nachher)."""
     is_before = side == 'before'
+    side_days = _impact_side_days(win_lo, win_hi)
     if mode == 'week':
         anchor = win_lo if is_before else win_hi
         week_start = kpi_time._week_start_monday(anchor)
         week_end = week_start + timedelta(days=6)
         return max(win_lo, week_start), min(win_hi, week_end)
     if mode == 'month':
-        if window <= 30:
+        if side_days <= 30:
             return win_lo, win_hi
         if is_before:
             return win_lo, min(win_hi, kpi_time._month_end(win_lo))
         return max(win_lo, kpi_time._month_start(win_hi)), win_hi
     if mode == 'quarter':
-        if window <= 92:
+        if side_days <= 92:
             return win_lo, win_hi
         if is_before:
             return win_lo, min(win_hi, _impact_quarter_end(win_lo))
         return max(win_lo, _impact_quarter_start(win_hi)), win_hi
     if mode == 'year':
-        if window <= 365:
+        if side_days <= 365:
             return win_lo, win_hi
         if is_before:
             return win_lo, min(win_hi, date(win_lo.year, 12, 31))
@@ -6332,8 +6344,9 @@ def _impact_randtage_period_clip(mode, window, side, win_lo, win_hi):
     return win_lo, win_hi
 
 
-def _impact_randtage_period_meta(mode, window, side, clip_lo, clip_hi):
+def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
     is_before = side == 'before'
+    side_days = _impact_side_days(clip_lo, clip_hi)
     if clip_lo > clip_hi:
         return None, None, ''
     date_span = f'{clip_lo.strftime("%d.%m.")} – {clip_hi.strftime("%d.%m.")}'
@@ -6343,34 +6356,32 @@ def _impact_randtage_period_meta(mode, window, side, clip_lo, clip_hi):
         label = f'KW {iso[1]:02d}/{str(iso[0])[-2:]}'
         title = (
             'Erste Kalenderwoche · vor den Coachings'
-            if is_before else 'Letzte Kalenderwoche · nach den Coachings'
+            if is_before else 'Letzte Kalenderwoche · Nachher'
         )
         return label, date_span, title
     if mode == 'month':
-        if window <= 30:
+        if side_days <= 30:
             label = date_span
-            days = (clip_hi - clip_lo).days + 1
-            subtitle = f'{days} Tage im Wirkungsfenster'
+            subtitle = f'{side_days} Tage'
             title = (
-                'Wirkungsfenster · vor den Coachings'
-                if is_before else 'Wirkungsfenster · nach den Coachings'
+                'Vorher · Wirkungsfenster'
+                if is_before else 'Nachher · inkl. Coachings'
             )
             return label, subtitle, title
         ref = clip_lo if is_before else clip_hi
         label = kpi_time.month_label_de(ref.year, ref.month)
         title = (
             'Erster Monat · vor den Coachings'
-            if is_before else 'Letzter Monat · nach den Coachings'
+            if is_before else 'Letzter Monat · Nachher'
         )
         return label, date_span, title
     if mode == 'quarter':
-        if window <= 92:
+        if side_days <= 92:
             label = date_span
-            days = (clip_hi - clip_lo).days + 1
-            subtitle = f'{days} Tage im Wirkungsfenster'
+            subtitle = f'{side_days} Tage'
             title = (
-                'Wirkungsfenster · vor den Coachings'
-                if is_before else 'Wirkungsfenster · nach den Coachings'
+                'Vorher · Wirkungsfenster'
+                if is_before else 'Nachher · inkl. Coachings'
             )
             return label, subtitle, title
         ref = clip_lo if is_before else clip_hi
@@ -6378,32 +6389,31 @@ def _impact_randtage_period_meta(mode, window, side, clip_lo, clip_hi):
         label = f'Q{q} {ref.year}'
         title = (
             'Erstes Quartal · vor den Coachings'
-            if is_before else 'Letztes Quartal · nach den Coachings'
+            if is_before else 'Letztes Quartal · Nachher'
         )
         return label, date_span, title
     if mode == 'year':
-        if window <= 365:
+        if side_days <= 365:
             label = date_span
-            days = (clip_hi - clip_lo).days + 1
-            subtitle = f'{days} Tage im Wirkungsfenster'
+            subtitle = f'{side_days} Tage'
             title = (
-                'Wirkungsfenster · vor den Coachings'
-                if is_before else 'Wirkungsfenster · nach den Coachings'
+                'Vorher · Wirkungsfenster'
+                if is_before else 'Nachher · inkl. Coachings'
             )
             return label, subtitle, title
         ref_year = clip_lo.year if is_before else clip_hi.year
         label = str(ref_year)
         title = (
             'Erstes Jahr · vor den Coachings'
-            if is_before else 'Letztes Jahr · nach den Coachings'
+            if is_before else 'Letztes Jahr · Nachher'
         )
         return label, date_span, title
     return None, None, ''
 
 
-def _impact_randtage_side_period(mode, window, side, win_lo, win_hi, agg_fn):
-    clip_lo, clip_hi = _impact_randtage_period_clip(mode, window, side, win_lo, win_hi)
-    label, subtitle, title = _impact_randtage_period_meta(mode, window, side, clip_lo, clip_hi)
+def _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn):
+    clip_lo, clip_hi = _impact_randtage_period_clip(mode, side, win_lo, win_hi)
+    label, subtitle, title = _impact_randtage_period_meta(mode, side, clip_lo, clip_hi)
     metrics = agg_fn(clip_lo, clip_hi) if clip_lo <= clip_hi else None
     anchor = clip_lo if side == 'before' else clip_hi
     rep_day = clip_lo if metrics else None
@@ -6424,12 +6434,12 @@ def _impact_randtage_side_qual(mode, kpi_by_day, side, before_lo, before_hi, aft
         d, metrics = _impact_closest_day_in_window(
             day_fn, win_lo, win_hi, anchor, prefer_forward, has_data,
         )
-        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · nach den Coachings'
+        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · Nachher (Wirkungsfenster-Ende)'
         subtitle = 'nächster Tag mit Daten im Wirkungsfenster' if d and anchor and d != anchor else None
         return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
 
     if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(mode, window, side, win_lo, win_hi, agg_fn)
+        return _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn)
 
     return None, ''
 
@@ -6447,12 +6457,12 @@ def _impact_randtage_side_prod(mode, prod_by_day, side, before_lo, before_hi, af
         d, metrics = _impact_closest_day_in_window(
             day_fn, win_lo, win_hi, anchor, prefer_forward, has_data,
         )
-        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · nach den Coachings'
+        title = 'Erster Tag · vor den Coachings' if is_before else 'Letzter Tag · Nachher (Wirkungsfenster-Ende)'
         subtitle = 'nächster Tag mit Daten im Wirkungsfenster' if d and anchor and d != anchor else None
         return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
 
     if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(mode, window, side, win_lo, win_hi, agg_fn)
+        return _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn)
 
     return None, ''
 
@@ -6461,7 +6471,7 @@ def _impact_randtage_qual(kpi_by_day, first_coaching, last_coaching, window):
     before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
         first_coaching, last_coaching, window,
     )
-    modes = _impact_randtage_modes_for_window(window)
+    modes = _impact_randtage_modes_for_window(window, first_coaching, last_coaching)
     by_mode = {}
     titles = {}
     for mode in modes:
@@ -6488,7 +6498,7 @@ def _impact_randtage_prod(prod_by_day, first_coaching, last_coaching, window):
     before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
         first_coaching, last_coaching, window,
     )
-    modes = _impact_randtage_modes_for_window(window)
+    modes = _impact_randtage_modes_for_window(window, first_coaching, last_coaching)
     by_mode = {}
     titles = {}
     for mode in modes:
@@ -6513,12 +6523,11 @@ def _impact_randtage_prod(prod_by_day, first_coaching, last_coaching, window):
 
 def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, window, coaching_count):
     """Vorher/Während/Nachher from first/last coaching day in Zeitraum (Ø daily + Randtage)."""
-    before_lo = first_coaching - timedelta(days=window)
-    before_hi = first_coaching - timedelta(days=1)
+    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
+        first_coaching, last_coaching, window,
+    )
     during_lo = first_coaching
     during_hi = last_coaching
-    after_lo = last_coaching + timedelta(days=1)
-    after_hi = last_coaching + timedelta(days=window)
 
     def day_qual(d):
         return _impact_day_qual(kpi_by_day, d)
@@ -6560,12 +6569,11 @@ def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, w
 
 def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, window, coaching_count):
     """Productivity Vorher/Während/Nachher from first/last coaching day in Zeitraum."""
-    before_lo = first_coaching - timedelta(days=window)
-    before_hi = first_coaching - timedelta(days=1)
+    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
+        first_coaching, last_coaching, window,
+    )
     during_lo = first_coaching
     during_hi = last_coaching
-    after_lo = last_coaching + timedelta(days=1)
-    after_hi = last_coaching + timedelta(days=window)
 
     def day_prod(d):
         return _impact_day_prod(prod_by_day, d)
