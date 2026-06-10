@@ -6284,15 +6284,21 @@ def _impact_data_bounds(day_map):
     return dates[0], dates[-1]
 
 
-def _impact_vn_bounds(first_coaching, data_lo, data_hi):
-    """Vorher: all scope data before coachings; Nachher: from first coaching through latest data."""
+def _impact_vn_bounds(first_coaching, last_coaching, data_lo, data_hi):
+    """Vorher: before first coaching; Nachher: after last coaching; Aktuell: from first coaching."""
     before_hi = first_coaching - timedelta(days=1)
     before_lo = data_lo
-    after_lo = first_coaching
-    after_hi = data_hi
+    nachher_lo = last_coaching + timedelta(days=1)
+    nachher_hi = data_hi
+    aktuell_lo = first_coaching
+    aktuell_hi = data_hi
     if data_lo is not None and before_lo > before_hi:
         before_lo, before_hi = None, None
-    return before_lo, before_hi, after_lo, after_hi
+    if nachher_lo is not None and nachher_hi is not None and nachher_lo > nachher_hi:
+        nachher_lo, nachher_hi = None, None
+    if aktuell_lo is not None and aktuell_hi is not None and aktuell_lo > aktuell_hi:
+        aktuell_lo, aktuell_hi = None, None
+    return before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi
 
 
 _VN_GRANULARITIES = ['gesamt', 'quarter', 'month', 'week', 'day']
@@ -6305,44 +6311,59 @@ _VN_GRANULARITY_LABELS = {
 }
 
 
-def _impact_vn_period_clip(granularity, side, before_lo, before_hi, after_lo, after_hi):
-    is_before = side == 'before'
-    win_lo, win_hi = (before_lo, before_hi) if is_before else (after_lo, after_hi)
+def _impact_vn_period_clip(
+    granularity, side, before_lo, before_hi,
+    nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
+):
+    side_ranges = {
+        'before': (before_lo, before_hi),
+        'nachher': (nachher_lo, nachher_hi),
+        'aktuell': (aktuell_lo, aktuell_hi),
+    }
+    win_lo, win_hi = side_ranges.get(side, (None, None))
     if win_lo is None or win_hi is None or win_lo > win_hi:
         return None, None
 
     if granularity == 'gesamt':
         return win_lo, win_hi
 
+    is_before = side == 'before'
+    if side == 'aktuell':
+        period_floor = before_lo
+    elif side == 'nachher':
+        period_floor = nachher_lo
+    else:
+        period_floor = None
+
     if granularity == 'day':
-        anchor = before_hi if is_before else after_hi
+        anchor = before_hi if is_before else win_hi
         return anchor, anchor
 
     if granularity == 'week':
-        anchor = before_hi if is_before else after_hi
+        anchor = before_hi if is_before else win_hi
         week_start = kpi_time._week_start_monday(anchor)
         week_end = week_start + timedelta(days=6)
         if is_before:
             return max(win_lo, week_start), min(win_hi, week_end)
-        floor = before_lo if before_lo is not None else week_start
+        floor = period_floor if period_floor is not None else week_start
         return max(week_start, floor), min(week_end, win_hi)
 
     if granularity == 'month':
-        anchor = before_hi if is_before else after_hi
+        anchor = before_hi if is_before else win_hi
         month_start = kpi_time._month_start(anchor)
         month_end = kpi_time._month_end(anchor)
         if is_before:
             return max(win_lo, month_start), min(win_hi, month_end)
-        floor = before_lo if before_lo is not None else month_start
+        floor = period_floor if period_floor is not None else month_start
         return max(month_start, floor), min(month_end, win_hi)
 
     if granularity == 'quarter':
-        anchor = before_hi if is_before else after_hi
+        anchor = before_hi if is_before else win_hi
         q_start = _impact_quarter_start(anchor)
         q_end = _impact_quarter_end(anchor)
         if is_before:
             return max(win_lo, q_start), min(win_hi, q_end)
-        floor = before_lo if before_lo is not None else q_start
+        floor = period_floor if period_floor is not None else q_start
         return max(q_start, floor), min(q_end, win_hi)
 
     return win_lo, win_hi
@@ -6395,15 +6416,22 @@ def _impact_vn_snapshot(granularity, clip_lo, clip_hi, agg):
     )
 
 
-def _impact_vn_mode_qual(kpi_by_day, first_coaching, granularity, before_lo, before_hi, after_lo, after_hi):
+def _impact_vn_mode_qual(
+    kpi_by_day, granularity, before_lo, before_hi,
+    nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
+):
     v_lo, v_hi = _impact_vn_period_clip(
-        granularity, 'before', before_lo, before_hi, after_lo, after_hi,
+        granularity, 'before', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
     )
     n_lo, n_hi = _impact_vn_period_clip(
-        granularity, 'after', before_lo, before_hi, after_lo, after_hi,
+        granularity, 'nachher', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
+    )
+    a_lo, a_hi = _impact_vn_period_clip(
+        granularity, 'aktuell', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
     )
     v_agg = _impact_qual_aggregate_range(kpi_by_day, v_lo, v_hi) if v_lo else None
     n_agg = _impact_qual_aggregate_range(kpi_by_day, n_lo, n_hi) if n_lo else None
+    a_agg = _impact_qual_aggregate_range(kpi_by_day, a_lo, a_hi) if a_lo else None
     chart = {}
     for key in ('info', 'loes', 'nps', 'fach', 'vert'):
         bv = (v_agg or {}).get('values', {}).get(key)
@@ -6419,19 +6447,27 @@ def _impact_vn_mode_qual(kpi_by_day, first_coaching, granularity, before_lo, bef
     return {
         'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),
         'after': _impact_vn_snapshot(granularity, n_lo, n_hi, n_agg),
+        'aktuell': _impact_vn_snapshot(granularity, a_lo, a_hi, a_agg),
         'chart': chart,
     }
 
 
-def _impact_vn_mode_prod(prod_by_day, first_coaching, granularity, before_lo, before_hi, after_lo, after_hi):
+def _impact_vn_mode_prod(
+    prod_by_day, granularity, before_lo, before_hi,
+    nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
+):
     v_lo, v_hi = _impact_vn_period_clip(
-        granularity, 'before', before_lo, before_hi, after_lo, after_hi,
+        granularity, 'before', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
     )
     n_lo, n_hi = _impact_vn_period_clip(
-        granularity, 'after', before_lo, before_hi, after_lo, after_hi,
+        granularity, 'nachher', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
+    )
+    a_lo, a_hi = _impact_vn_period_clip(
+        granularity, 'aktuell', before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
     )
     v_agg = _impact_prod_aggregate_range(prod_by_day, v_lo, v_hi) if v_lo else None
     n_agg = _impact_prod_aggregate_range(prod_by_day, n_lo, n_hi) if n_lo else None
+    a_agg = _impact_prod_aggregate_range(prod_by_day, a_lo, a_hi) if a_lo else None
     lower_is_better = {'nach', 'idle'}
     chart = {}
     for key in ('sign_on', 'prod', 'nach', 'idle'):
@@ -6450,6 +6486,7 @@ def _impact_vn_mode_prod(prod_by_day, first_coaching, granularity, before_lo, be
     return {
         'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),
         'after': _impact_vn_snapshot(granularity, n_lo, n_hi, n_agg),
+        'aktuell': _impact_vn_snapshot(granularity, a_lo, a_hi, a_agg),
         'chart': chart,
     }
 
@@ -6458,23 +6495,23 @@ def _impact_vn_werte_qual(kpi_by_day, first_coaching, last_coaching, coaching_co
     data_lo, data_hi = _impact_data_bounds(kpi_by_day)
     if data_lo is None:
         return None
-    before_lo, before_hi, after_lo, after_hi = _impact_vn_bounds(
-        first_coaching, data_lo, data_hi,
-    )
+    bounds = _impact_vn_bounds(first_coaching, last_coaching, data_lo, data_hi)
+    before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi = bounds
     by_mode = {}
     for mode in _VN_GRANULARITIES:
         by_mode[mode] = _impact_vn_mode_qual(
-            kpi_by_day, first_coaching, mode, before_lo, before_hi, after_lo, after_hi,
+            kpi_by_day, mode, before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
         )
     return {
         'modes': _VN_GRANULARITIES,
         'mode_labels': _VN_GRANULARITY_LABELS,
         'default_mode': 'gesamt',
         'by_mode': by_mode,
-        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'titles': {'before': 'Vorher', 'after': 'Nachher', 'aktuell': 'Aktueller Stand'},
         'coachings': coaching_count,
         'before': by_mode['gesamt']['before'],
         'after': by_mode['gesamt']['after'],
+        'aktuell': by_mode['gesamt']['aktuell'],
         'chart': by_mode['gesamt']['chart'],
     }
 
@@ -6483,23 +6520,23 @@ def _impact_vn_werte_prod(prod_by_day, first_coaching, last_coaching, coaching_c
     data_lo, data_hi = _impact_data_bounds(prod_by_day)
     if data_lo is None:
         return None
-    before_lo, before_hi, after_lo, after_hi = _impact_vn_bounds(
-        first_coaching, data_lo, data_hi,
-    )
+    bounds = _impact_vn_bounds(first_coaching, last_coaching, data_lo, data_hi)
+    before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi = bounds
     by_mode = {}
     for mode in _VN_GRANULARITIES:
         by_mode[mode] = _impact_vn_mode_prod(
-            prod_by_day, first_coaching, mode, before_lo, before_hi, after_lo, after_hi,
+            prod_by_day, mode, before_lo, before_hi, nachher_lo, nachher_hi, aktuell_lo, aktuell_hi,
         )
     return {
         'modes': _VN_GRANULARITIES,
         'mode_labels': _VN_GRANULARITY_LABELS,
         'default_mode': 'gesamt',
         'by_mode': by_mode,
-        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'titles': {'before': 'Vorher', 'after': 'Nachher', 'aktuell': 'Aktueller Stand'},
         'coachings': coaching_count,
         'before': by_mode['gesamt']['before'],
         'after': by_mode['gesamt']['after'],
+        'aktuell': by_mode['gesamt']['aktuell'],
         'chart': by_mode['gesamt']['chart'],
     }
 

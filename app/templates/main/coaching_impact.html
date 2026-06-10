@@ -86,29 +86,35 @@
         justify-content: center;
         margin-bottom: 0.75rem;
     }
-    .ci-vn-head-row,
-    .ci-vn-period-row,
-    .ci-vn-metric-row {
-        display: grid;
-        grid-template-columns: minmax(8rem, 1.4fr) minmax(5rem, 1fr) minmax(4.5rem, 0.9fr) minmax(5rem, 1fr);
-        gap: 0.75rem;
-        align-items: center;
+    .ci-vn-boxes-wrap {
+        align-items: stretch;
+        gap: 0.65rem;
     }
-    .ci-vn-head-row { margin-bottom: 0.35rem; }
-    .ci-vn-col-head { font-size: 0.78rem; font-weight: 700; color: #9a9aa3; text-align: right; }
-    .ci-vn-col-delta { text-align: center; }
-    .ci-vn-metric-row {
-        padding: 0.45rem 0;
-        border-top: 1px solid rgba(255,255,255,0.06);
+    .ci-vn-box-before {
+        border-color: rgba(154, 154, 165, 0.35);
     }
-    .ci-vn-label { color: #cfcfd6; font-size: 0.88rem; }
-    .ci-vn-before,
-    .ci-vn-after {
+    .ci-vn-box-after {
+        border-color: rgba(226, 0, 116, 0.35);
+    }
+    .ci-vn-box-aktuell {
+        border-color: rgba(100, 180, 255, 0.4);
+    }
+    .ci-vn-boxes-wrap--triple .ci-ba-randtage-box {
+        flex: 1 1 240px;
+        max-width: 300px;
+    }
+    .ci-vn-boxes-wrap--triple .ci-vn-delta-bridge {
+        min-width: 3.75rem;
+        max-width: 4.25rem;
+    }
+    .ci-vn-val-block {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.12rem;
         text-align: right;
-        font-weight: 700;
-        white-space: nowrap;
     }
-    .ci-vn-delta-cell { text-align: center; }
+    .ci-vn-val-main { font-weight: 700; white-space: nowrap; }
     .ci-vn-delta {
         font-size: 0.78rem;
         font-weight: 600;
@@ -118,8 +124,56 @@
         font-size: 0.72rem;
         font-weight: 400;
         color: #9a9aa3;
-        margin-left: 0.2rem;
         cursor: help;
+    }
+    .ci-vn-delta-bridge {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-width: 4.5rem;
+        max-width: 5.5rem;
+        align-self: stretch;
+        justify-content: flex-start;
+    }
+    .ci-vn-delta-bridge-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        min-height: 3.35rem;
+        padding-bottom: 0.45rem;
+        margin-bottom: 0.55rem;
+        border-bottom: 1px solid transparent;
+        color: #9a9aa3;
+        font-size: 1.1rem;
+    }
+    .ci-vn-delta-bridge-metrics {
+        display: flex;
+        flex-direction: column;
+        gap: 0.42rem;
+    }
+    .ci-vn-delta-bridge-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.05rem;
+    }
+    @media (max-width: 767px) {
+        .ci-vn-delta-bridge {
+            flex-direction: row;
+            flex-wrap: wrap;
+            min-width: 100%;
+            max-width: 100%;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0;
+        }
+        .ci-vn-delta-bridge-head { display: none; }
+        .ci-vn-delta-bridge-metrics {
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .ci-vn-delta-bridge-row { min-height: auto; }
     }
     .ci-ba-randtage-box {
         flex: 0 1 320px;
