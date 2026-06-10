@@ -5189,12 +5189,31 @@ def kpi_verwaltung():
             pset.target_prod = _float_form('target_prod', 85.0)
             pset.target_nach_per_call = _float_form('target_nach_per_call', 30.0)
             pset.target_idle_max = _float_form('target_idle_max', 10.0)
+            pset.warn_sign_on = _float_form('warn_sign_on', 80.75)
+            pset.warn_prod = _float_form('warn_prod', 72.25)
+            pset.warn_nach_per_call = _float_form('warn_nach_per_call', 45.0)
+            pset.warn_idle_max = _float_form('warn_idle_max', 15.0)
             pset.label_sign_on = _label_form('label_sign_on', productivity_logic.DEFAULT_LABELS['sign_on'])
             pset.label_prod = _label_form('label_prod', productivity_logic.DEFAULT_LABELS['prod'])
             pset.label_nach = _label_form('label_nach', productivity_logic.DEFAULT_LABELS['nach'])
             pset.label_idle = _label_form('label_idle', productivity_logic.DEFAULT_LABELS['idle'])
             pset.label_calls = _label_form('label_calls', productivity_logic.DEFAULT_LABELS['calls'])
             pset.label_works = _label_form('label_works', productivity_logic.DEFAULT_LABELS['works'])
+
+            qual_ziele = TeamViewCardSettings.query.get(sel_project)
+            if qual_ziele is None:
+                qual_ziele = TeamViewCardSettings(project_id=sel_project)
+                db.session.add(qual_ziele)
+            qual_ziele.target_nps = _float_form('target_nps', 50)
+            qual_ziele.target_loesung = _float_form('target_loesung', 80)
+            qual_ziele.target_info = _float_form('target_info', 80)
+            qual_ziele.target_fachkompetenz = _float_form('target_fachkompetenz', 4)
+            qual_ziele.target_vertrieb = _float_form('target_vertrieb', 80)
+            qual_ziele.warn_nps = _float_form('warn_nps', 0)
+            qual_ziele.warn_loesung = _float_form('warn_loesung', 60)
+            qual_ziele.warn_info = _float_form('warn_info', 60)
+            qual_ziele.warn_fachkompetenz = _float_form('warn_fachkompetenz', 3)
+            qual_ziele.warn_vertrieb = _float_form('warn_vertrieb', 60)
 
             db.session.commit()
             flash('KPI-Einstellungen gespeichert. Tipp: „KPIs neu berechnen“ aktualisiert bestehende Daten.', 'success')
@@ -5275,6 +5294,9 @@ def kpi_verwaltung():
     prod_settings = productivity_logic.settings_dict(prod_setting)
     prod_dashboard_visibility = productivity_logic.dashboard_visibility_dict(prod_setting)
     prod_impact_visibility = productivity_logic.impact_visibility_dict(prod_setting)
+    qual_ziele = kpi_logic.team_view_card_settings_dict(
+        TeamViewCardSettings.query.get(sel_project) if sel_project else None
+    )
     known_headers = session.get('prod_csv_headers') or []
 
     from app.kpi import kpi_features_enabled
@@ -5288,6 +5310,7 @@ def kpi_verwaltung():
         dashboard_visibility=dashboard_visibility,
         categories=categories,
         prod_settings=prod_settings,
+        qual_ziele=qual_ziele,
         prod_dashboard_visibility=prod_dashboard_visibility,
         prod_impact_visibility=prod_impact_visibility,
         known_headers=known_headers,

@@ -68,18 +68,29 @@
         color: #8a8a95;
         flex-shrink: 0;
     }
-    .ci-ba-randtage-grid {
+    .ci-ba-randtage-row-wrap {
         display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.25rem;
         flex-wrap: wrap;
-        gap: 1rem;
+        margin-bottom: 0.5rem;
     }
     .ci-ba-randtage-box {
-        flex: 1 1 260px;
-        max-width: 420px;
+        flex: 0 1 320px;
+        width: 100%;
+        max-width: 360px;
         border: 1px solid #34343c;
         border-radius: 12px;
         padding: 0.9rem 0.85rem;
         background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
+    }
+    .ci-ba-randtage-arrow {
+        color: #9a9aa3;
+        font-size: 1.35rem;
+        flex-shrink: 0;
+        line-height: 1;
+        padding: 0 0.15rem;
     }
     .ci-ba-randtage-head {
         display: flex;
@@ -119,7 +130,11 @@
         line-height: 1.2;
     }
     .ci-ba-randtage-row-lbl { color: #9a9aa3; }
-    .ci-ba-randtage-row-val { font-weight: 700; color: #e8e8ec; }
+    .ci-ba-randtage-row-val { font-weight: 700; }
+    .ci-ba-val-ok { color: #6ee08a; }
+    .ci-ba-val-warn { color: #ffd666; }
+    .ci-ba-val-bad { color: #ff8a96; }
+    .ci-ba-val-na { color: #adb5bd; }
     .ci-chart-range-hint {
         font-size: 0.78rem;
         color: #8a8a95;
@@ -1068,8 +1083,14 @@
         </div>
 
         <div class="ci-ba-section mt-3">
-            <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
-            <div class="ci-ba-randtage-grid mb-2">
+            {% set qual_target_map = {
+                'info': ('target_info', 'warn_info'),
+                'loes': ('target_loesung', 'warn_loesung'),
+                'nps': ('target_nps', 'warn_nps'),
+                'fach': ('target_fachkompetenz', 'warn_fachkompetenz'),
+                'vert': ('target_vertrieb', 'warn_vertrieb'),
+            } %}
+            <div class="ci-ba-randtage-row-wrap mb-2">
                 {% if randtage_qual and randtage_qual.before %}
                 <div class="ci-ba-randtage-box">
                     <div class="ci-ba-randtage-head">
@@ -1082,13 +1103,19 @@
                     <div class="ci-ba-randtage-metrics">
                         {% for key, label, cls, unit, one_decimal in parts %}
                         {% set val = randtage_qual.before.metrics.get(key) %}
+                        {% set tg = qual_targets[qual_target_map[key][0]] %}
+                        {% set ty = qual_targets[qual_target_map[key][1]] %}
+                        {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
                         <div class="ci-ba-randtage-row">
                             <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
-                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
+                {% endif %}
+                {% if randtage_qual and randtage_qual.before and randtage_qual.after %}
+                <div class="ci-ba-randtage-arrow" aria-hidden="true"><i class="fas fa-arrow-right"></i></div>
                 {% endif %}
                 {% if randtage_qual and randtage_qual.after %}
                 <div class="ci-ba-randtage-box">
@@ -1102,9 +1129,12 @@
                     <div class="ci-ba-randtage-metrics">
                         {% for key, label, cls, unit, one_decimal in parts %}
                         {% set val = randtage_qual.after.metrics.get(key) %}
+                        {% set tg = qual_targets[qual_target_map[key][0]] %}
+                        {% set ty = qual_targets[qual_target_map[key][1]] %}
+                        {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
                         <div class="ci-ba-randtage-row">
                             <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
-                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
                         {% endfor %}
                     </div>
@@ -1173,8 +1203,13 @@
         </div>
 
         <div class="ci-ba-section mt-3">
-            <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
-            <div class="ci-ba-randtage-grid mb-2">
+            {% set prod_target_map = {
+                'sign_on': ('target_sign_on', 'warn_sign_on', false),
+                'prod': ('target_prod', 'warn_prod', false),
+                'nach': ('target_nach_per_call', 'warn_nach_per_call', true),
+                'idle': ('target_idle_max', 'warn_idle_max', true),
+            } %}
+            <div class="ci-ba-randtage-row-wrap mb-2">
                 {% if randtage_prod and randtage_prod.before %}
                 <div class="ci-ba-randtage-box">
                     <div class="ci-ba-randtage-head">
@@ -1188,13 +1223,24 @@
                         {% for key, label, cls, unit, one_decimal in prod_parts %}
                         {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
                         {% set val = randtage_prod.before.metrics.get(metric_key) %}
+                        {% set pmap = prod_target_map[key] %}
+                        {% set tg = prod_targets[pmap[0]] %}
+                        {% set ty = prod_targets[pmap[1]] %}
+                        {% if val is not none %}
+                            {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
+                        {% else %}
+                            {% set status = 'na' %}
+                        {% endif %}
                         <div class="ci-ba-randtage-row">
                             <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
-                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
+                {% endif %}
+                {% if randtage_prod and randtage_prod.before and randtage_prod.after %}
+                <div class="ci-ba-randtage-arrow" aria-hidden="true"><i class="fas fa-arrow-right"></i></div>
                 {% endif %}
                 {% if randtage_prod and randtage_prod.after %}
                 <div class="ci-ba-randtage-box">
@@ -1209,9 +1255,17 @@
                         {% for key, label, cls, unit, one_decimal in prod_parts %}
                         {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
                         {% set val = randtage_prod.after.metrics.get(metric_key) %}
+                        {% set pmap = prod_target_map[key] %}
+                        {% set tg = prod_targets[pmap[0]] %}
+                        {% set ty = prod_targets[pmap[1]] %}
+                        {% if val is not none %}
+                            {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
+                        {% else %}
+                            {% set status = 'na' %}
+                        {% endif %}
                         <div class="ci-ba-randtage-row">
                             <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
-                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
                         {% endfor %}
                     </div>

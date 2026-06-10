@@ -71,6 +71,10 @@ def settings_dict(row):
         'target_prod': row.target_prod if row else 85.0,
         'target_nach_per_call': row.target_nach_per_call if row else 30.0,
         'target_idle_max': row.target_idle_max if row else 10.0,
+        'warn_sign_on': row.warn_sign_on if row else 80.75,
+        'warn_prod': row.warn_prod if row else 72.25,
+        'warn_nach_per_call': row.warn_nach_per_call if row else 45.0,
+        'warn_idle_max': row.warn_idle_max if row else 15.0,
         'labels': labels_dict(row),
     }
 

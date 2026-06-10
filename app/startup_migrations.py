@@ -923,6 +923,24 @@ def run_startup_migrations(app):
                     except Exception as e:
                         conn.rollback()
                         print(f"ℹ️ project_productivity_settings.{col}: {e}")
+            pps_cols = [c['name'] for c in inspect(db.engine).get_columns('project_productivity_settings')]
+            for col, default in (
+                ('warn_sign_on', 80.75),
+                ('warn_prod', 72.25),
+                ('warn_nach_per_call', 45.0),
+                ('warn_idle_max', 15.0),
+            ):
+                if col not in pps_cols:
+                    try:
+                        conn.execute(text(
+                            f"ALTER TABLE project_productivity_settings ADD COLUMN {col} "
+                            f"FLOAT NOT NULL DEFAULT {default}"
+                        ))
+                        conn.commit()
+                        print(f"✅ Spalte '{col}' zu 'project_productivity_settings' hinzugefügt.")
+                    except Exception as e:
+                        conn.rollback()
+                        print(f"ℹ️ project_productivity_settings.{col}: {e}")
 
         # 22. KPI categories seed
         if 'kpi_categories' in inspector.get_table_names():
