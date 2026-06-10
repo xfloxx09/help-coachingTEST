@@ -94,10 +94,18 @@
         border-color: rgba(154, 154, 165, 0.35);
     }
     .ci-vn-box-after {
-        border-color: rgba(226, 0, 116, 0.35);
+        border-color: rgba(154, 154, 165, 0.35);
     }
     .ci-vn-box-aktuell {
-        border-color: rgba(100, 180, 255, 0.4);
+        border: 1px solid #e20074;
+        background: linear-gradient(135deg, rgba(226, 0, 116, 0.14) 0%, #25252b 58%);
+        box-shadow: 0 0 0 1px rgba(226, 0, 116, 0.12);
+    }
+    .ci-vn-box-aktuell .ci-ba-randtage-head strong {
+        color: #fff;
+    }
+    .ci-vn-boxes-wrap--triple .ci-vn-box-aktuell {
+        margin-left: 0.35rem;
     }
     .ci-vn-boxes-wrap--triple .ci-ba-randtage-box {
         flex: 1 1 240px;
@@ -1322,9 +1330,6 @@
         <strong>{{ scope_label }}</strong> ist ausgewählt.
         Bitte legen Sie oben den <strong>Coaching-Zeitraum</strong> fest,
         um die Coaching-Wirkung anzuzeigen.
-        <button type="button" class="btn btn-sm telekom-button ml-2 mt-2 mt-md-0" id="ciOpenRangeWizardInline">
-            Zeitraum festlegen
-        </button>
     </div>
 
     {% elif selection_made %}
@@ -2157,14 +2162,6 @@
             form.submit();
         });
     });
-
-    var inlineWizardBtn = document.getElementById('ciOpenRangeWizardInline');
-    if (inlineWizardBtn) {
-        inlineWizardBtn.addEventListener('click', function () {
-            var openBtn = document.getElementById('ciOpenRangeWizard');
-            if (openBtn) openBtn.click();
-        });
-    }
 
     if (new URLSearchParams(window.location.search).get('open_wizard') === '1'
             && ciScopeReady() && ciCoachReady()) {
