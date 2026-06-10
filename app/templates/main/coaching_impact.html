@@ -76,6 +76,11 @@
         flex-wrap: wrap;
         margin-bottom: 0.5rem;
     }
+    .ci-randtage-toolbar {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 0.75rem;
+    }
     .ci-ba-randtage-box {
         flex: 0 1 320px;
         width: 100%;
@@ -1082,69 +1087,20 @@
             </div>
         </div>
 
-        <div class="ci-ba-section mt-3">
-            {% set qual_target_map = {
-                'info': ('target_info', 'warn_info'),
-                'loes': ('target_loesung', 'warn_loesung'),
-                'nps': ('target_nps', 'warn_nps'),
-                'fach': ('target_fachkompetenz', 'warn_fachkompetenz'),
-                'vert': ('target_vertrieb', 'warn_vertrieb'),
-            } %}
-            <div class="ci-ba-randtage-row-wrap mb-2">
-                {% if randtage_qual and randtage_qual.before %}
-                <div class="ci-ba-randtage-box">
-                    <div class="ci-ba-randtage-head">
-                        <strong>Erster Tag · vor den Coachings</strong>
-                        <span class="ci-ba-randtage-date">
-                            {{ randtage_qual.before.label }}
-                            {% if randtage_qual.before.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
-                        </span>
-                    </div>
-                    <div class="ci-ba-randtage-metrics">
-                        {% for key, label, cls, unit, one_decimal in parts %}
-                        {% set val = randtage_qual.before.metrics.get(key) %}
-                        {% set tg = qual_targets[qual_target_map[key][0]] %}
-                        {% set ty = qual_targets[qual_target_map[key][1]] %}
-                        {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
-                        <div class="ci-ba-randtage-row">
-                            <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
-                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                {% if randtage_qual and randtage_qual.before and randtage_qual.after %}
-                <div class="ci-ba-randtage-arrow" aria-hidden="true"><i class="fas fa-arrow-right"></i></div>
-                {% endif %}
-                {% if randtage_qual and randtage_qual.after %}
-                <div class="ci-ba-randtage-box">
-                    <div class="ci-ba-randtage-head">
-                        <strong>Letzter Tag · nach den Coachings</strong>
-                        <span class="ci-ba-randtage-date">
-                            {{ randtage_qual.after.label }}
-                            {% if randtage_qual.after.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
-                        </span>
-                    </div>
-                    <div class="ci-ba-randtage-metrics">
-                        {% for key, label, cls, unit, one_decimal in parts %}
-                        {% set val = randtage_qual.after.metrics.get(key) %}
-                        {% set tg = qual_targets[qual_target_map[key][0]] %}
-                        {% set ty = qual_targets[qual_target_map[key][1]] %}
-                        {% set status = (val|kpi_status(tg, ty)) if val is not none else 'na' %}
-                        <div class="ci-ba-randtage-row">
-                            <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
-                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                {% if not randtage_qual or (not randtage_qual.before and not randtage_qual.after) %}
-                <div class="text-muted small">Keine Rohdaten im Wirkungsfenster.</div>
-                {% endif %}
-            </div>
-        </div>
+        {% set qual_target_map = {
+            'info': ('target_info', 'warn_info'),
+            'loes': ('target_loesung', 'warn_loesung'),
+            'nps': ('target_nps', 'warn_nps'),
+            'fach': ('target_fachkompetenz', 'warn_fachkompetenz'),
+            'vert': ('target_vertrieb', 'warn_vertrieb'),
+        } %}
+        {% set panel_id = 'ciRandtageQual' %}
+        {% set randtage = randtage_qual %}
+        {% set metric_parts = parts %}
+        {% set target_map = qual_target_map %}
+        {% set targets = qual_targets %}
+        {% set is_prod = false %}
+        {% include 'main/_coaching_impact_randtage_panel.html' with context %}
     </div>
     {% endif %}
 
@@ -1202,80 +1158,19 @@
             </div>
         </div>
 
-        <div class="ci-ba-section mt-3">
-            {% set prod_target_map = {
-                'sign_on': ('target_sign_on', 'warn_sign_on', false),
-                'prod': ('target_prod', 'warn_prod', false),
-                'nach': ('target_nach_per_call', 'warn_nach_per_call', true),
-                'idle': ('target_idle_max', 'warn_idle_max', true),
-            } %}
-            <div class="ci-ba-randtage-row-wrap mb-2">
-                {% if randtage_prod and randtage_prod.before %}
-                <div class="ci-ba-randtage-box">
-                    <div class="ci-ba-randtage-head">
-                        <strong>Erster Tag · vor den Coachings</strong>
-                        <span class="ci-ba-randtage-date">
-                            {{ randtage_prod.before.label }}
-                            {% if randtage_prod.before.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
-                        </span>
-                    </div>
-                    <div class="ci-ba-randtage-metrics">
-                        {% for key, label, cls, unit, one_decimal in prod_parts %}
-                        {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
-                        {% set val = randtage_prod.before.metrics.get(metric_key) %}
-                        {% set pmap = prod_target_map[key] %}
-                        {% set tg = prod_targets[pmap[0]] %}
-                        {% set ty = prod_targets[pmap[1]] %}
-                        {% if val is not none %}
-                            {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
-                        {% else %}
-                            {% set status = 'na' %}
-                        {% endif %}
-                        <div class="ci-ba-randtage-row">
-                            <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
-                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                {% if randtage_prod and randtage_prod.before and randtage_prod.after %}
-                <div class="ci-ba-randtage-arrow" aria-hidden="true"><i class="fas fa-arrow-right"></i></div>
-                {% endif %}
-                {% if randtage_prod and randtage_prod.after %}
-                <div class="ci-ba-randtage-box">
-                    <div class="ci-ba-randtage-head">
-                        <strong>Letzter Tag · nach den Coachings</strong>
-                        <span class="ci-ba-randtage-date">
-                            {{ randtage_prod.after.label }}
-                            {% if randtage_prod.after.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
-                        </span>
-                    </div>
-                    <div class="ci-ba-randtage-metrics">
-                        {% for key, label, cls, unit, one_decimal in prod_parts %}
-                        {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
-                        {% set val = randtage_prod.after.metrics.get(metric_key) %}
-                        {% set pmap = prod_target_map[key] %}
-                        {% set tg = prod_targets[pmap[0]] %}
-                        {% set ty = prod_targets[pmap[1]] %}
-                        {% if val is not none %}
-                            {% if pmap[2] %}{% set status = val|kpi_status_max(tg, ty) %}{% else %}{% set status = val|kpi_status(tg, ty) %}{% endif %}
-                        {% else %}
-                            {% set status = 'na' %}
-                        {% endif %}
-                        <div class="ci-ba-randtage-row">
-                            <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
-                            <span class="ci-ba-randtage-row-val ci-ba-val-{{ status }}">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                {% if not randtage_prod or (not randtage_prod.before and not randtage_prod.after) %}
-                <div class="text-muted small">Keine Rohdaten im Wirkungsfenster.</div>
-                {% endif %}
-            </div>
-        </div>
+        {% set prod_target_map = {
+            'sign_on': ('target_sign_on', 'warn_sign_on', false),
+            'prod': ('target_prod', 'warn_prod', false),
+            'nach': ('target_nach_per_call', 'warn_nach_per_call', true),
+            'idle': ('target_idle_max', 'warn_idle_max', true),
+        } %}
+        {% set panel_id = 'ciRandtageProd' %}
+        {% set randtage = randtage_prod %}
+        {% set metric_parts = prod_parts %}
+        {% set target_map = prod_target_map %}
+        {% set targets = prod_targets %}
+        {% set is_prod = true %}
+        {% include 'main/_coaching_impact_randtage_panel.html' with context %}
     </div>
     {% endif %}
 
@@ -2977,6 +2872,23 @@
         btn.addEventListener('click', function (e) {
             e.stopPropagation();
             openCiCoachingDay(btn.getAttribute('data-date'));
+        });
+    });
+
+    document.querySelectorAll('[data-randtage-panel]').forEach(function (toggle) {
+        var panelId = toggle.getAttribute('data-randtage-panel');
+        var panel = document.getElementById(panelId);
+        if (!panel) return;
+        toggle.querySelectorAll('[data-randtage-mode]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var mode = btn.getAttribute('data-randtage-mode');
+                toggle.querySelectorAll('.btn').forEach(function (b) {
+                    b.classList.toggle('active', b === btn);
+                });
+                panel.querySelectorAll('.ci-ba-randtage-mode').forEach(function (block) {
+                    block.hidden = block.getAttribute('data-randtage-mode') !== mode;
+                });
+            });
         });
     });
 
