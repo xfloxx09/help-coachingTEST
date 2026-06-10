@@ -68,6 +68,63 @@
         color: #8a8a95;
         flex-shrink: 0;
     }
+    .ci-ba-randtage-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .ci-ba-randtage-box {
+        flex: 1 1 260px;
+        max-width: 420px;
+        border: 1px solid #34343c;
+        border-radius: 12px;
+        padding: 0.9rem 0.85rem;
+        background: linear-gradient(160deg, #25252b 0%, #1d1d22 100%);
+    }
+    .ci-ba-randtage-head {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        margin-bottom: 0.55rem;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .ci-ba-randtage-head strong {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #b9b9c2;
+    }
+    .ci-ba-randtage-date {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #e8e8ec;
+    }
+    .ci-ba-randtage-fallback {
+        font-size: 0.68rem;
+        color: #8a8a95;
+        font-weight: normal;
+    }
+    .ci-ba-randtage-metrics {
+        display: flex;
+        flex-direction: column;
+        gap: 0.42rem;
+    }
+    .ci-ba-randtage-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-size: 0.84rem;
+        line-height: 1.2;
+    }
+    .ci-ba-randtage-row-lbl { color: #9a9aa3; }
+    .ci-ba-randtage-row-val { font-weight: 700; color: #e8e8ec; }
+    .ci-chart-range-hint {
+        font-size: 0.78rem;
+        color: #8a8a95;
+        margin-top: 0.15rem;
+    }
     .ci-card .ci-label {
         font-size: 0.9rem;
         color: #b9b9c2;
@@ -1012,32 +1069,50 @@
 
         <div class="ci-ba-section mt-3">
             <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
-            <div class="ci-ba-card-grid mb-2">
-                {% for key, label, cls, unit, one_decimal in parts %}
-                {% set ba = before_after[key] %}
-                {% set raw = ba.raw %}
-                <div class="ci-ba-card-wrap">
-                    <div class="ci-card {{ cls }}">
-                        <div class="ci-label">{{ label }}</div>
-                        {% if ba.has_raw %}
-                        <div class="ci-ba-values">
-                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.before|de_decimal(1) }}{% else %}{{ raw.before|de_decimal }}{% endif %}{{ unit }}</span>
-                            <i class="fas fa-arrow-right ci-arrow"></i>
-                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.after|de_decimal(1) }}{% else %}{{ raw.after|de_decimal }}{% endif %}{{ unit }}</span>
+            <div class="ci-ba-randtage-grid mb-2">
+                {% if randtage_qual and randtage_qual.before %}
+                <div class="ci-ba-randtage-box">
+                    <div class="ci-ba-randtage-head">
+                        <strong>Erster Tag · vor den Coachings</strong>
+                        <span class="ci-ba-randtage-date">
+                            {{ randtage_qual.before.label }}
+                            {% if randtage_qual.before.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="ci-ba-randtage-metrics">
+                        {% for key, label, cls, unit, one_decimal in parts %}
+                        {% set val = randtage_qual.before.metrics.get(key) %}
+                        <div class="ci-ba-randtage-row">
+                            <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
+                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
-                        <div class="ci-delta {% if raw.delta > 0 %}ci-delta-up{% elif raw.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                            {% if raw.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif raw.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ raw.delta|de_decimal(1) }}{% else %}{{ raw.delta|de_decimal }}{% endif %}{{ unit }}
-                        </div>
-                        {% if impact_ba_meta %}
-                        <div class="ci-sub">{{ impact_ba_meta.before_start.strftime('%d.%m.%Y') }} → {{ impact_ba_meta.after_end.strftime('%d.%m.%Y') }}</div>
-                        {% endif %}
-                        {% else %}
-                        <div class="ci-ba-val text-muted">–</div>
-                        <div class="ci-sub">Keine Rohdaten an den Randtagen</div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
-                {% endfor %}
+                {% endif %}
+                {% if randtage_qual and randtage_qual.after %}
+                <div class="ci-ba-randtage-box">
+                    <div class="ci-ba-randtage-head">
+                        <strong>Letzter Tag · nach den Coachings</strong>
+                        <span class="ci-ba-randtage-date">
+                            {{ randtage_qual.after.label }}
+                            {% if randtage_qual.after.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="ci-ba-randtage-metrics">
+                        {% for key, label, cls, unit, one_decimal in parts %}
+                        {% set val = randtage_qual.after.metrics.get(key) %}
+                        <div class="ci-ba-randtage-row">
+                            <span class="ci-ba-randtage-row-lbl">{{ label }}</span>
+                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if not randtage_qual or (not randtage_qual.before and not randtage_qual.after) %}
+                <div class="text-muted small">Keine Rohdaten im Wirkungsfenster.</div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -1099,41 +1174,52 @@
 
         <div class="ci-ba-section mt-3">
             <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
-            <div class="ci-ba-card-grid mb-2">
-                {% for key, label, cls, unit, one_decimal in prod_parts %}
-                {% set ba = before_after_prod[key] %}
-                {% set raw = ba.raw %}
-                <div class="ci-ba-card-wrap">
-                    <div class="ci-card {{ cls }}">
-                        {% if key == 'prod' %}
-                        <div class="ci-label ci-label-with-hint">
-                            <span>{{ label }}</span>
-                            {% include 'main/_prod_metric_hint.html' %}
+            <div class="ci-ba-randtage-grid mb-2">
+                {% if randtage_prod and randtage_prod.before %}
+                <div class="ci-ba-randtage-box">
+                    <div class="ci-ba-randtage-head">
+                        <strong>Erster Tag · vor den Coachings</strong>
+                        <span class="ci-ba-randtage-date">
+                            {{ randtage_prod.before.label }}
+                            {% if randtage_prod.before.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="ci-ba-randtage-metrics">
+                        {% for key, label, cls, unit, one_decimal in prod_parts %}
+                        {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
+                        {% set val = randtage_prod.before.metrics.get(metric_key) %}
+                        <div class="ci-ba-randtage-row">
+                            <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
                         </div>
-                        {% else %}
-                        <div class="ci-label">{{ label }}</div>
-                        {% endif %}
-                        {% if ba.has_raw %}
-                        {% set delta_good = (raw.delta < 0) if ba.lower_is_better else (raw.delta > 0) %}
-                        {% set delta_bad = (raw.delta > 0) if ba.lower_is_better else (raw.delta < 0) %}
-                        <div class="ci-ba-values">
-                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.before|de_decimal(1) }}{% else %}{{ raw.before|de_decimal }}{% endif %}{{ unit }}</span>
-                            <i class="fas fa-arrow-right ci-arrow"></i>
-                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.after|de_decimal(1) }}{% else %}{{ raw.after|de_decimal }}{% endif %}{{ unit }}</span>
-                        </div>
-                        <div class="ci-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                            {% if raw.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif raw.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ raw.delta|de_decimal(1) }}{% else %}{{ raw.delta|de_decimal }}{% endif %}{{ unit }}
-                        </div>
-                        {% if impact_ba_meta %}
-                        <div class="ci-sub">{{ impact_ba_meta.before_start.strftime('%d.%m.%Y') }} → {{ impact_ba_meta.after_end.strftime('%d.%m.%Y') }}</div>
-                        {% endif %}
-                        {% else %}
-                        <div class="ci-ba-val text-muted">–</div>
-                        <div class="ci-sub">Keine Rohdaten an den Randtagen</div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
-                {% endfor %}
+                {% endif %}
+                {% if randtage_prod and randtage_prod.after %}
+                <div class="ci-ba-randtage-box">
+                    <div class="ci-ba-randtage-head">
+                        <strong>Letzter Tag · nach den Coachings</strong>
+                        <span class="ci-ba-randtage-date">
+                            {{ randtage_prod.after.label }}
+                            {% if randtage_prod.after.fallback %}<span class="ci-ba-randtage-fallback">nächster Tag mit Daten im Wirkungsfenster</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="ci-ba-randtage-metrics">
+                        {% for key, label, cls, unit, one_decimal in prod_parts %}
+                        {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
+                        {% set val = randtage_prod.after.metrics.get(metric_key) %}
+                        <div class="ci-ba-randtage-row">
+                            <span class="ci-ba-randtage-row-lbl">{% if key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
+                            <span class="ci-ba-randtage-row-val">{% if val is not none %}{% if one_decimal %}{{ val|de_decimal(1) }}{% else %}{{ val|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if not randtage_prod or (not randtage_prod.before and not randtage_prod.after) %}
+                <div class="text-muted small">Keine Rohdaten im Wirkungsfenster.</div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -1147,6 +1233,12 @@
                 Zeitverlauf · <span id="ciChartsModeLabel">{{ cat_labels.qualitaet }}</span>
                 {% if chart_granularity == 'day' %}
                 <span class="text-muted small font-weight-normal d-block d-md-inline ml-md-1">(Klick auf Chart öffnet Befragungs-Rohdaten)</span>
+                {% endif %}
+                {% if impact_ba_meta %}
+                <span class="ci-chart-range-hint d-block">
+                    KPIs: Wirkungsfenster {{ impact_ba_meta.kpi_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.kpi_end.strftime('%d.%m.%Y') }}
+                    · Coachings: Zeitraum {{ impact_ba_meta.coaching_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.coaching_end.strftime('%d.%m.%Y') }}
+                </span>
                 {% endif %}
             </div>
             <div class="ci-chart-header-actions">

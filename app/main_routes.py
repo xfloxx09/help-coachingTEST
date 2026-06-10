@@ -6169,6 +6169,97 @@ def _impact_avg_daily_metric(day_metric_fn, metric_key, day_lo, day_hi):
     return round(sum(vals) / len(vals), 2), len(vals)
 
 
+def _impact_day_has_qual(dm):
+    return bool(
+        dm and any(dm.get(k) is not None for k in ('info', 'loes', 'nps', 'fach', 'vert'))
+    )
+
+
+def _impact_day_has_prod(dm):
+    return bool(
+        dm and any(
+            dm.get(k) is not None
+            for k in ('sign_on_pct', 'prod_pct', 'nach_per_call', 'idle_pct')
+        )
+    )
+
+
+def _impact_closest_day_in_window(day_fn, window_lo, window_hi, anchor, prefer_forward, has_data):
+    """Nearest day with data inside [window_lo, window_hi], starting from anchor."""
+    if window_lo is None or window_hi is None or window_lo > window_hi:
+        return None, None
+    anchor = max(window_lo, min(anchor, window_hi))
+    if prefer_forward:
+        d = anchor
+        while d <= window_hi:
+            dm = day_fn(d)
+            if has_data(dm):
+                return d, dm
+            d += timedelta(days=1)
+    else:
+        d = anchor
+        while d >= window_lo:
+            dm = day_fn(d)
+            if has_data(dm):
+                return d, dm
+            d -= timedelta(days=1)
+    return None, None
+
+
+def _impact_randtage_snapshot(day, metrics, anchor):
+    if day is None or not metrics:
+        return None
+    return {
+        'date': day.isoformat(),
+        'label': day.strftime('%d.%m.%Y'),
+        'anchor': anchor.isoformat(),
+        'fallback': day != anchor,
+        'metrics': metrics,
+    }
+
+
+def _impact_randtage_qual(kpi_by_day, first_coaching, last_coaching, window):
+    before_lo = first_coaching - timedelta(days=window)
+    before_hi = first_coaching - timedelta(days=1)
+    after_lo = last_coaching + timedelta(days=1)
+    after_hi = last_coaching + timedelta(days=window)
+
+    def day_qual(d):
+        return _impact_day_qual(kpi_by_day, d)
+
+    b_day, b_metrics = _impact_closest_day_in_window(
+        day_qual, before_lo, before_hi, before_lo, True, _impact_day_has_qual,
+    )
+    a_day, a_metrics = _impact_closest_day_in_window(
+        day_qual, after_lo, after_hi, after_hi, False, _impact_day_has_qual,
+    )
+    return {
+        'before': _impact_randtage_snapshot(b_day, b_metrics, before_lo),
+        'after': _impact_randtage_snapshot(a_day, a_metrics, after_hi),
+    }
+
+
+def _impact_randtage_prod(prod_by_day, first_coaching, last_coaching, window):
+    before_lo = first_coaching - timedelta(days=window)
+    before_hi = first_coaching - timedelta(days=1)
+    after_lo = last_coaching + timedelta(days=1)
+    after_hi = last_coaching + timedelta(days=window)
+
+    def day_prod(d):
+        return _impact_day_prod(prod_by_day, d)
+
+    b_day, b_metrics = _impact_closest_day_in_window(
+        day_prod, before_lo, before_hi, before_lo, True, _impact_day_has_prod,
+    )
+    a_day, a_metrics = _impact_closest_day_in_window(
+        day_prod, after_lo, after_hi, after_hi, False, _impact_day_has_prod,
+    )
+    return {
+        'before': _impact_randtage_snapshot(b_day, b_metrics, before_lo),
+        'after': _impact_randtage_snapshot(a_day, a_metrics, after_hi),
+    }
+
+
 def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, window, coaching_count):
     """Vorher/Während/Nachher from first/last coaching day in Zeitraum (Ø daily + Randtage)."""
     before_lo = first_coaching - timedelta(days=window)
@@ -6177,8 +6268,6 @@ def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, w
     during_hi = last_coaching
     after_lo = last_coaching + timedelta(days=1)
     after_hi = last_coaching + timedelta(days=window)
-    raw_before_day = before_lo
-    raw_after_day = after_hi
 
     def day_qual(d):
         return _impact_day_qual(kpi_by_day, d)
@@ -6188,8 +6277,14 @@ def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, w
         b_avg, b_days = _impact_avg_daily_metric(day_qual, key, before_lo, before_hi)
         d_avg, d_days = _impact_avg_daily_metric(day_qual, key, during_lo, during_hi)
         a_avg, a_days = _impact_avg_daily_metric(day_qual, key, after_lo, after_hi)
-        raw_b = (day_qual(raw_before_day) or {}).get(key)
-        raw_a = (day_qual(raw_after_day) or {}).get(key)
+        _, b_raw_metrics = _impact_closest_day_in_window(
+            day_qual, before_lo, before_hi, before_lo, True, _impact_day_has_qual,
+        )
+        _, a_raw_metrics = _impact_closest_day_in_window(
+            day_qual, after_lo, after_hi, after_hi, False, _impact_day_has_qual,
+        )
+        raw_b = (b_raw_metrics or {}).get(key)
+        raw_a = (a_raw_metrics or {}).get(key)
         has_avg = b_avg is not None and a_avg is not None
         has_raw = raw_b is not None and raw_a is not None
         out[key] = {
@@ -6220,8 +6315,6 @@ def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, 
     during_hi = last_coaching
     after_lo = last_coaching + timedelta(days=1)
     after_hi = last_coaching + timedelta(days=window)
-    raw_before_day = before_lo
-    raw_after_day = after_hi
 
     def day_prod(d):
         return _impact_day_prod(prod_by_day, d)
@@ -6233,8 +6326,14 @@ def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, 
         b_avg, b_days = _impact_avg_daily_metric(day_prod, metric_key, before_lo, before_hi)
         d_avg, d_days = _impact_avg_daily_metric(day_prod, metric_key, during_lo, during_hi)
         a_avg, a_days = _impact_avg_daily_metric(day_prod, metric_key, after_lo, after_hi)
-        raw_b = (day_prod(raw_before_day) or {}).get(metric_key)
-        raw_a = (day_prod(raw_after_day) or {}).get(metric_key)
+        _, b_raw_metrics = _impact_closest_day_in_window(
+            day_prod, before_lo, before_hi, before_lo, True, _impact_day_has_prod,
+        )
+        _, a_raw_metrics = _impact_closest_day_in_window(
+            day_prod, after_lo, after_hi, after_hi, False, _impact_day_has_prod,
+        )
+        raw_b = (b_raw_metrics or {}).get(metric_key)
+        raw_a = (a_raw_metrics or {}).get(metric_key)
         has_avg = b_avg is not None and a_avg is not None
         has_raw = raw_b is not None and raw_a is not None
         out[key] = {
@@ -6258,7 +6357,10 @@ def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, 
     return out
 
 
-def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity):
+def _coaching_impact_overlay(
+    kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity,
+    coaching_clip_start=None, coaching_clip_end=None,
+):
     data_dates = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
     periods = kpi_time.bucket_ranges(chart_granularity, start_date, end_date, data_dates)
     overlay = []
@@ -6276,6 +6378,9 @@ def _coaching_impact_overlay(kpi_by_day, coaching_by_day, prod_by_day, start_dat
                 kb['fach'].extend(day_kb['fach'])
                 kb['vert'].extend(day_kb['vert'])
             day_cb = coaching_by_day.get(d)
+            if day_cb and coaching_clip_start and coaching_clip_end:
+                if not (coaching_clip_start <= d <= coaching_clip_end):
+                    day_cb = None
             if day_cb:
                 cb['count'] += day_cb['count']
                 cb['perf'].extend(day_cb['perf'])
@@ -6596,6 +6701,8 @@ def coaching_impact():
     before_after = None
     before_after_prod = None
     impact_ba_meta = None
+    randtage_qual = None
+    randtage_prod = None
     summary = None
     kpi = None
     scope_label = ''
@@ -6745,19 +6852,12 @@ def coaching_impact():
             b['day']: b for b in productivity_logic.query_daily_buckets_sql(prod_filters)
         }
 
-        data_dates = sorted(set(kpi_by_day.keys()) | set(coaching_by_day.keys()) | set(prod_by_day.keys()))
-        table_granularity, chart_granularity, toggle_granularity, granularity_notice = (
-            _resolve_dashboard_granularities(
-                granularity_arg, period_arg, start_date, end_date, data_dates,
-                'main.coaching_impact',
-            )
-        )
-        overlay = _coaching_impact_overlay(
-            kpi_by_day, coaching_by_day, prod_by_day, start_date, end_date, chart_granularity,
-        )
-
         window = impact_window_days
-        impact_ba_meta = None
+        kpi_by_day_overlay = kpi_by_day
+        prod_by_day_overlay = prod_by_day
+        overlay_start = start_date
+        overlay_end = end_date
+
         if events:
             coaching_dates = [d for _, d in events]
             first_coaching = min(coaching_dates)
@@ -6797,7 +6897,7 @@ def coaching_impact():
                 if vert_p is not None:
                     bucket['vert'].append(1 if vert_p else 0)
 
-            impact_prod_filters = list(prod_filters)
+            impact_prod_filters = list(prod_scope_filters)
             impact_prod_filters.append(
                 ProductivityInterval.slot_at >= datetime.combine(ext_start, datetime.min.time()),
             )
@@ -6809,6 +6909,11 @@ def coaching_impact():
                 for b in productivity_logic.query_daily_buckets_sql(impact_prod_filters)
             }
 
+            kpi_by_day_overlay = kpi_by_day_impact
+            prod_by_day_overlay = prod_by_day_impact
+            overlay_start = ext_start
+            overlay_end = ext_end
+
             impact_ba_meta = {
                 'first_coaching': first_coaching,
                 'last_coaching': last_coaching,
@@ -6816,6 +6921,10 @@ def coaching_impact():
                 'window': window,
                 'before_start': ext_start,
                 'after_end': ext_end,
+                'kpi_start': ext_start,
+                'kpi_end': ext_end,
+                'coaching_start': start_date,
+                'coaching_end': end_date,
             }
             before_after = _impact_range_before_after_qual(
                 kpi_by_day_impact, first_coaching, last_coaching, window, coaching_count,
@@ -6823,6 +6932,32 @@ def coaching_impact():
             before_after_prod = _impact_range_before_after_prod(
                 prod_by_day_impact, first_coaching, last_coaching, window, coaching_count,
             )
+            randtage_qual = _impact_randtage_qual(
+                kpi_by_day_impact, first_coaching, last_coaching, window,
+            )
+            randtage_prod = _impact_randtage_prod(
+                prod_by_day_impact, first_coaching, last_coaching, window,
+            )
+
+        data_dates = sorted(
+            set(kpi_by_day_overlay.keys()) | set(coaching_by_day.keys()) | set(prod_by_day_overlay.keys())
+        )
+        table_granularity, chart_granularity, toggle_granularity, granularity_notice = (
+            _resolve_dashboard_granularities(
+                granularity_arg, period_arg, overlay_start, overlay_end, data_dates,
+                'main.coaching_impact',
+            )
+        )
+        overlay = _coaching_impact_overlay(
+            kpi_by_day_overlay,
+            coaching_by_day,
+            prod_by_day_overlay,
+            overlay_start,
+            overlay_end,
+            chart_granularity,
+            coaching_clip_start=start_date,
+            coaching_clip_end=end_date,
+        )
 
         summary = {
             'coachings': len(events),
@@ -6866,6 +7001,8 @@ def coaching_impact():
         overlay=overlay,
         before_after=before_after,
         before_after_prod=before_after_prod,
+        randtage_qual=randtage_qual,
+        randtage_prod=randtage_prod,
         impact_ba_meta=impact_ba_meta,
         impact_window_days=impact_window_days,
         range_summary=range_summary,
