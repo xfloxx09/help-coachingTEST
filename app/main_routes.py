@@ -6265,13 +6265,108 @@ def _impact_prod_aggregate_range(prod_by_day, day_lo, day_hi):
     }
 
 
-def _impact_wirkungs_bounds(first_coaching, last_coaching, window):
-    """Vorher = window before first coaching; Nachher = from first coaching through window after last."""
-    before_lo = first_coaching - timedelta(days=window)
+def _impact_quarter_start(d):
+    q_month = ((d.month - 1) // 3) * 3 + 1
+    return date(d.year, q_month, 1)
+
+
+def _impact_quarter_end(d):
+    q_start = _impact_quarter_start(d)
+    if q_start.month == 10:
+        return date(d.year, 12, 31)
+    return date(d.year, q_start.month + 3, 1) - timedelta(days=1)
+
+
+def _impact_data_bounds(day_map):
+    if not day_map:
+        return None, None
+    dates = sorted(day_map.keys())
+    return dates[0], dates[-1]
+
+
+def _impact_vn_bounds(first_coaching, data_lo, data_hi):
+    """Vorher: all scope data before coachings; Nachher: from first coaching through latest data."""
     before_hi = first_coaching - timedelta(days=1)
+    before_lo = data_lo
     after_lo = first_coaching
-    after_hi = last_coaching + timedelta(days=window)
+    after_hi = data_hi
+    if data_lo is not None and before_lo > before_hi:
+        before_lo, before_hi = None, None
     return before_lo, before_hi, after_lo, after_hi
+
+
+_VN_GRANULARITIES = ['gesamt', 'quarter', 'month', 'week', 'day']
+_VN_GRANULARITY_LABELS = {
+    'gesamt': 'Gesamt',
+    'quarter': 'Quartal',
+    'month': 'Monat',
+    'week': 'Woche',
+    'day': 'Tag',
+}
+
+
+def _impact_vn_period_clip(granularity, side, before_lo, before_hi, after_lo, after_hi):
+    is_before = side == 'before'
+    win_lo, win_hi = (before_lo, before_hi) if is_before else (after_lo, after_hi)
+    if win_lo is None or win_hi is None or win_lo > win_hi:
+        return None, None
+
+    if granularity == 'gesamt':
+        return win_lo, win_hi
+
+    if granularity == 'day':
+        anchor = before_hi if is_before else after_hi
+        return anchor, anchor
+
+    if granularity == 'week':
+        anchor = before_hi if is_before else after_hi
+        week_start = kpi_time._week_start_monday(anchor)
+        week_end = week_start + timedelta(days=6)
+        if is_before:
+            return max(win_lo, week_start), min(win_hi, week_end)
+        floor = before_lo if before_lo is not None else week_start
+        return max(week_start, floor), min(week_end, win_hi)
+
+    if granularity == 'month':
+        anchor = before_hi if is_before else after_hi
+        month_start = kpi_time._month_start(anchor)
+        month_end = kpi_time._month_end(anchor)
+        if is_before:
+            return max(win_lo, month_start), min(win_hi, month_end)
+        floor = before_lo if before_lo is not None else month_start
+        return max(month_start, floor), min(month_end, win_hi)
+
+    if granularity == 'quarter':
+        anchor = before_hi if is_before else after_hi
+        q_start = _impact_quarter_start(anchor)
+        q_end = _impact_quarter_end(anchor)
+        if is_before:
+            return max(win_lo, q_start), min(win_hi, q_end)
+        floor = before_lo if before_lo is not None else q_start
+        return max(q_start, floor), min(q_end, win_hi)
+
+    return win_lo, win_hi
+
+
+def _impact_vn_period_label(granularity, clip_lo, clip_hi):
+    if clip_lo is None or clip_hi is None:
+        return None, None
+    if granularity == 'gesamt':
+        label = 'Gesamt'
+    elif granularity == 'day':
+        label = clip_lo.strftime('%d.%m.%Y')
+    elif granularity == 'week':
+        iso = kpi_time._week_start_monday(clip_lo).isocalendar()
+        label = f'KW {iso[1]:02d}/{str(iso[0])[-2:]}'
+    elif granularity == 'month':
+        label = kpi_time.month_label_de(clip_lo.year, clip_lo.month)
+    elif granularity == 'quarter':
+        q = (clip_lo.month - 1) // 3 + 1
+        label = f'Q{q} {clip_lo.year}'
+    else:
+        label = clip_lo.strftime('%d.%m.%Y')
+    subtitle = f"{clip_lo.strftime('%d.%m.')} – {clip_hi.strftime('%d.%m.')}"
+    return label, subtitle
 
 
 def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, subtitle=None, counts=None):
@@ -6289,105 +6384,26 @@ def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, 
     }
 
 
-_IMPACT_MONTH_PICKER_WINDOW = 31
-
-
-def _impact_months_in_range(day_lo, day_hi):
-    if day_lo is None or day_hi is None or day_lo > day_hi:
-        return []
-    months = []
-    y, m = day_lo.year, day_lo.month
-    while (y, m) <= (day_hi.year, day_hi.month):
-        months.append((y, m))
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
-    return months
-
-
-def _impact_parse_month_key(key):
-    if not key:
-        return None
-    try:
-        y_s, m_s = key.split('-', 1)
-        y, m = int(y_s), int(m_s)
-        if 1 <= m <= 12:
-            return y, m
-    except (TypeError, ValueError):
-        pass
-    return None
-
-
-def _impact_month_option(year, month):
-    return {
-        'value': f'{year:04d}-{month:02d}',
-        'label': kpi_time.month_label_de(year, month),
-    }
-
-
-def _impact_month_clip_vorher(year, month, before_lo, before_hi):
-    month_start = date(year, month, 1)
-    month_end = kpi_time._month_end(month_start)
-    clip_lo = max(month_start, before_lo)
-    clip_hi = min(month_end, before_hi)
-    if clip_lo > clip_hi:
-        return None, None
-    return clip_lo, clip_hi
-
-
-def _impact_month_clip_nachher(year, month, before_lo, after_hi):
-    month_start = date(year, month, 1)
-    month_end = kpi_time._month_end(month_start)
-    clip_lo = max(month_start, before_lo)
-    clip_hi = min(month_end, after_hi)
-    if clip_lo > clip_hi:
-        return None, None
-    return clip_lo, clip_hi
-
-
-def _impact_monat_snapshot(clip_lo, clip_hi, agg, title):
+def _impact_vn_snapshot(granularity, clip_lo, clip_hi, agg):
     if clip_lo is None or clip_hi is None or not agg:
-        return None, title
+        return None
     values = agg.get('values', agg)
     counts = agg.get('counts', {})
-    label = kpi_time.month_label_de(clip_lo.year, clip_lo.month)
-    subtitle = f"{clip_lo.strftime('%d.%m.')} – {clip_hi.strftime('%d.%m.')}"
-    snap = _impact_randtage_snapshot(
+    label, subtitle = _impact_vn_period_label(granularity, clip_lo, clip_hi)
+    return _impact_randtage_snapshot(
         clip_lo, values, clip_hi, label=label, subtitle=subtitle, counts=counts,
     )
-    return snap, title
 
 
-def _impact_monatswerte_qual(
-    kpi_by_day, first_coaching, last_coaching, window,
-    vorher_month_key=None, nachher_month_key=None, coaching_count=0,
-):
-    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
-        first_coaching, last_coaching, window,
+def _impact_vn_mode_qual(kpi_by_day, first_coaching, granularity, before_lo, before_hi, after_lo, after_hi):
+    v_lo, v_hi = _impact_vn_period_clip(
+        granularity, 'before', before_lo, before_hi, after_lo, after_hi,
     )
-    month_picker = window > _IMPACT_MONTH_PICKER_WINDOW
-    vorher_months = _impact_months_in_range(before_lo, before_hi)
-    nachher_months = _impact_months_in_range(before_lo, after_hi)
-    default_v = (before_hi.year, before_hi.month)
-    default_n = (after_hi.year, after_hi.month)
-
-    if month_picker:
-        picked_v = _impact_parse_month_key(vorher_month_key)
-        picked_n = _impact_parse_month_key(nachher_month_key)
-        vy, vm = picked_v if picked_v in vorher_months else default_v
-        ny, nm = picked_n if picked_n in nachher_months else default_n
-    else:
-        vy, vm = default_v
-        ny, nm = default_n
-
-    v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
-    n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
+    n_lo, n_hi = _impact_vn_period_clip(
+        granularity, 'after', before_lo, before_hi, after_lo, after_hi,
+    )
     v_agg = _impact_qual_aggregate_range(kpi_by_day, v_lo, v_hi) if v_lo else None
     n_agg = _impact_qual_aggregate_range(kpi_by_day, n_lo, n_hi) if n_lo else None
-    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_agg, 'Vorher')
-    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_agg, 'Nachher')
-
     chart = {}
     for key in ('info', 'loes', 'nps', 'fach', 'vert'):
         bv = (v_agg or {}).get('values', {}).get(key)
@@ -6400,50 +6416,22 @@ def _impact_monatswerte_qual(
             'before_count': (v_agg or {}).get('counts', {}).get(key, 0),
             'after_count': (n_agg or {}).get('counts', {}).get(key, 0),
         }
-
     return {
-        'month_picker': month_picker,
-        'vorher_month': f'{vy:04d}-{vm:02d}',
-        'nachher_month': f'{ny:04d}-{nm:02d}',
-        'vorher_options': [_impact_month_option(y, m) for y, m in vorher_months],
-        'nachher_options': [_impact_month_option(y, m) for y, m in nachher_months],
-        'before': before_snap,
-        'after': after_snap,
-        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),
+        'after': _impact_vn_snapshot(granularity, n_lo, n_hi, n_agg),
         'chart': chart,
-        'coachings': coaching_count,
     }
 
 
-def _impact_monatswerte_prod(
-    prod_by_day, first_coaching, last_coaching, window,
-    vorher_month_key=None, nachher_month_key=None, coaching_count=0,
-):
-    before_lo, before_hi, after_lo, after_hi = _impact_wirkungs_bounds(
-        first_coaching, last_coaching, window,
+def _impact_vn_mode_prod(prod_by_day, first_coaching, granularity, before_lo, before_hi, after_lo, after_hi):
+    v_lo, v_hi = _impact_vn_period_clip(
+        granularity, 'before', before_lo, before_hi, after_lo, after_hi,
     )
-    month_picker = window > _IMPACT_MONTH_PICKER_WINDOW
-    vorher_months = _impact_months_in_range(before_lo, before_hi)
-    nachher_months = _impact_months_in_range(before_lo, after_hi)
-    default_v = (before_hi.year, before_hi.month)
-    default_n = (after_hi.year, after_hi.month)
-
-    if month_picker:
-        picked_v = _impact_parse_month_key(vorher_month_key)
-        picked_n = _impact_parse_month_key(nachher_month_key)
-        vy, vm = picked_v if picked_v in vorher_months else default_v
-        ny, nm = picked_n if picked_n in nachher_months else default_n
-    else:
-        vy, vm = default_v
-        ny, nm = default_n
-
-    v_lo, v_hi = _impact_month_clip_vorher(vy, vm, before_lo, before_hi)
-    n_lo, n_hi = _impact_month_clip_nachher(ny, nm, before_lo, after_hi)
+    n_lo, n_hi = _impact_vn_period_clip(
+        granularity, 'after', before_lo, before_hi, after_lo, after_hi,
+    )
     v_agg = _impact_prod_aggregate_range(prod_by_day, v_lo, v_hi) if v_lo else None
     n_agg = _impact_prod_aggregate_range(prod_by_day, n_lo, n_hi) if n_lo else None
-    before_snap, _ = _impact_monat_snapshot(v_lo, v_hi, v_agg, 'Vorher')
-    after_snap, _ = _impact_monat_snapshot(n_lo, n_hi, n_agg, 'Nachher')
-
     lower_is_better = {'nach', 'idle'}
     chart = {}
     for key in ('sign_on', 'prod', 'nach', 'idle'):
@@ -6459,18 +6447,60 @@ def _impact_monatswerte_prod(
             'before_count': (v_agg or {}).get('counts', {}).get(metric_key, 0),
             'after_count': (n_agg or {}).get('counts', {}).get(metric_key, 0),
         }
-
     return {
-        'month_picker': month_picker,
-        'vorher_month': f'{vy:04d}-{vm:02d}',
-        'nachher_month': f'{ny:04d}-{nm:02d}',
-        'vorher_options': [_impact_month_option(y, m) for y, m in vorher_months],
-        'nachher_options': [_impact_month_option(y, m) for y, m in nachher_months],
-        'before': before_snap,
-        'after': after_snap,
-        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'before': _impact_vn_snapshot(granularity, v_lo, v_hi, v_agg),
+        'after': _impact_vn_snapshot(granularity, n_lo, n_hi, n_agg),
         'chart': chart,
+    }
+
+
+def _impact_vn_werte_qual(kpi_by_day, first_coaching, last_coaching, coaching_count=0):
+    data_lo, data_hi = _impact_data_bounds(kpi_by_day)
+    if data_lo is None:
+        return None
+    before_lo, before_hi, after_lo, after_hi = _impact_vn_bounds(
+        first_coaching, data_lo, data_hi,
+    )
+    by_mode = {}
+    for mode in _VN_GRANULARITIES:
+        by_mode[mode] = _impact_vn_mode_qual(
+            kpi_by_day, first_coaching, mode, before_lo, before_hi, after_lo, after_hi,
+        )
+    return {
+        'modes': _VN_GRANULARITIES,
+        'mode_labels': _VN_GRANULARITY_LABELS,
+        'default_mode': 'gesamt',
+        'by_mode': by_mode,
+        'titles': {'before': 'Vorher', 'after': 'Nachher'},
         'coachings': coaching_count,
+        'before': by_mode['gesamt']['before'],
+        'after': by_mode['gesamt']['after'],
+        'chart': by_mode['gesamt']['chart'],
+    }
+
+
+def _impact_vn_werte_prod(prod_by_day, first_coaching, last_coaching, coaching_count=0):
+    data_lo, data_hi = _impact_data_bounds(prod_by_day)
+    if data_lo is None:
+        return None
+    before_lo, before_hi, after_lo, after_hi = _impact_vn_bounds(
+        first_coaching, data_lo, data_hi,
+    )
+    by_mode = {}
+    for mode in _VN_GRANULARITIES:
+        by_mode[mode] = _impact_vn_mode_prod(
+            prod_by_day, first_coaching, mode, before_lo, before_hi, after_lo, after_hi,
+        )
+    return {
+        'modes': _VN_GRANULARITIES,
+        'mode_labels': _VN_GRANULARITY_LABELS,
+        'default_mode': 'gesamt',
+        'by_mode': by_mode,
+        'titles': {'before': 'Vorher', 'after': 'Nachher'},
+        'coachings': coaching_count,
+        'before': by_mode['gesamt']['before'],
+        'after': by_mode['gesamt']['after'],
+        'chart': by_mode['gesamt']['chart'],
     }
 
 
@@ -6654,14 +6684,10 @@ def coaching_impact_activity_map():
     show_surveys = can_view_kpi_qualitaet(current_user)
     show_prod_perm = can_view_kpi_produktivitaet(current_user)
 
-    window_q = request.args.get('window', type=int)
-    default_window = window_q if window_q and 1 <= window_q <= 90 else kpi_logic.coaching_impact_window_days()
-
     payload = ci_wizard.build_activity_map_payload(
         scope['coaching_filters'],
         scope['kpi_filters'],
         scope['prod_filters'],
-        default_window,
         show_surveys,
         show_prod_perm,
     )
@@ -6669,20 +6695,17 @@ def coaching_impact_activity_map():
         d.get('productivity', 0) > 0 for d in payload.get('days', [])
     )
     payload['show_productivity'] = show_productivity
-    if not payload['days'] or payload.get('actionable_coaching_count', 0) == 0:
-        msg = (
-            'Keine Coachings mit auswertbaren Vorher/Nachher-Daten '
-            '(Bewertungen oder Prod.-Rohdaten vor und nach dem Coaching).'
-        )
-        if payload.get('coaching_events'):
-            msg = (
-                'Coachings vorhanden, aber keines mit Bewertungen oder Prod.-Rohdaten '
-                'sowohl vor als auch nach dem Termin im Wirkungsfenster.'
-            )
+    if not payload['days']:
         return jsonify({
             **payload,
             'error': None,
-            'empty_message': msg,
+            'empty_message': 'Keine Coachings oder Aktivitätsdaten in dieser Auswahl.',
+        })
+    if not payload.get('coaching_events'):
+        return jsonify({
+            **payload,
+            'error': None,
+            'empty_message': 'Keine Coachings in dieser Auswahl.',
         })
     return jsonify(payload)
 
@@ -6783,7 +6806,7 @@ def coaching_impact():
     if sel_member and sel_member not in valid_member_ids:
         sel_member = None
 
-    # --- Date range + impact window (wizard required; no preset period) ---
+    # --- Coaching Zeitraum (wizard required; no preset period) ---
     period_arg = (request.args.get('period') or '').strip()
     date_from_str = (request.args.get('date_from') or '').strip()
     date_to_str = (request.args.get('date_to') or '').strip()
@@ -6791,20 +6814,11 @@ def coaching_impact():
     range_confirmed, start_date, end_date = _coaching_impact_range_confirmed(
         period_arg, date_from_str, date_to_str,
     )
-    window_q = request.args.get('window', type=int)
-    vorher_month_arg = (request.args.get('vorher_month') or '').strip() or None
-    nachher_month_arg = (request.args.get('nachher_month') or '').strip() or None
-    admin_window = kpi_logic.coaching_impact_window_days()
     if range_confirmed:
-        if window_q is not None and 1 <= window_q <= 90:
-            impact_window_days = window_q
-        else:
-            impact_window_days = admin_window
         chart_granularity = kpi_time.resolve_granularity(
             granularity_arg, period_arg, start_date, end_date, None,
         )
     else:
-        impact_window_days = admin_window
         chart_granularity = 'day'
     table_granularity = chart_granularity
     toggle_granularity = chart_granularity
@@ -6820,8 +6834,8 @@ def coaching_impact():
     before_after = None
     before_after_prod = None
     impact_ba_meta = None
-    monatswerte_qual = None
-    monatswerte_prod = None
+    vn_werte_qual = None
+    vn_werte_prod = None
     summary = None
     kpi = None
     scope_label = ''
@@ -6924,8 +6938,6 @@ def coaching_impact():
             ).filter(*coaching_range_filters).all()
         )
         events = [(r[0], r[1]) for r in coaching_rows if r[1] is not None]
-        show_surveys_ci = can_view_kpi_qualitaet(current_user)
-        show_prod_ci = can_view_kpi_produktivitaet(current_user)
         prod_scope_filters = list(prod_base)
         if mode == 'agent' and sel_member:
             prod_scope_filters.append(ProductivityInterval.team_member_id == sel_member)
@@ -6933,26 +6945,11 @@ def coaching_impact():
             prod_scope_filters.append(ProductivityInterval.team_id == sel_team)
         elif mode == 'project' and sel_project:
             prod_scope_filters.append(ProductivityInterval.project_id == sel_project)
-        survey_dates_ci = (
-            ci_wizard.load_survey_dates_by_member(kpi_filters) if show_surveys_ci else {}
-        )
-        prod_dates_ci = (
-            ci_wizard.load_prod_dates_by_member(prod_scope_filters) if show_prod_ci else {}
-        )
-        events = ci_wizard.filter_actionable_events(
-            events,
-            impact_window_days,
-            survey_dates_ci,
-            prod_dates_ci,
-            show_surveys_ci,
-            show_prod_ci,
-        )
-        actionable_set = set(events)
         coaching_by_day = {}
         total_time = 0
         perf_values = []
         for member_id, d, perf, time_spent in coaching_rows:
-            if d is None or (member_id, d) not in actionable_set:
+            if d is None:
                 continue
             if time_spent:
                 total_time += time_spent
@@ -6975,7 +6972,6 @@ def coaching_impact():
             b['day']: b for b in productivity_logic.query_daily_buckets_sql(prod_filters)
         }
 
-        window = impact_window_days
         kpi_by_day_overlay = kpi_by_day
         prod_by_day_overlay = prod_by_day
         overlay_start = start_date
@@ -6985,13 +6981,8 @@ def coaching_impact():
             coaching_dates = [d for _, d in events]
             first_coaching = min(coaching_dates)
             last_coaching = max(coaching_dates)
-            ext_start = first_coaching - timedelta(days=window)
-            ext_end = last_coaching + timedelta(days=window)
             coaching_count = len(events)
 
-            impact_kpi_filters = list(kpi_filters)
-            impact_kpi_filters.append(KpiSurvey.antwort_date >= ext_start)
-            impact_kpi_filters.append(KpiSurvey.antwort_date <= ext_end)
             impact_kpi_rows = (
                 db.session.query(
                     KpiSurvey.info_positive,
@@ -7000,7 +6991,7 @@ def coaching_impact():
                     KpiSurvey.fachkompetenz_stars,
                     KpiSurvey.vertrieb_positive,
                     KpiSurvey.antwort_date,
-                ).filter(*impact_kpi_filters).all()
+                ).filter(*kpi_filters).all()
             )
             kpi_by_day_impact = {}
             for info_p, loes_p, nps_v, fach_s, vert_p, d in impact_kpi_rows:
@@ -7021,12 +7012,6 @@ def coaching_impact():
                     bucket['vert'].append(1 if vert_p else 0)
 
             impact_prod_filters = list(prod_scope_filters)
-            impact_prod_filters.append(
-                ProductivityInterval.slot_at >= datetime.combine(ext_start, datetime.min.time()),
-            )
-            impact_prod_filters.append(
-                ProductivityInterval.slot_at <= datetime.combine(ext_end, datetime.max.time()),
-            )
             prod_by_day_impact = {
                 b['day']: b
                 for b in productivity_logic.query_daily_buckets_sql(impact_prod_filters)
@@ -7034,32 +7019,25 @@ def coaching_impact():
 
             kpi_by_day_overlay = kpi_by_day_impact
             prod_by_day_overlay = prod_by_day_impact
-            overlay_start = ext_start
-            overlay_end = ext_end
+            data_lo, data_hi = _impact_data_bounds(kpi_by_day_impact)
+            if data_lo and data_hi:
+                overlay_start = data_lo
+                overlay_end = data_hi
 
             impact_ba_meta = {
                 'first_coaching': first_coaching,
                 'last_coaching': last_coaching,
                 'coachings': coaching_count,
-                'window': window,
-                'before_start': ext_start,
-                'after_end': ext_end,
-                'kpi_start': ext_start,
-                'kpi_end': ext_end,
                 'coaching_start': start_date,
                 'coaching_end': end_date,
+                'kpi_start': data_lo,
+                'kpi_end': data_hi,
             }
-            monatswerte_qual = _impact_monatswerte_qual(
-                kpi_by_day_impact, first_coaching, last_coaching, window,
-                vorher_month_key=vorher_month_arg,
-                nachher_month_key=nachher_month_arg,
-                coaching_count=coaching_count,
+            vn_werte_qual = _impact_vn_werte_qual(
+                kpi_by_day_impact, first_coaching, last_coaching, coaching_count,
             )
-            monatswerte_prod = _impact_monatswerte_prod(
-                prod_by_day_impact, first_coaching, last_coaching, window,
-                vorher_month_key=vorher_month_arg,
-                nachher_month_key=nachher_month_arg,
-                coaching_count=coaching_count,
+            vn_werte_prod = _impact_vn_werte_prod(
+                prod_by_day_impact, first_coaching, last_coaching, coaching_count,
             )
 
         data_dates = sorted(
@@ -7094,7 +7072,6 @@ def coaching_impact():
     if range_confirmed and start_date and end_date:
         range_summary = (
             f'{start_date.strftime("%d.%m.%Y")} – {end_date.strftime("%d.%m.%Y")}'
-            f' · Wirkungsfenster {impact_window_days} Tage'
         )
 
     return render_template(
@@ -7126,10 +7103,9 @@ def coaching_impact():
         overlay=overlay,
         before_after=before_after,
         before_after_prod=before_after_prod,
-        monatswerte_qual=monatswerte_qual,
-        monatswerte_prod=monatswerte_prod,
+        vn_werte_qual=vn_werte_qual,
+        vn_werte_prod=vn_werte_prod,
         impact_ba_meta=impact_ba_meta,
-        impact_window_days=impact_window_days,
         range_summary=range_summary,
         range_confirmed=range_confirmed,
         summary=summary,

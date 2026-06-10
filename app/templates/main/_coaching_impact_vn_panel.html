@@ -1,0 +1,91 @@
+{# Vorher / Nachher with Gesamt · Quartal · Monat · Woche · Tag #}
+{% if vn_werte and vn_werte.modes %}
+{% set count_tip = 'Intervalle berücksichtigt' if is_prod else 'Bewertungen berücksichtigt' %}
+<div class="ci-ba-section mt-2" id="{{ panel_id }}">
+    <div class="ci-vn-toolbar mb-3">
+        <div class="ci-vn-toggle ci-view-toggle btn-group btn-group-sm" role="group" aria-label="Vorher/Nachher Granularität" data-vn-panel="{{ panel_id }}">
+            {% for mode in vn_werte.modes %}
+            <button type="button" class="btn{% if mode == vn_werte.default_mode %} active{% endif %}" data-vn-mode="{{ mode }}">{{ vn_werte.mode_labels[mode] }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    {% for mode in vn_werte.modes %}
+    {% set mode_data = vn_werte.by_mode[mode] %}
+    {% set mode_chart = mode_data.chart %}
+    <div class="ci-vn-mode" data-vn-mode="{{ mode }}"{% if mode != vn_werte.default_mode %} hidden{% endif %}>
+        <div class="ci-vn-head-row">
+            <span></span>
+            <span class="ci-vn-col-head">{{ vn_werte.titles.before }}</span>
+            <span class="ci-vn-col-head ci-vn-col-delta"></span>
+            <span class="ci-vn-col-head">{{ vn_werte.titles.after }}</span>
+        </div>
+        {% if mode_data.before or mode_data.after %}
+        {% if mode_data.before and mode_data.before.subtitle %}
+        <div class="ci-vn-period-row text-muted small mb-2">
+            <span></span>
+            <span>{{ mode_data.before.label }}{% if mode_data.before.subtitle %} · {{ mode_data.before.subtitle }}{% endif %}</span>
+            <span></span>
+            <span>{% if mode_data.after %}{{ mode_data.after.label }}{% if mode_data.after.subtitle %} · {{ mode_data.after.subtitle }}{% endif %}{% endif %}</span>
+        </div>
+        {% endif %}
+        <div class="ci-vn-metrics">
+            {% for key, label, cls, unit, one_decimal in metric_parts %}
+            {% if is_prod %}
+            {% set metric_key = 'nach_per_call' if key == 'nach' else (key + '_pct' if key != 'prod' else 'prod_pct') %}
+            {% set bval = mode_data.before.metrics.get(metric_key) if mode_data.before else none %}
+            {% set aval = mode_data.after.metrics.get(metric_key) if mode_data.after else none %}
+            {% set bcnt = mode_data.before.counts.get(metric_key, 0) if mode_data.before else 0 %}
+            {% set acnt = mode_data.after.counts.get(metric_key, 0) if mode_data.after else 0 %}
+            {% set ch = mode_chart[key] %}
+            {% set pmap = target_map[key] %}
+            {% set tg = targets[pmap[0]] %}
+            {% set ty = targets[pmap[1]] %}
+            {% if aval is not none %}
+                {% if pmap[2] %}{% set status = aval|kpi_status_max(tg, ty) %}{% else %}{% set status = aval|kpi_status(tg, ty) %}{% endif %}
+            {% else %}
+                {% set status = 'na' %}
+            {% endif %}
+            {% else %}
+            {% set bval = mode_data.before.metrics.get(key) if mode_data.before else none %}
+            {% set aval = mode_data.after.metrics.get(key) if mode_data.after else none %}
+            {% set bcnt = mode_data.before.counts.get(key, 0) if mode_data.before else 0 %}
+            {% set acnt = mode_data.after.counts.get(key, 0) if mode_data.after else 0 %}
+            {% set ch = mode_chart[key] %}
+            {% set tg = targets[target_map[key][0]] %}
+            {% set ty = targets[target_map[key][1]] %}
+            {% set status = (aval|kpi_status(tg, ty)) if aval is not none else 'na' %}
+            {% endif %}
+            <div class="ci-vn-metric-row">
+                <span class="ci-vn-label">{% if is_prod and key == 'prod' %}<span class="kpi-label-with-hint"><span>{{ label }}</span>{% include 'main/_prod_metric_hint.html' %}</span>{% else %}{{ label }}{% endif %}</span>
+                <span class="ci-vn-before">
+                    {% if bval is not none %}{% if one_decimal %}{{ bval|de_decimal(1) }}{% else %}{{ bval|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}
+                    {% if bcnt %}<span class="ci-vn-count" title="{{ bcnt }} {{ count_tip }}">({{ bcnt }})</span>{% endif %}
+                </span>
+                <span class="ci-vn-delta-cell">
+                    {% if ch and ch.delta is not none %}
+                        {% if is_prod and ch.lower_is_better %}
+                            {% set delta_good = ch.delta < 0 %}
+                            {% set delta_bad = ch.delta > 0 %}
+                        {% else %}
+                            {% set delta_good = ch.delta > 0 %}
+                            {% set delta_bad = ch.delta < 0 %}
+                        {% endif %}
+                    <span class="ci-vn-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                        {% if ch.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ch.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ ch.delta|de_decimal(1) }}{% else %}{{ ch.delta|de_decimal }}{% endif %}{{ unit }}
+                    </span>
+                    {% endif %}
+                </span>
+                <span class="ci-vn-after ci-ba-val-{{ status }}">
+                    {% if aval is not none %}{% if one_decimal %}{{ aval|de_decimal(1) }}{% else %}{{ aval|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}
+                    {% if acnt %}<span class="ci-vn-count" title="{{ acnt }} {{ count_tip }}">({{ acnt }})</span>{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-muted small">Keine Daten für diese Granularität.</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

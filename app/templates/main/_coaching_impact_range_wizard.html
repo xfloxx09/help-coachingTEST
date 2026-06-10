@@ -1,11 +1,11 @@
-{# Zeitraum & Wirkungsfenster (Coaching VS KPI) #}
+{# Coaching-Zeitraum (Coaching VS KPI) #}
 <div class="modal fade" id="ciRangeWizardModal" tabindex="-1" role="dialog" aria-labelledby="ciRangeWizardTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered ci-wz-modal-dialog" role="document">
         <div class="modal-content ci-wz-modal">
             <div class="modal-header border-0 pb-0 ci-wz-header">
                 <div class="flex-grow-1">
-                    <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Zeitraum &amp; Wirkungsfenster</h5>
-                    <p class="text-muted small mb-0" id="ciWzSubtitle">Zeitraum und Wirkungsfenster festlegen — nur auswertbare Coachings</p>
+                    <h5 class="modal-title" id="ciRangeWizardTitle"><i class="fas fa-sliders-h text-info mr-1"></i> Coaching-Zeitraum</h5>
+                    <p class="text-muted small mb-0" id="ciWzSubtitle">Zeitraum für die Coachings festlegen — Vorher/Nachher nutzt alle KPI-Daten im Filter</p>
                 </div>
                 <button type="button" class="close ml-2" data-dismiss="modal" aria-label="Schließen"><span aria-hidden="true">&times;</span></button>
             </div>
@@ -16,14 +16,13 @@
                     <span class="ci-wz-legend-survey-wrap"><i class="fas fa-star ci-wz-legend-survey"></i> B = Bewertungen</span>
                     <span class="ci-wz-legend-prod-wrap"><i class="fas fa-chart-line ci-wz-legend-prod"></i> P = Prod.-Rohdaten</span>
                     <span class="ci-wz-legend-sel"><span></span> Zeitraum</span>
-                    <span class="ci-wz-legend-impact"><span></span> Wirkungsfenster</span>
                 </div>
 
                 <div class="ci-wz-loading text-center py-5 text-muted" id="ciWzLoading">
                     <i class="fas fa-spinner fa-spin mr-1"></i> Timeline wird geladen…
                 </div>
                 <div class="ci-wz-empty text-center py-5 text-muted d-none" id="ciWzEmpty">
-                    Keine auswertbaren Coachings in dieser Auswahl.
+                    Keine Coachings in dieser Auswahl.
                 </div>
 
                 <div class="ci-wz-workspace d-none" id="ciWzWorkspace">
@@ -37,7 +36,7 @@
                                 <div class="ci-wz-ctrl-label">bis</div>
                                 <input type="date" class="form-control form-control-sm" id="ciWzDateTo">
                             </div>
-                            <div class="col-lg-4 col-md-6 mb-2">
+                            <div class="col-lg-8 col-md-6 mb-2">
                                 <div class="ci-wz-ctrl-label">zeitraum schnellwahl</div>
                                 <div class="btn-group btn-group-sm ci-wz-preset-btns flex-wrap" id="ciWzPeriodPresets">
                                     <button type="button" class="btn btn-outline-light" data-period="7">7 Tage</button>
@@ -47,15 +46,6 @@
                                     <button type="button" class="btn btn-outline-light" data-period="all">Alle</button>
                                 </div>
                             </div>
-                            <div class="col-lg-4 col-12 mb-2">
-                                <div class="ci-wz-ctrl-label">wirkungsfenster (Tage vor/nach Coaching)</div>
-                                <div class="btn-group btn-group-sm ci-wz-window-btns" id="ciWzWindowPresets">
-                                    <button type="button" class="btn btn-outline-light" data-window="7">7</button>
-                                    <button type="button" class="btn btn-outline-light" data-window="14">14</button>
-                                    <button type="button" class="btn btn-outline-light" data-window="21">21</button>
-                                    <button type="button" class="btn btn-outline-light" data-window="30">30</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -63,8 +53,6 @@
                         <div class="ci-wz-scroll" id="ciWzScroll">
                             <div class="ci-wz-track" id="ciWzTrack">
                                 <div class="ci-wz-days" id="ciWzDays"></div>
-                                <div class="ci-wz-impact-layer" id="ciWzImpactLayer"></div>
-                                <div class="ci-wz-impact-handles" id="ciWzImpactHandles"></div>
                                 <div class="ci-wz-selection-bg" id="ciWzSelectionBg"></div>
                                 <div class="ci-wz-handles" id="ciWzHandles">
                                     <div class="ci-wz-selection-grip" data-handle="range" title="Zeitraum verschieben"><i class="fas fa-grip-lines"></i></div>

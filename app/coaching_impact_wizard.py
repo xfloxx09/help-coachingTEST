@@ -1,4 +1,4 @@
-"""Coaching VS KPI range wizard: actionable events and timeline payload."""
+"""Coaching VS KPI range wizard: timeline payload for coaching Zeitraum selection."""
 from datetime import datetime, timedelta
 
 from sqlalchemy import cast, Date, func
@@ -38,30 +38,16 @@ def load_prod_dates_by_member(prod_filters):
     return _dates_by_member(rows)
 
 
-def event_has_before_after(member_id, coaching_date, window, date_sets, show):
-    """True if member has KPI data before AND after coaching_date within window."""
-    if not show:
-        return False
-    dates = date_sets.get(int(member_id), set())
-    if not dates:
-        return False
-    before_lo = coaching_date - timedelta(days=window)
-    before_hi = coaching_date - timedelta(days=1)
-    after_lo = coaching_date + timedelta(days=1)
-    after_hi = coaching_date + timedelta(days=window)
-    has_before = any(before_lo <= d <= before_hi for d in dates)
-    has_after = any(after_lo <= d <= after_hi for d in dates)
-    return has_before and has_after
-
-
-def is_actionable_event(member_id, coaching_date, window, survey_dates, prod_dates,
-                        show_surveys, show_productivity):
-    qual_ok = event_has_before_after(
-        member_id, coaching_date, window, survey_dates, show_surveys,
-    )
-    prod_ok = event_has_before_after(
-        member_id, coaching_date, window, prod_dates, show_productivity,
-    )
+def event_has_vn_context(member_id, coaching_date, survey_dates, prod_dates, show_surveys, show_productivity):
+    """True if member has KPI data before and on/after coaching day (for timeline hint)."""
+    qual_ok = False
+    prod_ok = False
+    if show_surveys:
+        dates = survey_dates.get(int(member_id), set())
+        qual_ok = bool(dates) and any(d < coaching_date for d in dates) and any(d >= coaching_date for d in dates)
+    if show_productivity:
+        dates = prod_dates.get(int(member_id), set())
+        prod_ok = bool(dates) and any(d < coaching_date for d in dates) and any(d >= coaching_date for d in dates)
     if show_surveys and show_productivity:
         return qual_ok or prod_ok
     if show_surveys:
@@ -69,17 +55,6 @@ def is_actionable_event(member_id, coaching_date, window, survey_dates, prod_dat
     if show_productivity:
         return prod_ok
     return False
-
-
-def filter_actionable_events(events, window, survey_dates, prod_dates,
-                             show_surveys, show_productivity):
-    return [
-        (member_id, d) for member_id, d in events
-        if is_actionable_event(
-            member_id, d, window, survey_dates, prod_dates,
-            show_surveys, show_productivity,
-        )
-    ]
 
 
 def _serialize_date_sets(date_sets):
@@ -93,13 +68,10 @@ def build_activity_map_payload(
     coaching_filters,
     kpi_filters,
     prod_filters,
-    window,
     show_surveys,
     show_productivity,
 ):
-    """Timeline data for the range wizard; highlights coachings with Vorher/Nachher data."""
-    window = max(1, min(int(window or 14), 90))
-
+    """Timeline data for the range wizard; one Zeitraum for all coachings."""
     coach_rows = (
         db.session.query(
             Coaching.team_member_id,
@@ -147,8 +119,8 @@ def build_activity_map_payload(
         d = datetime.strptime(key, '%Y-%m-%d').date()
         by_date.setdefault(key, {'coachings': 0, 'surveys': 0, 'productivity': 0})
         by_date[key]['coachings'] += 1
-        if is_actionable_event(
-            mid, d, window, survey_dates, prod_dates, show_surveys, show_productivity,
+        if event_has_vn_context(
+            mid, d, survey_dates, prod_dates, show_surveys, show_productivity,
         ):
             actionable_by_date[key] = actionable_by_date.get(key, 0) + 1
 
@@ -170,7 +142,6 @@ def build_activity_map_payload(
             'days': [],
             'min_date': None,
             'max_date': None,
-            'default_window': window,
             'show_surveys': show_surveys,
             'show_productivity': show_productivity,
             'actionable_coaching_count': 0,
@@ -208,7 +179,6 @@ def build_activity_map_payload(
         'days': days_out,
         'min_date': pad_start.isoformat(),
         'max_date': pad_end.isoformat(),
-        'default_window': window,
         'show_surveys': show_surveys,
         'show_productivity': show_productivity,
         'actionable_coaching_count': actionable_total,

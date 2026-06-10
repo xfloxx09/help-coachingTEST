@@ -81,18 +81,45 @@
         justify-content: center;
         margin-bottom: 0.75rem;
     }
-    .ci-monat-picker-row {
+    .ci-vn-toolbar {
         display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
         justify-content: center;
-        align-items: flex-end;
+        margin-bottom: 0.75rem;
     }
-    .ci-monat-picker {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        min-width: 10rem;
+    .ci-vn-head-row,
+    .ci-vn-period-row,
+    .ci-vn-metric-row {
+        display: grid;
+        grid-template-columns: minmax(8rem, 1.4fr) minmax(5rem, 1fr) minmax(4.5rem, 0.9fr) minmax(5rem, 1fr);
+        gap: 0.75rem;
+        align-items: center;
+    }
+    .ci-vn-head-row { margin-bottom: 0.35rem; }
+    .ci-vn-col-head { font-size: 0.78rem; font-weight: 700; color: #9a9aa3; text-align: right; }
+    .ci-vn-col-delta { text-align: center; }
+    .ci-vn-metric-row {
+        padding: 0.45rem 0;
+        border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .ci-vn-label { color: #cfcfd6; font-size: 0.88rem; }
+    .ci-vn-before,
+    .ci-vn-after {
+        text-align: right;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .ci-vn-delta-cell { text-align: center; }
+    .ci-vn-delta {
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .ci-vn-count {
+        font-size: 0.72rem;
+        font-weight: 400;
+        color: #9a9aa3;
+        margin-left: 0.2rem;
+        cursor: help;
     }
     .ci-ba-randtage-box {
         flex: 0 1 320px;
@@ -149,25 +176,6 @@
     }
     .ci-ba-randtage-row-lbl { color: #9a9aa3; }
     .ci-ba-randtage-row-val { font-weight: 700; }
-    .ci-monat-val-block {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 0.15rem;
-        text-align: right;
-    }
-    .ci-monat-val-main { font-weight: 700; white-space: nowrap; }
-    .ci-monat-delta {
-        font-size: 0.78rem;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-    .ci-monat-count {
-        font-size: 0.72rem;
-        font-weight: 400;
-        color: #9a9aa3;
-        white-space: nowrap;
-    }
     .ci-ba-val-ok { color: #6ee08a; }
     .ci-ba-val-warn { color: #ffd666; }
     .ci-ba-val-bad { color: #ff8a96; }
@@ -1051,7 +1059,7 @@
                             {% endif %}>
                         <span class="ci-range-setup-icon"><i class="fas fa-sliders-h"></i></span>
                         <span class="ci-range-setup-text">
-                            <strong>Zeitraum &amp; Wirkungsfenster</strong>
+                            <strong>Coaching-Zeitraum</strong>
                             <span class="ci-range-setup-value" id="ciRangeSetupValue">
                                 {% if range_summary %}{{ range_summary }}{% else %}Noch nicht festgelegt{% endif %}
                             </span>
@@ -1062,7 +1070,6 @@
                 <input type="hidden" name="period" id="ciPeriod" value="{% if range_confirmed %}vonbis{% endif %}">
                 <input type="hidden" name="date_from" id="ciDateFrom" value="{{ date_from }}">
                 <input type="hidden" name="date_to" id="ciDateTo" value="{{ date_to }}">
-                <input type="hidden" name="window" id="ciWindow" value="{% if range_confirmed %}{{ impact_window_days }}{% endif %}">
             </div>
         </div>
     </form>
@@ -1073,14 +1080,13 @@
     {% set show_ci_kpi_qual = can_view_kpi_qualitaet %}
     {% set show_ci_kpi_prod = can_view_kpi_produktivitaet and has_productivity_data %}
 
-    {% if show_ci_kpi_qual and monatswerte_qual %}
+    {% if show_ci_kpi_qual and vn_werte_qual %}
     <div class="ci-view-panel ci-view-panel-qual mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.qualitaet }}</div>
         {% if impact_ba_meta %}
         <p class="ci-ba-meta text-muted small mb-2">
             {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
             · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
-            · Wirkungsfenster {{ impact_ba_meta.window }} Tage
         </p>
         {% endif %}
         {% set parts = [] %}
@@ -1097,24 +1103,23 @@
             'fach': ('target_fachkompetenz', 'warn_fachkompetenz'),
             'vert': ('target_vertrieb', 'warn_vertrieb'),
         } %}
-        {% set panel_id = 'ciMonatswerteQual' %}
-        {% set monatswerte = monatswerte_qual %}
+        {% set panel_id = 'ciVnQual' %}
+        {% set vn_werte = vn_werte_qual %}
         {% set metric_parts = parts %}
         {% set target_map = qual_target_map %}
         {% set targets = qual_targets %}
         {% set is_prod = false %}
-        {% include 'main/_coaching_impact_monatswerte_panel.html' with context %}
+        {% include 'main/_coaching_impact_vn_panel.html' with context %}
     </div>
     {% endif %}
 
-    {% if show_ci_kpi_prod and monatswerte_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
+    {% if show_ci_kpi_prod and vn_werte_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
     <div class="ci-view-panel ci-view-panel-prod mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.produktivitaet }}</div>
         {% if impact_ba_meta %}
         <p class="ci-ba-meta text-muted small mb-2">
             {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
             · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
-            · Wirkungsfenster {{ impact_ba_meta.window }} Tage
         </p>
         {% endif %}
         {% set prod_parts = [] %}
@@ -1129,13 +1134,13 @@
             'nach': ('target_nach_per_call', 'warn_nach_per_call', true),
             'idle': ('target_idle_max', 'warn_idle_max', true),
         } %}
-        {% set panel_id = 'ciMonatswerteProd' %}
-        {% set monatswerte = monatswerte_prod %}
+        {% set panel_id = 'ciVnProd' %}
+        {% set vn_werte = vn_werte_prod %}
         {% set metric_parts = prod_parts %}
         {% set target_map = prod_target_map %}
         {% set targets = prod_targets %}
         {% set is_prod = true %}
-        {% include 'main/_coaching_impact_monatswerte_panel.html' with context %}
+        {% include 'main/_coaching_impact_vn_panel.html' with context %}
     </div>
     {% endif %}
 
@@ -1150,8 +1155,8 @@
                 {% endif %}
                 {% if impact_ba_meta %}
                 <span class="ci-chart-range-hint d-block">
-                    KPIs: Wirkungsfenster {{ impact_ba_meta.kpi_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.kpi_end.strftime('%d.%m.%Y') }}
-                    · Coachings: Zeitraum {{ impact_ba_meta.coaching_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.coaching_end.strftime('%d.%m.%Y') }}
+                    KPIs: {{ impact_ba_meta.kpi_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.kpi_end.strftime('%d.%m.%Y') }}
+                    · Coachings: {{ impact_ba_meta.coaching_start.strftime('%d.%m.%Y') }} – {{ impact_ba_meta.coaching_end.strftime('%d.%m.%Y') }}
                 </span>
                 {% endif %}
             </div>
@@ -1242,11 +1247,11 @@
     {% endif %}
 
     {% if show_ci_kpi_qual or show_ci_kpi_prod %}
-    {% if (show_ci_kpi_qual and monatswerte_qual) or (show_ci_kpi_prod and monatswerte_prod) %}
+    {% if (show_ci_kpi_qual and vn_werte_qual) or (show_ci_kpi_prod and vn_werte_prod) %}
     <div class="card mb-4" style="background:#22222a;border-color:#34343c;">
         <div class="card-header" style="background:transparent;border-color:#34343c;">
             <strong>Vorher / Nachher</strong>
-            <span class="text-muted small font-weight-normal">— Ø Tagesdurchschnitt vor · während · nach den Coachings im Zeitraum</span>
+            <span class="text-muted small font-weight-normal">— Vergleich nach gewählter Granularität (Gesamt · Quartal · Monat · Woche · Tag)</span>
         </div>
         <div class="card-body">
             <div class="ci-ba-chart-wrap">
@@ -1261,7 +1266,7 @@
     <div class="alert alert-info">
         <i class="fas fa-sliders-h mr-1"></i>
         <strong>{{ scope_label }}</strong> ist ausgewählt.
-        Bitte legen Sie oben über <strong>Zeitraum &amp; Wirkungsfenster</strong> den Analysezeitraum fest,
+        Bitte legen Sie oben den <strong>Coaching-Zeitraum</strong> fest,
         um die Coaching-Wirkung anzuzeigen.
         <button type="button" class="btn btn-sm telekom-button ml-2 mt-2 mt-md-0" id="ciOpenRangeWizardInline">
             Zeitraum festlegen
@@ -1433,17 +1438,13 @@
         var scrollEl = document.getElementById('ciWzScroll');
         var selectionBgEl = document.getElementById('ciWzSelectionBg');
         var handlesEl = document.getElementById('ciWzHandles');
-        var impactLayerEl = document.getElementById('ciWzImpactLayer');
-        var impactHandlesEl = document.getElementById('ciWzImpactHandles');
         var rangeLabelEl = document.getElementById('ciWzRangeLabel');
         var countsLabelEl = document.getElementById('ciWzCountsLabel');
         var dayHintEl = document.getElementById('ciWzDayHint');
         var applyBtn = document.getElementById('ciWzApply');
         var dateFromInput = document.getElementById('ciDateFrom');
         var dateToInput = document.getElementById('ciDateTo');
-        var windowInput = document.getElementById('ciWindow');
         var periodPresets = document.getElementById('ciWzPeriodPresets');
-        var windowPresets = document.getElementById('ciWzWindowPresets');
         var wzDateFrom = document.getElementById('ciWzDateFrom');
         var wzDateTo = document.getElementById('ciWzDateTo');
         var scrollHint = document.getElementById('ciWzScrollHint');
@@ -1457,7 +1458,6 @@
             days: [],
             startIdx: 0,
             endIdx: 0,
-            windowDays: parseInt(windowInput.value, 10) || 14,
             dragging: null,
             dragAnchorIdx: 0,
             dragOrigStart: 0,
@@ -1466,11 +1466,7 @@
             pointer: null,
             showSurveys: {{ (can_view_kpi_qualitaet or false)|tojson }},
             showProductivity: false,
-            surveyDatesByMember: {},
-            prodDatesByMember: {},
-            coachingEvents: [],
             zones: null,
-            impactDragOrigWindow: 14,
             syncingDates: false,
         };
 
@@ -1480,10 +1476,7 @@
             if (surveyLegend) surveyLegend.classList.toggle('d-none', !state.showSurveys);
             if (prodLegend) prodLegend.classList.toggle('d-none', !state.showProductivity);
         }
-
-        function showImpactPreview() {
-            return true;
-        }
+        syncWizardVisibility();
 
         function fitTimelineToViewport() {
             if (!scrollEl || !trackEl || !state.days.length) return;
@@ -1535,22 +1528,6 @@
             state.startIdx = si;
             state.endIdx = ei;
             state.anchorIdx = ei;
-            updateUI();
-        }
-
-        function updateWindowButtons() {
-            if (!windowPresets) return;
-            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
-                var w = parseInt(btn.getAttribute('data-window'), 10);
-                btn.classList.toggle('active', w === state.windowDays);
-            });
-        }
-
-        function applyWindowPreset(days) {
-            state.windowDays = clampWindowDays(days);
-            if (windowInput) windowInput.value = state.windowDays;
-            recomputeActionableForWindow();
-            renderDays();
             updateUI();
         }
 
@@ -1618,68 +1595,6 @@
             });
         }
 
-        function impactSpanIndices() {
-            var coaches = coachingIndicesInRange();
-            if (!coaches.length) return null;
-            var w = state.windowDays;
-            var lo = Math.max(0, Math.min.apply(null, coaches.map(function (ci) { return ci - w; })));
-            var hi = Math.min(state.days.length - 1, Math.max.apply(null, coaches.map(function (ci) { return ci + w; })));
-            return { lo: lo, hi: hi, coaches: coaches };
-        }
-
-        function clampWindowDays(w) {
-            return Math.max(1, Math.min(90, w));
-        }
-
-        function parseIsoDate(iso) {
-            if (!iso) return null;
-            var p = iso.split('-');
-            return new Date(+p[0], +p[1] - 1, +p[2]);
-        }
-
-        function dateInRange(d, lo, hi) {
-            return d >= lo && d <= hi;
-        }
-
-        function isEventActionable(memberId, dateIso, windowDays) {
-            var d = parseIsoDate(dateIso);
-            if (!d) return false;
-            var beforeLo = new Date(d); beforeLo.setDate(beforeLo.getDate() - windowDays);
-            var beforeHi = new Date(d); beforeHi.setDate(beforeHi.getDate() - 1);
-            var afterLo = new Date(d); afterLo.setDate(afterLo.getDate() + 1);
-            var afterHi = new Date(d); afterHi.setDate(afterHi.getDate() + windowDays);
-            var mid = String(memberId);
-            var qualOk = false;
-            var prodOk = false;
-            if (state.showSurveys && state.surveyDatesByMember[mid]) {
-                var sd = state.surveyDatesByMember[mid].map(parseIsoDate);
-                qualOk = sd.some(function (x) { return dateInRange(x, beforeLo, beforeHi); })
-                    && sd.some(function (x) { return dateInRange(x, afterLo, afterHi); });
-            }
-            if (state.showProductivity && state.prodDatesByMember[mid]) {
-                var pd = state.prodDatesByMember[mid].map(parseIsoDate);
-                prodOk = pd.some(function (x) { return dateInRange(x, beforeLo, beforeHi); })
-                    && pd.some(function (x) { return dateInRange(x, afterLo, afterHi); });
-            }
-            if (state.showSurveys && state.showProductivity) return qualOk || prodOk;
-            if (state.showSurveys) return qualOk;
-            if (state.showProductivity) return prodOk;
-            return false;
-        }
-
-        function recomputeActionableForWindow() {
-            var w = state.windowDays;
-            var byDate = {};
-            (state.coachingEvents || []).forEach(function (ev) {
-                if (!isEventActionable(ev.member_id, ev.date, w)) return;
-                byDate[ev.date] = (byDate[ev.date] || 0) + 1;
-            });
-            state.days.forEach(function (day) {
-                day.actionable_coachings = byDate[day.date] || 0;
-            });
-        }
-        syncWizardVisibility();
-
         function buildDayRow(iconClass, value, rowClass, empty) {
             var row = document.createElement('div');
             row.className = 'ci-wz-day-row ' + rowClass + (empty ? ' ci-wz-day-row--empty' : '');
@@ -1701,15 +1616,11 @@
             return state.days.length - 1;
         }
 
-        function lastActionableCoachingIdx() {
+        function lastCoachingIdx() {
             for (var i = state.days.length - 1; i >= 0; i--) {
-                if (state.days[i].actionable_coachings > 0) return i;
+                if (state.days[i].coachings > 0) return i;
             }
             return -1;
-        }
-
-        function lastCoachingIdx() {
-            return lastActionableCoachingIdx();
         }
 
         function scrollToIdx(idx) {
@@ -1771,7 +1682,6 @@
 
         function renderDays() {
             daysEl.innerHTML = '';
-            impactLayerEl.innerHTML = '';
             state.days.forEach(function (day, idx) {
                 var el = document.createElement('div');
                 el.className = 'ci-wz-day';
@@ -1855,83 +1765,12 @@
             fitTimelineToViewport();
         }
 
-        function coachingIndicesInRange() {
-            var out = [];
-            for (var i = state.startIdx; i <= state.endIdx; i++) {
-                if (state.days[i] && state.days[i].actionable_coachings > 0) out.push(i);
-            }
-            return out;
-        }
-
-        function renderImpactBands() {
-            impactLayerEl.innerHTML = '';
-            if (!showImpactPreview() || !state.zones) return;
-            var span = impactSpanIndices();
-            if (!span) return;
-            var dayW = readDayWidth();
-            var band = document.createElement('div');
-            band.className = 'ci-wz-impact-band';
-            band.style.left = (span.lo * dayW) + 'px';
-            band.style.width = ((span.hi - span.lo + 1) * dayW) + 'px';
-            band.style.top = state.zones.dataTop + 'px';
-            band.style.height = state.zones.dataH + 'px';
-            impactLayerEl.appendChild(band);
-        }
-
-        function renderImpactHandles() {
-            if (!impactHandlesEl) return;
-            impactHandlesEl.innerHTML = '';
-            if (!showImpactPreview() || !state.zones) return;
-            var span = impactSpanIndices();
-            if (!span) return;
-            var dayW = readDayWidth();
-            var wrap = document.createElement('div');
-            wrap.className = 'ci-wz-impact-handles-inner';
-            wrap.style.left = (span.lo * dayW) + 'px';
-            wrap.style.width = ((span.hi - span.lo + 1) * dayW) + 'px';
-            wrap.style.top = state.zones.dataTop + 'px';
-            wrap.style.height = state.zones.dataH + 'px';
-
-            var hStart = document.createElement('div');
-            hStart.className = 'ci-wz-impact-handle ci-wz-impact-handle-start';
-            hStart.setAttribute('data-handle', 'impact-start');
-            hStart.title = 'Fenster vergrößern/verkleinern (symmetrisch)';
-            hStart.innerHTML = '<span>◀</span>';
-            wrap.appendChild(hStart);
-
-            var hEnd = document.createElement('div');
-            hEnd.className = 'ci-wz-impact-handle ci-wz-impact-handle-end';
-            hEnd.setAttribute('data-handle', 'impact-end');
-            hEnd.title = 'Fenster vergrößern/verkleinern (symmetrisch)';
-            hEnd.innerHTML = '<span>▶</span>';
-            wrap.appendChild(hEnd);
-
-            wrap.querySelectorAll('[data-handle]').forEach(function (el) {
-                el.addEventListener('pointerdown', function (e) {
-                    startHandleDrag(e, el.getAttribute('data-handle'));
-                });
-            });
-            impactHandlesEl.appendChild(wrap);
-        }
-
         function updateDayClasses() {
-            var w = state.windowDays;
-            var impactSet = {};
-            if (showImpactPreview()) {
-                coachingIndicesInRange().forEach(function (ci) {
-                    for (var j = Math.max(0, ci - w); j <= Math.min(state.days.length - 1, ci + w); j++) {
-                        impactSet[j] = true;
-                    }
-                });
-            }
             daysEl.querySelectorAll('.ci-wz-day').forEach(function (el) {
                 var idx = +el.dataset.idx;
                 var inRange = idx >= state.startIdx && idx <= state.endIdx;
                 var coachRow = el.querySelector('.ci-wz-day-row--coach');
                 if (coachRow) coachRow.classList.toggle('ci-wz-day-row--coach-in-range', inRange);
-                el.querySelectorAll('.ci-wz-day-row--survey, .ci-wz-day-row--prod').forEach(function (row) {
-                    row.classList.toggle('ci-wz-day-row--data-impact', !!impactSet[idx]);
-                });
             });
         }
 
@@ -1955,13 +1794,9 @@
             if (state.showProductivity) {
                 countParts.push(prodDays + ' Tag' + (prodDays === 1 ? '' : 'e') + ' mit Prod.-Rohdaten');
             }
-            if (showImpactPreview()) {
-                countParts.push('Wirkungsfenster ' + state.windowDays + ' Tage');
-            }
             countsLabelEl.textContent = countParts.join(' · ');
-            applyBtn.disabled = !d0 || !d1 || actCoach === 0;
+            applyBtn.disabled = !d0 || !d1 || coach === 0;
             updatePresetButtons();
-            updateWindowButtons();
             syncDateInputsFromState();
             var single = rangeDays() === 1;
             if (selectionBgEl) selectionBgEl.classList.toggle('ci-wz-selection-bg--single', single);
@@ -1992,8 +1827,6 @@
             measureRowZones();
             updateSelectionBox();
             updateDayClasses();
-            renderImpactBands();
-            renderImpactHandles();
             updateSummary();
         }
 
@@ -2039,27 +1872,12 @@
                 newStart = Math.max(0, Math.min(state.days.length - 1 - len, newStart));
                 state.startIdx = newStart;
                 state.endIdx = newStart + len;
-            } else if (state.dragging === 'impact-start' || state.dragging === 'impact-end') {
-                var span = impactSpanIndices();
-                if (!span) return;
-                var anchor = state.dragging === 'impact-start'
-                    ? Math.min.apply(null, span.coaches)
-                    : Math.max.apply(null, span.coaches);
-                var newW = state.dragging === 'impact-start' ? (anchor - idx) : (idx - anchor);
-                state.windowDays = clampWindowDays(newW);
-                measureRowZones();
-                updateDayClasses();
-                renderImpactBands();
-                renderImpactHandles();
-                updatePresetButtons();
-                return;
             }
             state.anchorIdx = state.endIdx;
             updateUI();
         }
 
         function onPointerUp(e) {
-            var wasImpactDrag = state.dragging && state.dragging.indexOf('impact-') === 0;
             if (state.pointer && e.pointerId === state.pointer.id) {
                 if (state.pointer.mode === 'paint' && !state.pointer.moved) {
                     state.startIdx = state.endIdx = state.pointer.idx;
@@ -2069,11 +1887,6 @@
                 endPointerDrag();
             }
             if (state.dragging) {
-                if (wasImpactDrag) {
-                    recomputeActionableForWindow();
-                    renderDays();
-                    updateUI();
-                }
                 endPointerDrag();
             }
         }
@@ -2082,14 +1895,11 @@
             e.preventDefault();
             e.stopPropagation();
             state.pointer = null;
-            if (handleType.indexOf('impact-') === 0 && !showImpactPreview()) return;
             state.dragging = handleType;
             if (handleType === 'range') {
                 state.dragAnchorIdx = idxFromClientX(e.clientX) - state.startIdx;
                 state.dragOrigStart = state.startIdx;
                 state.dragOrigEnd = state.endIdx;
-            } else if (handleType.indexOf('impact-') === 0) {
-                state.impactDragOrigWindow = state.windowDays;
             }
             scrollEl.classList.add('is-dragging');
             if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
@@ -2098,7 +1908,6 @@
         function startPaintDrag(e, dayEl, idx) {
             if (e.button !== 0) return;
             if (!e.target.closest('.ci-wz-day-row--coach')) return;
-            if (showImpactPreview() && e.target.closest('.ci-wz-impact-handle, .ci-wz-impact-grip')) return;
             e.preventDefault();
             state.pointer = { mode: 'paint', idx: idx, x: e.clientX, id: e.pointerId, moved: false };
             state.startIdx = idx;
@@ -2140,14 +1949,6 @@
             });
         }
 
-        if (windowPresets) {
-            windowPresets.querySelectorAll('[data-window]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    applyWindowPreset(parseInt(btn.getAttribute('data-window'), 10));
-                });
-            });
-        }
-
         if (wzDateFrom) {
             wzDateFrom.addEventListener('change', applyDateInputsToState);
         }
@@ -2173,17 +1974,17 @@
                 state.anchorIdx = ei;
                 return;
             }
-            var firstAct = -1;
-            var lastAct = -1;
+            var firstCoach = -1;
+            var lastCoach = -1;
             for (var i = 0; i < state.days.length; i++) {
-                if (state.days[i].actionable_coachings > 0) {
-                    if (firstAct < 0) firstAct = i;
-                    lastAct = i;
+                if (state.days[i].coachings > 0) {
+                    if (firstCoach < 0) firstCoach = i;
+                    lastCoach = i;
                 }
             }
-            if (lastAct >= 0) {
-                state.endIdx = Math.min(state.days.length - 1, lastAct + 7);
-                state.startIdx = Math.max(0, Math.min(firstAct, lastAct) - 7);
+            if (lastCoach >= 0) {
+                state.endIdx = Math.min(state.days.length - 1, lastCoach + 7);
+                state.startIdx = Math.max(0, Math.min(firstCoach, lastCoach) - 7);
             } else {
                 state.endIdx = state.days.length - 1;
                 state.startIdx = Math.max(0, state.endIdx - 89);
@@ -2201,7 +2002,6 @@
             q.delete('period');
             q.delete('date_from');
             q.delete('date_to');
-            if (windowInput.value) q.set('window', windowInput.value);
 
             fetch('{{ url_for("main.coaching_impact_activity_map") }}?' + q.toString())
                 .then(function (r) { return r.json(); })
@@ -2218,15 +2018,10 @@
                         return;
                     }
                     state.days = data.days;
-                    state.coachingEvents = data.coaching_events || [];
-                    state.surveyDatesByMember = data.survey_dates_by_member || {};
-                    state.prodDatesByMember = data.prod_dates_by_member || {};
                     state.showSurveys = !!data.show_surveys;
                     state.showProductivity = !!data.show_productivity;
-                    state.windowDays = parseInt(windowInput.value, 10) || data.default_window || 14;
                     syncWizardVisibility();
-                    recomputeActionableForWindow();
-                    if (!data.actionable_coaching_count && !(data.coaching_events && data.coaching_events.length)) {
+                    if (!data.coaching_events || !data.coaching_events.length) {
                         emptyEl.textContent = data.empty_message || wzEmptyDefault;
                         emptyEl.classList.remove('d-none');
                         return;
@@ -2234,7 +2029,6 @@
                     pickDefaultRange();
                     renderDays();
                     workspaceEl.classList.remove('d-none');
-                    updateWindowButtons();
                     syncDateInputsFromState();
                     updateUI();
                     scheduleWizardLayout();
@@ -2264,10 +2058,9 @@
             if (!d0 || !d1) return;
             dateFromInput.value = d0.date;
             dateToInput.value = d1.date;
-            windowInput.value = state.windowDays;
             var periodInput = document.getElementById('ciPeriod');
             if (periodInput) periodInput.value = 'vonbis';
-            var summary = fmtDe(d0.date) + ' – ' + fmtDe(d1.date) + ' · Wirkungsfenster ' + state.windowDays + ' Tage';
+            var summary = fmtDe(d0.date) + ' – ' + fmtDe(d1.date);
             var setupValue = document.getElementById('ciRangeSetupValue');
             if (setupValue) setupValue.textContent = summary;
             $('#ciRangeWizardModal').modal('hide');
@@ -2279,11 +2072,9 @@
         var periodInput = document.getElementById('ciPeriod');
         var df = document.getElementById('ciDateFrom');
         var dt = document.getElementById('ciDateTo');
-        var win = document.getElementById('ciWindow');
         if (periodInput) periodInput.value = '';
         if (df) df.value = '';
         if (dt) dt.value = '';
-        if (win) win.value = '';
         var setupValue = document.getElementById('ciRangeSetupValue');
         if (setupValue) setupValue.textContent = 'Noch nicht festgelegt';
     }
@@ -2334,8 +2125,9 @@
     }
 
     var overlay = {{ overlay|tojson }};
-    var monatswerteQual = {{ monatswerte_qual|tojson if monatswerte_qual else 'null' }};
-    var monatswerteProd = {{ monatswerte_prod|tojson if monatswerte_prod else 'null' }};
+    var vnQual = {{ vn_werte_qual|tojson if vn_werte_qual else 'null' }};
+    var vnProd = {{ vn_werte_prod|tojson if vn_werte_prod else 'null' }};
+    var ciVnMode = 'gesamt';
     var visible = {{ visible|tojson }};
     var visibleProd = {{ visible_prod|tojson }};
     var prodLabels = {{ prod_labels|tojson }};
@@ -2532,6 +2324,12 @@
         });
     }
 
+    function vnChartData(vnData) {
+        if (!vnData) return null;
+        if (vnData.by_mode && vnData.by_mode[ciVnMode]) return vnData.by_mode[ciVnMode].chart;
+        return vnData.chart || null;
+    }
+
     function buildCiBaChart(mode) {
         var bc = document.getElementById('ciBaChart');
         if (!bc || !window.Chart) return;
@@ -2540,19 +2338,23 @@
             ciBaChartInstance = null;
         }
         var baLabels = [], baBefore = [], baAfter = [];
-        if (mode === 'produktivitaet' && monatswerteProd && monatswerteProd.chart) {
-            var pc = monatswerteProd.chart;
-            if (visibleProd.sign_on && pc.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(pc.sign_on.before); baAfter.push(pc.sign_on.after); }
-            if (visibleProd.prod && pc.prod) { baLabels.push(prodLabels.prod); baBefore.push(pc.prod.before); baAfter.push(pc.prod.after); }
-            if (visibleProd.nach && pc.nach) { baLabels.push(prodLabels.nach); baBefore.push(pc.nach.before); baAfter.push(pc.nach.after); }
-            if (visibleProd.idle && pc.idle) { baLabels.push(prodLabels.idle); baBefore.push(pc.idle.before); baAfter.push(pc.idle.after); }
-        } else if (monatswerteQual && monatswerteQual.chart) {
-            var qc = monatswerteQual.chart;
-            if (visible.info && qc.info) { baLabels.push('Informationsquote'); baBefore.push(qc.info.before); baAfter.push(qc.info.after); }
-            if (visible.loesung && qc.loes) { baLabels.push('Lösungsquote'); baBefore.push(qc.loes.before); baAfter.push(qc.loes.after); }
-            if (visible.nps && qc.nps) { baLabels.push('NPS'); baBefore.push(qc.nps.before); baAfter.push(qc.nps.after); }
-            if (visible.fachkompetenz && qc.fach) { baLabels.push('Fachkompetenz'); baBefore.push(qc.fach.before); baAfter.push(qc.fach.after); }
-            if (visible.vertrieb && qc.vert) { baLabels.push('Vertrieb'); baBefore.push(qc.vert.before); baAfter.push(qc.vert.after); }
+        if (mode === 'produktivitaet') {
+            var pc = vnChartData(vnProd);
+            if (pc) {
+                if (visibleProd.sign_on && pc.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(pc.sign_on.before); baAfter.push(pc.sign_on.after); }
+                if (visibleProd.prod && pc.prod) { baLabels.push(prodLabels.prod); baBefore.push(pc.prod.before); baAfter.push(pc.prod.after); }
+                if (visibleProd.nach && pc.nach) { baLabels.push(prodLabels.nach); baBefore.push(pc.nach.before); baAfter.push(pc.nach.after); }
+                if (visibleProd.idle && pc.idle) { baLabels.push(prodLabels.idle); baBefore.push(pc.idle.before); baAfter.push(pc.idle.after); }
+            }
+        } else {
+            var qc = vnChartData(vnQual);
+            if (qc) {
+                if (visible.info && qc.info) { baLabels.push('Informationsquote'); baBefore.push(qc.info.before); baAfter.push(qc.info.after); }
+                if (visible.loesung && qc.loes) { baLabels.push('Lösungsquote'); baBefore.push(qc.loes.before); baAfter.push(qc.loes.after); }
+                if (visible.nps && qc.nps) { baLabels.push('NPS'); baBefore.push(qc.nps.before); baAfter.push(qc.nps.after); }
+                if (visible.fachkompetenz && qc.fach) { baLabels.push('Fachkompetenz'); baBefore.push(qc.fach.before); baAfter.push(qc.fach.after); }
+                if (visible.vertrieb && qc.vert) { baLabels.push('Vertrieb'); baBefore.push(qc.vert.before); baAfter.push(qc.vert.after); }
+            }
         }
         if (!baLabels.length) return;
         ciBaChartInstance = new Chart(bc.getContext('2d'), {
@@ -2841,11 +2643,33 @@
         });
     });
 
-    document.querySelectorAll('.ci-monat-select').forEach(function (sel) {
-        sel.addEventListener('change', function () {
-            var url = new URL(window.location.href);
-            url.searchParams.set(sel.getAttribute('data-ci-monat-param'), sel.value);
-            window.location.href = url.toString();
+    document.querySelectorAll('.ci-vn-toggle').forEach(function (toggle) {
+        toggle.querySelectorAll('[data-vn-mode]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                ciVnMode = btn.getAttribute('data-vn-mode');
+                toggle.querySelectorAll('.btn').forEach(function (b) {
+                    b.classList.toggle('active', b === btn);
+                });
+                var panel = toggle.closest('.ci-ba-section');
+                if (panel) {
+                    panel.querySelectorAll('.ci-vn-mode').forEach(function (block) {
+                        block.hidden = block.getAttribute('data-vn-mode') !== ciVnMode;
+                    });
+                }
+                document.querySelectorAll('.ci-vn-toggle').forEach(function (other) {
+                    if (other === toggle) return;
+                    other.querySelectorAll('.btn').forEach(function (b) {
+                        b.classList.toggle('active', b.getAttribute('data-vn-mode') === ciVnMode);
+                    });
+                    var otherPanel = other.closest('.ci-ba-section');
+                    if (otherPanel) {
+                        otherPanel.querySelectorAll('.ci-vn-mode').forEach(function (block) {
+                            block.hidden = block.getAttribute('data-vn-mode') !== ciVnMode;
+                        });
+                    }
+                });
+                buildCiBaChart(ciViewMode);
+            });
         });
     });
 
