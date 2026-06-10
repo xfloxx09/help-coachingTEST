@@ -6314,33 +6314,47 @@ def _impact_randtage_snapshot(day, metrics, anchor, label=None, fallback=False, 
     }
 
 
-def _impact_randtage_period_clip(mode, side, win_lo, win_hi):
+def _impact_randtage_period_clip(mode, side, win_lo, win_hi, before_lo=None):
     """Calendar slice for Randtage aggregation (first unit vorher, last unit nachher)."""
     is_before = side == 'before'
     side_days = _impact_side_days(win_lo, win_hi)
-    if mode == 'week':
-        anchor = win_lo if is_before else win_hi
-        week_start = kpi_time._week_start_monday(anchor)
-        week_end = week_start + timedelta(days=6)
-        return max(win_lo, week_start), min(win_hi, week_end)
-    if mode == 'month':
-        if side_days <= 30:
-            return win_lo, win_hi
-        if is_before:
+    if is_before:
+        if mode == 'week':
+            week_start = kpi_time._week_start_monday(win_lo)
+            week_end = week_start + timedelta(days=6)
+            return max(win_lo, week_start), min(win_hi, week_end)
+        if mode == 'month':
+            if side_days <= 30:
+                return win_lo, win_hi
             return win_lo, min(win_hi, kpi_time._month_end(win_lo))
-        return max(win_lo, kpi_time._month_start(win_hi)), win_hi
-    if mode == 'quarter':
-        if side_days <= 92:
-            return win_lo, win_hi
-        if is_before:
+        if mode == 'quarter':
+            if side_days <= 92:
+                return win_lo, win_hi
             return win_lo, min(win_hi, _impact_quarter_end(win_lo))
-        return max(win_lo, _impact_quarter_start(win_hi)), win_hi
-    if mode == 'year':
-        if side_days <= 365:
-            return win_lo, win_hi
-        if is_before:
+        if mode == 'year':
+            if side_days <= 365:
+                return win_lo, win_hi
             return win_lo, min(win_hi, date(win_lo.year, 12, 31))
-        return max(win_lo, date(win_hi.year, 1, 1)), win_hi
+        return win_lo, win_hi
+
+    # Nachher: last calendar unit at Wirkungsfenster-Ende, inkl. Vorher-Tage in derselben Einheit
+    vorher_floor = before_lo if before_lo is not None else win_lo
+    if mode == 'week':
+        week_start = kpi_time._week_start_monday(win_hi)
+        week_end = week_start + timedelta(days=6)
+        return max(week_start, vorher_floor), min(week_end, win_hi)
+    if mode == 'month':
+        month_start = kpi_time._month_start(win_hi)
+        month_end = kpi_time._month_end(win_hi)
+        return max(month_start, vorher_floor), min(month_end, win_hi)
+    if mode == 'quarter':
+        q_start = _impact_quarter_start(win_hi)
+        q_end = _impact_quarter_end(win_hi)
+        return max(q_start, vorher_floor), min(q_end, win_hi)
+    if mode == 'year':
+        year_start = date(win_hi.year, 1, 1)
+        year_end = date(win_hi.year, 12, 31)
+        return max(year_start, vorher_floor), min(year_end, win_hi)
     return win_lo, win_hi
 
 
@@ -6360,13 +6374,10 @@ def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
         )
         return label, date_span, title
     if mode == 'month':
-        if side_days <= 30:
+        if is_before and side_days <= 30:
             label = date_span
             subtitle = f'{side_days} Tage'
-            title = (
-                'Vorher · Wirkungsfenster'
-                if is_before else 'Nachher · inkl. Coachings'
-            )
+            title = 'Vorher · Wirkungsfenster'
             return label, subtitle, title
         ref = clip_lo if is_before else clip_hi
         label = kpi_time.month_label_de(ref.year, ref.month)
@@ -6376,13 +6387,10 @@ def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
         )
         return label, date_span, title
     if mode == 'quarter':
-        if side_days <= 92:
+        if is_before and side_days <= 92:
             label = date_span
             subtitle = f'{side_days} Tage'
-            title = (
-                'Vorher · Wirkungsfenster'
-                if is_before else 'Nachher · inkl. Coachings'
-            )
+            title = 'Vorher · Wirkungsfenster'
             return label, subtitle, title
         ref = clip_lo if is_before else clip_hi
         q = (ref.month - 1) // 3 + 1
@@ -6393,13 +6401,10 @@ def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
         )
         return label, date_span, title
     if mode == 'year':
-        if side_days <= 365:
+        if is_before and side_days <= 365:
             label = date_span
             subtitle = f'{side_days} Tage'
-            title = (
-                'Vorher · Wirkungsfenster'
-                if is_before else 'Nachher · inkl. Coachings'
-            )
+            title = 'Vorher · Wirkungsfenster'
             return label, subtitle, title
         ref_year = clip_lo.year if is_before else clip_hi.year
         label = str(ref_year)
@@ -6411,8 +6416,10 @@ def _impact_randtage_period_meta(mode, side, clip_lo, clip_hi):
     return None, None, ''
 
 
-def _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn):
-    clip_lo, clip_hi = _impact_randtage_period_clip(mode, side, win_lo, win_hi)
+def _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn, before_lo=None):
+    clip_lo, clip_hi = _impact_randtage_period_clip(
+        mode, side, win_lo, win_hi, before_lo=before_lo,
+    )
     label, subtitle, title = _impact_randtage_period_meta(mode, side, clip_lo, clip_hi)
     metrics = agg_fn(clip_lo, clip_hi) if clip_lo <= clip_hi else None
     anchor = clip_lo if side == 'before' else clip_hi
@@ -6439,7 +6446,9 @@ def _impact_randtage_side_qual(mode, kpi_by_day, side, before_lo, before_hi, aft
         return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
 
     if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn)
+        return _impact_randtage_side_period(
+            mode, side, win_lo, win_hi, agg_fn, before_lo=before_lo,
+        )
 
     return None, ''
 
@@ -6462,7 +6471,9 @@ def _impact_randtage_side_prod(mode, prod_by_day, side, before_lo, before_hi, af
         return _impact_randtage_snapshot(d, metrics, anchor, fallback=bool(d and anchor and d != anchor), subtitle=subtitle), title
 
     if mode in ('week', 'month', 'quarter', 'year'):
-        return _impact_randtage_side_period(mode, side, win_lo, win_hi, agg_fn)
+        return _impact_randtage_side_period(
+            mode, side, win_lo, win_hi, agg_fn, before_lo=before_lo,
+        )
 
     return None, ''
 
