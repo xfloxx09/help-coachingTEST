@@ -7,6 +7,31 @@ from app import db
 STARTUP_MIGRATION_VERSION = 1
 
 
+def _apply_incremental_schema_patches(conn):
+    """Additive schema patches — run on every deploy (safe if already applied)."""
+    inspector = inspect(db.engine)
+    if 'project_productivity_settings' not in inspector.get_table_names():
+        return
+    pps_cols = [c['name'] for c in inspector.get_columns('project_productivity_settings')]
+    for col, default in (
+        ('warn_sign_on', 80.75),
+        ('warn_prod', 72.25),
+        ('warn_nach_per_call', 45.0),
+        ('warn_idle_max', 15.0),
+    ):
+        if col not in pps_cols:
+            try:
+                conn.execute(text(
+                    f"ALTER TABLE project_productivity_settings ADD COLUMN {col} "
+                    f"FLOAT NOT NULL DEFAULT {default}"
+                ))
+                conn.commit()
+                print(f"✅ Spalte '{col}' zu 'project_productivity_settings' hinzugefügt.")
+            except Exception as e:
+                conn.rollback()
+                print(f"ℹ️ project_productivity_settings.{col}: {e}")
+
+
 def _read_startup_migration_version(conn):
     try:
         conn.execute(text(
@@ -44,6 +69,7 @@ def run_startup_migrations(app):
         applied = _read_startup_migration_version(conn)
         if applied >= STARTUP_MIGRATION_VERSION:
             print(f"--- Startup migrations v{applied} already applied, skipping ---")
+            _apply_incremental_schema_patches(conn)
             conn.close()
             return
 
@@ -959,6 +985,7 @@ def run_startup_migrations(app):
                 print(f"ℹ️ kpi_categories seed: {e}")
 
         _write_startup_migration_version(conn, STARTUP_MIGRATION_VERSION)
+        _apply_incremental_schema_patches(conn)
         print("--- Migration abgeschlossen ---")
         conn.close()
 
