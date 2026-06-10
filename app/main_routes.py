@@ -6131,169 +6131,130 @@ def _coaching_performance_pct(perf):
     return int(perf) * 10
 
 
-def _impact_event_quote(values):
-    if not values:
+def _impact_day_qual(kpi_by_day, day):
+    """Scope-level quality KPIs for a single calendar day."""
+    kb = kpi_by_day.get(day)
+    if not kb:
         return None
-    return sum(values) / len(values) * 100.0
-
-
-def _impact_before_after(events, surveys_by_member, window):
-    """Compare KPI in [D-window, D-1] vs [D+1, D+window] per coaching event."""
-    acc = {
-        'info': {'before': [], 'after': [], 'pairs': 0},
-        'loes': {'before': [], 'after': [], 'pairs': 0},
-        'nps': {'before': [], 'after': [], 'pairs': 0},
-        'fach': {'before': [], 'after': [], 'pairs': 0},
-        'vert': {'before': [], 'after': [], 'pairs': 0},
+    nps = kpi_logic.compute_nps(kb['nps'])
+    return {
+        'info': round(sum(kb['info']) / len(kb['info']) * 100, 2) if kb['info'] else None,
+        'loes': round(sum(kb['loes']) / len(kb['loes']) * 100, 2) if kb['loes'] else None,
+        'nps': nps['nps'] if nps['total'] else None,
+        'fach': _impact_avg(kb['fach']) if kb['fach'] else None,
+        'vert': round(sum(kb['vert']) / len(kb['vert']) * 100, 2) if kb['vert'] else None,
     }
-    for member_id, d in events:
-        rows = surveys_by_member.get(member_id)
-        if not rows:
-            continue
-        before_lo, before_hi = d - timedelta(days=window), d - timedelta(days=1)
-        after_lo, after_hi = d + timedelta(days=1), d + timedelta(days=window)
-        b_info, a_info = [], []
-        b_loes, a_loes = [], []
-        b_nps, a_nps = [], []
-        b_fach, a_fach = [], []
-        b_vert, a_vert = [], []
-        for sd, info_p, loes_p, nps_v, fach_s, vert_p in rows:
-            if sd is None:
-                continue
-            if before_lo <= sd <= before_hi:
-                if info_p is not None:
-                    b_info.append(1 if info_p else 0)
-                if loes_p is not None:
-                    b_loes.append(1 if loes_p else 0)
-                if nps_v is not None:
-                    b_nps.append(nps_v)
-                if fach_s is not None:
-                    b_fach.append(fach_s)
-                if vert_p is not None:
-                    b_vert.append(1 if vert_p else 0)
-            elif after_lo <= sd <= after_hi:
-                if info_p is not None:
-                    a_info.append(1 if info_p else 0)
-                if loes_p is not None:
-                    a_loes.append(1 if loes_p else 0)
-                if nps_v is not None:
-                    a_nps.append(nps_v)
-                if fach_s is not None:
-                    a_fach.append(fach_s)
-                if vert_p is not None:
-                    a_vert.append(1 if vert_p else 0)
-        if b_info and a_info:
-            acc['info']['before'].append(_impact_event_quote(b_info))
-            acc['info']['after'].append(_impact_event_quote(a_info))
-            acc['info']['pairs'] += 1
-        if b_loes and a_loes:
-            acc['loes']['before'].append(_impact_event_quote(b_loes))
-            acc['loes']['after'].append(_impact_event_quote(a_loes))
-            acc['loes']['pairs'] += 1
-        if b_nps and a_nps:
-            acc['nps']['before'].append(kpi_logic.compute_nps(b_nps)['nps'])
-            acc['nps']['after'].append(kpi_logic.compute_nps(a_nps)['nps'])
-            acc['nps']['pairs'] += 1
-        if b_fach and a_fach:
-            acc['fach']['before'].append(_impact_avg(b_fach))
-            acc['fach']['after'].append(_impact_avg(a_fach))
-            acc['fach']['pairs'] += 1
-        if b_vert and a_vert:
-            acc['vert']['before'].append(_impact_event_quote(b_vert))
-            acc['vert']['after'].append(_impact_event_quote(a_vert))
-            acc['vert']['pairs'] += 1
+
+
+def _impact_day_prod(prod_by_day, day):
+    bucket = prod_by_day.get(day)
+    if not bucket:
+        return None
+    return productivity_logic._row_metrics_from_totals(bucket)
+
+
+def _impact_avg_daily_metric(day_metric_fn, metric_key, day_lo, day_hi):
+    """Average of scope-level daily values across [day_lo, day_hi] (days with data only)."""
+    if day_lo is None or day_hi is None or day_lo > day_hi:
+        return None, 0
+    vals = []
+    d = day_lo
+    while d <= day_hi:
+        dm = day_metric_fn(d)
+        if dm and dm.get(metric_key) is not None:
+            vals.append(dm[metric_key])
+        d += timedelta(days=1)
+    if not vals:
+        return None, 0
+    return round(sum(vals) / len(vals), 2), len(vals)
+
+
+def _impact_range_before_after_qual(kpi_by_day, first_coaching, last_coaching, window, coaching_count):
+    """Vorher/Während/Nachher from first/last coaching day in Zeitraum (Ø daily + Randtage)."""
+    before_lo = first_coaching - timedelta(days=window)
+    before_hi = first_coaching - timedelta(days=1)
+    during_lo = first_coaching
+    during_hi = last_coaching
+    after_lo = last_coaching + timedelta(days=1)
+    after_hi = last_coaching + timedelta(days=window)
+    raw_before_day = before_lo
+    raw_after_day = after_hi
+
+    def day_qual(d):
+        return _impact_day_qual(kpi_by_day, d)
 
     out = {}
-    for key, bucket in acc.items():
-        n = bucket['pairs']
-        if n:
-            before = round(sum(bucket['before']) / n, 2)
-            after = round(sum(bucket['after']) / n, 2)
-            out[key] = {'before': before, 'after': after, 'delta': round(after - before, 2), 'pairs': n}
-        else:
-            out[key] = {'before': None, 'after': None, 'delta': None, 'pairs': 0}
+    for key in ('info', 'loes', 'nps', 'fach', 'vert'):
+        b_avg, b_days = _impact_avg_daily_metric(day_qual, key, before_lo, before_hi)
+        d_avg, d_days = _impact_avg_daily_metric(day_qual, key, during_lo, during_hi)
+        a_avg, a_days = _impact_avg_daily_metric(day_qual, key, after_lo, after_hi)
+        raw_b = (day_qual(raw_before_day) or {}).get(key)
+        raw_a = (day_qual(raw_after_day) or {}).get(key)
+        has_avg = b_avg is not None and a_avg is not None
+        has_raw = raw_b is not None and raw_a is not None
+        out[key] = {
+            'avg': {
+                'before': b_avg,
+                'during': d_avg,
+                'after': a_avg,
+                'delta': round(a_avg - b_avg, 2) if has_avg else None,
+            },
+            'raw': {
+                'before': raw_b,
+                'after': raw_a,
+                'delta': round(raw_a - raw_b, 2) if has_raw else None,
+            },
+            'days': {'before': b_days, 'during': d_days, 'after': a_days},
+            'has_avg': has_avg,
+            'has_raw': has_raw,
+            'coachings': coaching_count,
+        }
     return out
 
 
-def _impact_before_after_prod(events, intervals_by_member, window):
-    """Before/after productivity metrics around coaching events."""
-    acc = {
-        'sign_on': {'before': [], 'after': [], 'pairs': 0},
-        'prod': {'before': [], 'after': [], 'pairs': 0},
-        'nach': {'before': [], 'after': [], 'pairs': 0},
-        'idle': {'before': [], 'after': [], 'pairs': 0},
-    }
-    for member_id, d in events:
-        rows = intervals_by_member.get(member_id)
-        if not rows:
-            continue
-        before_lo, before_hi = d - timedelta(days=window), d - timedelta(days=1)
-        after_lo, after_hi = d + timedelta(days=1), d + timedelta(days=window)
-        b_sign, a_sign = [], []
-        b_prod, a_prod = [], []
-        b_nach, a_nach = [], []
-        b_idle, a_idle = [], []
-        for sd, sign_p, prod_p, nach_p, idle_p in rows:
-            if sd is None:
-                continue
-            day = sd.date() if isinstance(sd, datetime) else sd
-            if before_lo <= day <= before_hi:
-                if sign_p is not None:
-                    b_sign.append(sign_p)
-                if prod_p is not None:
-                    b_prod.append(prod_p)
-                if nach_p is not None:
-                    b_nach.append(nach_p)
-                if idle_p is not None:
-                    b_idle.append(idle_p)
-            elif after_lo <= day <= after_hi:
-                if sign_p is not None:
-                    a_sign.append(sign_p)
-                if prod_p is not None:
-                    a_prod.append(prod_p)
-                if nach_p is not None:
-                    a_nach.append(nach_p)
-                if idle_p is not None:
-                    a_idle.append(idle_p)
-        if b_sign and a_sign:
-            acc['sign_on']['before'].append(_impact_avg(b_sign))
-            acc['sign_on']['after'].append(_impact_avg(a_sign))
-            acc['sign_on']['pairs'] += 1
-        if b_prod and a_prod:
-            acc['prod']['before'].append(_impact_avg(b_prod))
-            acc['prod']['after'].append(_impact_avg(a_prod))
-            acc['prod']['pairs'] += 1
-        if b_nach and a_nach:
-            acc['nach']['before'].append(_impact_avg(b_nach))
-            acc['nach']['after'].append(_impact_avg(a_nach))
-            acc['nach']['pairs'] += 1
-        if b_idle and a_idle:
-            acc['idle']['before'].append(_impact_avg(b_idle))
-            acc['idle']['after'].append(_impact_avg(a_idle))
-            acc['idle']['pairs'] += 1
+def _impact_range_before_after_prod(prod_by_day, first_coaching, last_coaching, window, coaching_count):
+    """Productivity Vorher/Während/Nachher from first/last coaching day in Zeitraum."""
+    before_lo = first_coaching - timedelta(days=window)
+    before_hi = first_coaching - timedelta(days=1)
+    during_lo = first_coaching
+    during_hi = last_coaching
+    after_lo = last_coaching + timedelta(days=1)
+    after_hi = last_coaching + timedelta(days=window)
+    raw_before_day = before_lo
+    raw_after_day = after_hi
+
+    def day_prod(d):
+        return _impact_day_prod(prod_by_day, d)
 
     lower_is_better = {'nach', 'idle'}
     out = {}
-    for key, bucket in acc.items():
-        n = bucket['pairs']
-        if n:
-            before = round(sum(bucket['before']) / n, 2)
-            after = round(sum(bucket['after']) / n, 2)
-            out[key] = {
-                'before': before,
-                'after': after,
-                'delta': round(after - before, 2),
-                'pairs': n,
-                'lower_is_better': key in lower_is_better,
-            }
-        else:
-            out[key] = {
-                'before': None,
-                'after': None,
-                'delta': None,
-                'pairs': 0,
-                'lower_is_better': key in lower_is_better,
-            }
+    for key in ('sign_on', 'prod', 'nach', 'idle'):
+        metric_key = 'nach_per_call' if key == 'nach' else f'{key}_pct' if key != 'prod' else 'prod_pct'
+        b_avg, b_days = _impact_avg_daily_metric(day_prod, metric_key, before_lo, before_hi)
+        d_avg, d_days = _impact_avg_daily_metric(day_prod, metric_key, during_lo, during_hi)
+        a_avg, a_days = _impact_avg_daily_metric(day_prod, metric_key, after_lo, after_hi)
+        raw_b = (day_prod(raw_before_day) or {}).get(metric_key)
+        raw_a = (day_prod(raw_after_day) or {}).get(metric_key)
+        has_avg = b_avg is not None and a_avg is not None
+        has_raw = raw_b is not None and raw_a is not None
+        out[key] = {
+            'avg': {
+                'before': b_avg,
+                'during': d_avg,
+                'after': a_avg,
+                'delta': round(a_avg - b_avg, 2) if has_avg else None,
+            },
+            'raw': {
+                'before': raw_b,
+                'after': raw_a,
+                'delta': round(raw_a - raw_b, 2) if has_raw else None,
+            },
+            'days': {'before': b_days, 'during': d_days, 'after': a_days},
+            'has_avg': has_avg,
+            'has_raw': has_raw,
+            'coachings': coaching_count,
+            'lower_is_better': key in lower_is_better,
+        }
     return out
 
 
@@ -6634,6 +6595,7 @@ def coaching_impact():
     overlay = []
     before_after = None
     before_after_prod = None
+    impact_ba_meta = None
     summary = None
     kpi = None
     scope_label = ''
@@ -6795,60 +6757,72 @@ def coaching_impact():
         )
 
         window = impact_window_days
-        surveys_by_member = {}
+        impact_ba_meta = None
         if events:
-            ev_dates = [d for _, d in events]
-            ext_start = min(ev_dates) - timedelta(days=window)
-            ext_end = max(ev_dates) + timedelta(days=window)
-            member_ids = {m for m, _ in events}
-            surv_filters = list(kpi_filters)
-            surv_filters.append(KpiSurvey.team_member_id.in_(member_ids))
-            surv_filters.append(KpiSurvey.antwort_date >= ext_start)
-            surv_filters.append(KpiSurvey.antwort_date <= ext_end)
-            surv_rows = (
+            coaching_dates = [d for _, d in events]
+            first_coaching = min(coaching_dates)
+            last_coaching = max(coaching_dates)
+            ext_start = first_coaching - timedelta(days=window)
+            ext_end = last_coaching + timedelta(days=window)
+            coaching_count = len(events)
+
+            impact_kpi_filters = list(kpi_filters)
+            impact_kpi_filters.append(KpiSurvey.antwort_date >= ext_start)
+            impact_kpi_filters.append(KpiSurvey.antwort_date <= ext_end)
+            impact_kpi_rows = (
                 db.session.query(
-                    KpiSurvey.team_member_id,
-                    KpiSurvey.antwort_date,
                     KpiSurvey.info_positive,
                     KpiSurvey.loesung_positive,
                     KpiSurvey.nps_value,
                     KpiSurvey.fachkompetenz_stars,
                     KpiSurvey.vertrieb_positive,
-                ).filter(*surv_filters).all()
+                    KpiSurvey.antwort_date,
+                ).filter(*impact_kpi_filters).all()
             )
-            for member_id, sd, info_p, loes_p, nps_v, fach_s, vert_p in surv_rows:
-                surveys_by_member.setdefault(member_id, []).append(
-                    (sd, info_p, loes_p, nps_v, fach_s, vert_p)
+            kpi_by_day_impact = {}
+            for info_p, loes_p, nps_v, fach_s, vert_p, d in impact_kpi_rows:
+                if d is None:
+                    continue
+                bucket = kpi_by_day_impact.setdefault(
+                    d, {'info': [], 'loes': [], 'nps': [], 'fach': [], 'vert': []},
                 )
-        before_after = _impact_before_after(events, surveys_by_member, window)
+                if info_p is not None:
+                    bucket['info'].append(1 if info_p else 0)
+                if loes_p is not None:
+                    bucket['loes'].append(1 if loes_p else 0)
+                if nps_v is not None:
+                    bucket['nps'].append(nps_v)
+                if fach_s is not None:
+                    bucket['fach'].append(fach_s)
+                if vert_p is not None:
+                    bucket['vert'].append(1 if vert_p else 0)
 
-        intervals_by_member = {}
-        if events:
-            ev_dates = [d for _, d in events]
-            ext_start = min(ev_dates) - timedelta(days=window)
-            ext_end = max(ev_dates) + timedelta(days=window)
-            member_ids = {m for m, _ in events}
-            iv_filters = list(prod_base)
-            iv_filters.append(ProductivityInterval.team_member_id.in_(member_ids))
-            iv_filters.append(ProductivityInterval.slot_at >= datetime.combine(ext_start, datetime.min.time()))
-            iv_filters.append(ProductivityInterval.slot_at <= datetime.combine(ext_end, datetime.max.time()))
-            if active_project_id:
-                iv_filters.append(ProductivityInterval.project_id == active_project_id)
-            iv_rows = (
-                db.session.query(
-                    ProductivityInterval.team_member_id,
-                    ProductivityInterval.slot_at,
-                    ProductivityInterval.sign_on_pct,
-                    ProductivityInterval.prod_pct,
-                    ProductivityInterval.nach_per_call,
-                    ProductivityInterval.idle_pct,
-                ).filter(*iv_filters).all()
+            impact_prod_filters = list(prod_filters)
+            impact_prod_filters.append(
+                ProductivityInterval.slot_at >= datetime.combine(ext_start, datetime.min.time()),
             )
-            for member_id, slot_at, sign_p, prod_p, nach_p, idle_p in iv_rows:
-                intervals_by_member.setdefault(member_id, []).append(
-                    (slot_at, sign_p, prod_p, nach_p, idle_p)
-                )
-        before_after_prod = _impact_before_after_prod(events, intervals_by_member, window)
+            impact_prod_filters.append(
+                ProductivityInterval.slot_at <= datetime.combine(ext_end, datetime.max.time()),
+            )
+            prod_by_day_impact = {
+                b['day']: b
+                for b in productivity_logic.query_daily_buckets_sql(impact_prod_filters)
+            }
+
+            impact_ba_meta = {
+                'first_coaching': first_coaching,
+                'last_coaching': last_coaching,
+                'coachings': coaching_count,
+                'window': window,
+                'before_start': ext_start,
+                'after_end': ext_end,
+            }
+            before_after = _impact_range_before_after_qual(
+                kpi_by_day_impact, first_coaching, last_coaching, window, coaching_count,
+            )
+            before_after_prod = _impact_range_before_after_prod(
+                prod_by_day_impact, first_coaching, last_coaching, window, coaching_count,
+            )
 
         summary = {
             'coachings': len(events),
@@ -6892,6 +6866,7 @@ def coaching_impact():
         overlay=overlay,
         before_after=before_after,
         before_after_prod=before_after_prod,
+        impact_ba_meta=impact_ba_meta,
         impact_window_days=impact_window_days,
         range_summary=range_summary,
         range_confirmed=range_confirmed,

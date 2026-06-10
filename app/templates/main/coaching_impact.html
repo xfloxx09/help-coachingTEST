@@ -34,6 +34,40 @@
         flex: 0 0 192px;
         max-width: 100%;
     }
+    .ci-ba-card-wrap .ci-card {
+        aspect-ratio: auto;
+        min-height: 148px;
+    }
+    .ci-ba-section-title {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #8a8a95;
+        margin-bottom: 0.55rem;
+    }
+    .ci-ba-meta { line-height: 1.35; }
+    .ci-ba-triple {
+        display: flex;
+        flex-direction: column;
+        gap: 0.28rem;
+        margin-top: 0.15rem;
+    }
+    .ci-ba-phase {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.35rem;
+        font-size: 0.88rem;
+        font-weight: 700;
+        line-height: 1.15;
+    }
+    .ci-ba-phase-lbl {
+        font-size: 0.62rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #8a8a95;
+        flex-shrink: 0;
+    }
     .ci-card .ci-label {
         font-size: 0.9rem;
         color: #b9b9c2;
@@ -933,35 +967,78 @@
     {% if show_ci_kpi_qual and before_after %}
     <div class="ci-view-panel ci-view-panel-qual mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.qualitaet }}</div>
-        <div class="ci-ba-card-grid mb-2">
-            {% set parts = [] %}
-            {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%')) %}{% endif %}
-            {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%')) %}{% endif %}
-            {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '')) %}{% endif %}
-            {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '')) %}{% endif %}
-            {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%')) %}{% endif %}
-            {% for key, label, cls, unit in parts %}
-            {% set ba = before_after[key] %}
-            <div class="ci-ba-card-wrap">
-                <div class="ci-card {{ cls }}">
-                    <div class="ci-label">{{ label }}</div>
-                    {% if ba.pairs %}
-                    <div class="ci-ba-values">
-                        <span class="ci-ba-val">{{ ba.before|de_decimal }}{{ unit }}</span>
-                        <i class="fas fa-arrow-right ci-arrow"></i>
-                        <span class="ci-ba-val">{{ ba.after|de_decimal }}{{ unit }}</span>
+        {% if impact_ba_meta %}
+        <p class="ci-ba-meta text-muted small mb-2">
+            {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
+            · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
+            · Wirkungsfenster {{ impact_ba_meta.window }} Tage
+        </p>
+        {% endif %}
+        {% set parts = [] %}
+        {% if visible.info %}{% set _ = parts.append(('info', 'Informationsquote', 'ci-info', '%', false)) %}{% endif %}
+        {% if visible.loesung %}{% set _ = parts.append(('loes', 'Lösungsquote', 'ci-loes', '%', false)) %}{% endif %}
+        {% if visible.nps %}{% set _ = parts.append(('nps', 'NPS', 'ci-nps', '', false)) %}{% endif %}
+        {% if visible.fachkompetenz %}{% set _ = parts.append(('fach', 'Fachkompetenz', 'ci-fach', '', true)) %}{% endif %}
+        {% if visible.vertrieb %}{% set _ = parts.append(('vert', 'Vertriebl. Ansprache', 'ci-vert', '%', false)) %}{% endif %}
+
+        <div class="ci-ba-section">
+            <div class="ci-ba-section-title">Ø Tagesdurchschnitt</div>
+            <div class="ci-ba-card-grid mb-2">
+                {% for key, label, cls, unit, one_decimal in parts %}
+                {% set ba = before_after[key] %}
+                {% set avg = ba.avg %}
+                <div class="ci-ba-card-wrap">
+                    <div class="ci-card {{ cls }}">
+                        <div class="ci-label">{{ label }}</div>
+                        {% if ba.has_avg %}
+                        <div class="ci-ba-triple">
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Vorher</span><span>{% if one_decimal %}{{ avg.before|de_decimal(1) }}{% else %}{{ avg.before|de_decimal }}{% endif %}{{ unit }}</span></div>
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Während</span><span>{% if avg.during is not none %}{% if one_decimal %}{{ avg.during|de_decimal(1) }}{% else %}{{ avg.during|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span></div>
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Nachher</span><span>{% if one_decimal %}{{ avg.after|de_decimal(1) }}{% else %}{{ avg.after|de_decimal }}{% endif %}{{ unit }}</span></div>
+                        </div>
+                        <div class="ci-delta {% if avg.delta > 0 %}ci-delta-up{% elif avg.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                            {% if avg.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif avg.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ avg.delta|de_decimal(1) }}{% else %}{{ avg.delta|de_decimal }}{% endif %}{{ unit }}
+                        </div>
+                        <div class="ci-sub">{{ ba.days.before }} / {{ ba.days.during }} / {{ ba.days.after }} Tage mit Daten</div>
+                        {% else %}
+                        <div class="ci-ba-val text-muted">–</div>
+                        <div class="ci-sub">Keine Daten vor und nach den Coachings</div>
+                        {% endif %}
                     </div>
-                    <div class="ci-delta {% if ba.delta > 0 %}ci-delta-up{% elif ba.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                    </div>
-                    <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
-                    {% else %}
-                    <div class="ci-ba-val text-muted">–</div>
-                    <div class="ci-sub">Keine Daten auf beiden Seiten</div>
-                    {% endif %}
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+        </div>
+
+        <div class="ci-ba-section mt-3">
+            <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
+            <div class="ci-ba-card-grid mb-2">
+                {% for key, label, cls, unit, one_decimal in parts %}
+                {% set ba = before_after[key] %}
+                {% set raw = ba.raw %}
+                <div class="ci-ba-card-wrap">
+                    <div class="ci-card {{ cls }}">
+                        <div class="ci-label">{{ label }}</div>
+                        {% if ba.has_raw %}
+                        <div class="ci-ba-values">
+                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.before|de_decimal(1) }}{% else %}{{ raw.before|de_decimal }}{% endif %}{{ unit }}</span>
+                            <i class="fas fa-arrow-right ci-arrow"></i>
+                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.after|de_decimal(1) }}{% else %}{{ raw.after|de_decimal }}{% endif %}{{ unit }}</span>
+                        </div>
+                        <div class="ci-delta {% if raw.delta > 0 %}ci-delta-up{% elif raw.delta < 0 %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                            {% if raw.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif raw.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ raw.delta|de_decimal(1) }}{% else %}{{ raw.delta|de_decimal }}{% endif %}{{ unit }}
+                        </div>
+                        {% if impact_ba_meta %}
+                        <div class="ci-sub">{{ impact_ba_meta.before_start.strftime('%d.%m.%Y') }} → {{ impact_ba_meta.after_end.strftime('%d.%m.%Y') }}</div>
+                        {% endif %}
+                        {% else %}
+                        <div class="ci-ba-val text-muted">–</div>
+                        <div class="ci-sub">Keine Rohdaten an den Randtagen</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
     {% endif %}
@@ -969,43 +1046,95 @@
     {% if show_ci_kpi_prod and before_after_prod and (visible_prod.sign_on or visible_prod.prod or visible_prod.nach or visible_prod.idle) %}
     <div class="ci-view-panel ci-view-panel-prod mb-4">
         <div class="ci-view-panel-title">Vorher / Nachher · {{ cat_labels.produktivitaet }}</div>
-        <div class="ci-ba-card-grid mb-2">
-            {% set prod_parts = [] %}
-            {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%')) %}{% endif %}
-            {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%')) %}{% endif %}
-            {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's')) %}{% endif %}
-            {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%')) %}{% endif %}
-            {% for key, label, cls, unit in prod_parts %}
-            {% set ba = before_after_prod[key] %}
-            <div class="ci-ba-card-wrap">
-                <div class="ci-card {{ cls }}">
-                    {% if key == 'prod' %}
-                    <div class="ci-label ci-label-with-hint">
-                        <span>{{ label }}</span>
-                        {% include 'main/_prod_metric_hint.html' %}
+        {% if impact_ba_meta %}
+        <p class="ci-ba-meta text-muted small mb-2">
+            {{ impact_ba_meta.coachings }} Coachings · erster Coaching-Tag {{ impact_ba_meta.first_coaching.strftime('%d.%m.%Y') }}
+            · letzter {{ impact_ba_meta.last_coaching.strftime('%d.%m.%Y') }}
+            · Wirkungsfenster {{ impact_ba_meta.window }} Tage
+        </p>
+        {% endif %}
+        {% set prod_parts = [] %}
+        {% if visible_prod.sign_on %}{% set _ = prod_parts.append(('sign_on', prod_labels.sign_on, 'ci-sign', '%', false)) %}{% endif %}
+        {% if visible_prod.prod %}{% set _ = prod_parts.append(('prod', prod_labels.prod, 'ci-prod', '%', false)) %}{% endif %}
+        {% if visible_prod.nach %}{% set _ = prod_parts.append(('nach', prod_labels.nach, 'ci-nachp', 's', true)) %}{% endif %}
+        {% if visible_prod.idle %}{% set _ = prod_parts.append(('idle', prod_labels.idle, 'ci-idle', '%', false)) %}{% endif %}
+
+        <div class="ci-ba-section">
+            <div class="ci-ba-section-title">Ø Tagesdurchschnitt</div>
+            <div class="ci-ba-card-grid mb-2">
+                {% for key, label, cls, unit, one_decimal in prod_parts %}
+                {% set ba = before_after_prod[key] %}
+                {% set avg = ba.avg %}
+                <div class="ci-ba-card-wrap">
+                    <div class="ci-card {{ cls }}">
+                        {% if key == 'prod' %}
+                        <div class="ci-label ci-label-with-hint">
+                            <span>{{ label }}</span>
+                            {% include 'main/_prod_metric_hint.html' %}
+                        </div>
+                        {% else %}
+                        <div class="ci-label">{{ label }}</div>
+                        {% endif %}
+                        {% if ba.has_avg %}
+                        {% set delta_good = (avg.delta < 0) if ba.lower_is_better else (avg.delta > 0) %}
+                        {% set delta_bad = (avg.delta > 0) if ba.lower_is_better else (avg.delta < 0) %}
+                        <div class="ci-ba-triple">
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Vorher</span><span>{% if one_decimal %}{{ avg.before|de_decimal(1) }}{% else %}{{ avg.before|de_decimal }}{% endif %}{{ unit }}</span></div>
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Während</span><span>{% if avg.during is not none %}{% if one_decimal %}{{ avg.during|de_decimal(1) }}{% else %}{{ avg.during|de_decimal }}{% endif %}{{ unit }}{% else %}–{% endif %}</span></div>
+                            <div class="ci-ba-phase"><span class="ci-ba-phase-lbl">Nachher</span><span>{% if one_decimal %}{{ avg.after|de_decimal(1) }}{% else %}{{ avg.after|de_decimal }}{% endif %}{{ unit }}</span></div>
+                        </div>
+                        <div class="ci-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                            {% if avg.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif avg.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ avg.delta|de_decimal(1) }}{% else %}{{ avg.delta|de_decimal }}{% endif %}{{ unit }}
+                        </div>
+                        <div class="ci-sub">{{ ba.days.before }} / {{ ba.days.during }} / {{ ba.days.after }} Tage mit Daten</div>
+                        {% else %}
+                        <div class="ci-ba-val text-muted">–</div>
+                        <div class="ci-sub">Keine Daten vor und nach den Coachings</div>
+                        {% endif %}
                     </div>
-                    {% else %}
-                    <div class="ci-label">{{ label }}</div>
-                    {% endif %}
-                    {% if ba.pairs %}
-                    {% set delta_good = (ba.delta < 0) if ba.lower_is_better else (ba.delta > 0) %}
-                    {% set delta_bad = (ba.delta > 0) if ba.lower_is_better else (ba.delta < 0) %}
-                    <div class="ci-ba-values">
-                        <span class="ci-ba-val">{{ ba.before|de_decimal }}{{ unit }}</span>
-                        <i class="fas fa-arrow-right ci-arrow"></i>
-                        <span class="ci-ba-val">{{ ba.after|de_decimal }}{{ unit }}</span>
-                    </div>
-                    <div class="ci-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
-                        {% if ba.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif ba.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{{ ba.delta|de_decimal }}{{ unit }}
-                    </div>
-                    <div class="ci-sub">{{ ba.pairs }} Coaching(s) mit Daten</div>
-                    {% else %}
-                    <div class="ci-ba-val text-muted">–</div>
-                    <div class="ci-sub">Keine Daten auf beiden Seiten</div>
-                    {% endif %}
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+        </div>
+
+        <div class="ci-ba-section mt-3">
+            <div class="ci-ba-section-title">Randtage (1. / letzter Tag Wirkungsfenster)</div>
+            <div class="ci-ba-card-grid mb-2">
+                {% for key, label, cls, unit, one_decimal in prod_parts %}
+                {% set ba = before_after_prod[key] %}
+                {% set raw = ba.raw %}
+                <div class="ci-ba-card-wrap">
+                    <div class="ci-card {{ cls }}">
+                        {% if key == 'prod' %}
+                        <div class="ci-label ci-label-with-hint">
+                            <span>{{ label }}</span>
+                            {% include 'main/_prod_metric_hint.html' %}
+                        </div>
+                        {% else %}
+                        <div class="ci-label">{{ label }}</div>
+                        {% endif %}
+                        {% if ba.has_raw %}
+                        {% set delta_good = (raw.delta < 0) if ba.lower_is_better else (raw.delta > 0) %}
+                        {% set delta_bad = (raw.delta > 0) if ba.lower_is_better else (raw.delta < 0) %}
+                        <div class="ci-ba-values">
+                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.before|de_decimal(1) }}{% else %}{{ raw.before|de_decimal }}{% endif %}{{ unit }}</span>
+                            <i class="fas fa-arrow-right ci-arrow"></i>
+                            <span class="ci-ba-val">{% if one_decimal %}{{ raw.after|de_decimal(1) }}{% else %}{{ raw.after|de_decimal }}{% endif %}{{ unit }}</span>
+                        </div>
+                        <div class="ci-delta {% if delta_good %}ci-delta-up{% elif delta_bad %}ci-delta-down{% else %}ci-delta-flat{% endif %}">
+                            {% if raw.delta > 0 %}<i class="fas fa-caret-up"></i> +{% elif raw.delta < 0 %}<i class="fas fa-caret-down"></i> {% else %}± {% endif %}{% if one_decimal %}{{ raw.delta|de_decimal(1) }}{% else %}{{ raw.delta|de_decimal }}{% endif %}{{ unit }}
+                        </div>
+                        {% if impact_ba_meta %}
+                        <div class="ci-sub">{{ impact_ba_meta.before_start.strftime('%d.%m.%Y') }} → {{ impact_ba_meta.after_end.strftime('%d.%m.%Y') }}</div>
+                        {% endif %}
+                        {% else %}
+                        <div class="ci-ba-val text-muted">–</div>
+                        <div class="ci-sub">Keine Rohdaten an den Randtagen</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
     {% endif %}
@@ -1111,7 +1240,7 @@
     <div class="card mb-4" style="background:#22222a;border-color:#34343c;">
         <div class="card-header" style="background:transparent;border-color:#34343c;">
             <strong>Vorher / Nachher</strong>
-            <span class="text-muted small font-weight-normal">— Ø über alle Coachings mit Daten auf beiden Seiten</span>
+            <span class="text-muted small font-weight-normal">— Ø Tagesdurchschnitt vor · während · nach den Coachings im Zeitraum</span>
         </div>
         <div class="card-body">
             <div class="ci-ba-chart-wrap">
@@ -2404,18 +2533,18 @@
             ciBaChartInstance.destroy();
             ciBaChartInstance = null;
         }
-        var baLabels = [], baBefore = [], baAfter = [];
+        var baLabels = [], baBefore = [], baDuring = [], baAfter = [];
         if (mode === 'produktivitaet' && baProd) {
-            if (visibleProd.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(baProd.sign_on.before); baAfter.push(baProd.sign_on.after); }
-            if (visibleProd.prod) { baLabels.push(prodLabels.prod); baBefore.push(baProd.prod.before); baAfter.push(baProd.prod.after); }
-            if (visibleProd.nach) { baLabels.push(prodLabels.nach); baBefore.push(baProd.nach.before); baAfter.push(baProd.nach.after); }
-            if (visibleProd.idle) { baLabels.push(prodLabels.idle); baBefore.push(baProd.idle.before); baAfter.push(baProd.idle.after); }
+            if (visibleProd.sign_on) { baLabels.push(prodLabels.sign_on); baBefore.push(baProd.sign_on.avg.before); baDuring.push(baProd.sign_on.avg.during); baAfter.push(baProd.sign_on.avg.after); }
+            if (visibleProd.prod) { baLabels.push(prodLabels.prod); baBefore.push(baProd.prod.avg.before); baDuring.push(baProd.prod.avg.during); baAfter.push(baProd.prod.avg.after); }
+            if (visibleProd.nach) { baLabels.push(prodLabels.nach); baBefore.push(baProd.nach.avg.before); baDuring.push(baProd.nach.avg.during); baAfter.push(baProd.nach.avg.after); }
+            if (visibleProd.idle) { baLabels.push(prodLabels.idle); baBefore.push(baProd.idle.avg.before); baDuring.push(baProd.idle.avg.during); baAfter.push(baProd.idle.avg.after); }
         } else if (ba) {
-            if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.before); baAfter.push(ba.info.after); }
-            if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.before); baAfter.push(ba.loes.after); }
-            if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.before); baAfter.push(ba.nps.after); }
-            if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.before); baAfter.push(ba.fach.after); }
-            if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.before); baAfter.push(ba.vert.after); }
+            if (visible.info) { baLabels.push('Informationsquote'); baBefore.push(ba.info.avg.before); baDuring.push(ba.info.avg.during); baAfter.push(ba.info.avg.after); }
+            if (visible.loesung) { baLabels.push('Lösungsquote'); baBefore.push(ba.loes.avg.before); baDuring.push(ba.loes.avg.during); baAfter.push(ba.loes.avg.after); }
+            if (visible.nps) { baLabels.push('NPS'); baBefore.push(ba.nps.avg.before); baDuring.push(ba.nps.avg.during); baAfter.push(ba.nps.avg.after); }
+            if (visible.fachkompetenz) { baLabels.push('Fachkompetenz'); baBefore.push(ba.fach.avg.before); baDuring.push(ba.fach.avg.during); baAfter.push(ba.fach.avg.after); }
+            if (visible.vertrieb) { baLabels.push('Vertrieb'); baBefore.push(ba.vert.avg.before); baDuring.push(ba.vert.avg.during); baAfter.push(ba.vert.avg.after); }
         }
         if (!baLabels.length) return;
         ciBaChartInstance = new Chart(bc.getContext('2d'), {
@@ -2423,8 +2552,9 @@
             data: {
                 labels: baLabels,
                 datasets: [
-                    { label: 'Vorher', data: baBefore, backgroundColor: 'rgba(154,154,165,0.65)' },
-                    { label: 'Nachher', data: baAfter, backgroundColor: 'rgba(226,0,116,0.7)' },
+                    { label: 'Vorher Ø', data: baBefore, backgroundColor: 'rgba(154,154,165,0.65)' },
+                    { label: 'Während Ø', data: baDuring, backgroundColor: 'rgba(120,120,200,0.65)' },
+                    { label: 'Nachher Ø', data: baAfter, backgroundColor: 'rgba(226,0,116,0.7)' },
                 ],
             },
             options: {
